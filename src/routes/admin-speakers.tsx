@@ -637,9 +637,8 @@ const ImportDialog: FC = () => (
           <div style={`${LABEL}margin-bottom:6px;`}>CSV FILE</div>
           <input type="file" id="import-file" accept=".csv,text/csv" style="font-size:13px;" />
           <div style="font-size:12.5px;color:#686b74;margin-top:6px;line-height:1.5;">
-            First row is treated as the header. Quoted fields with commas and line breaks are supported. Speakers are
-            matched by <strong>email</strong> — a row whose email is already on file updates that speaker instead of
-            adding a second one.
+            First row is the header. Speakers are matched by <strong>email</strong>, so a row that matches an existing
+            speaker updates them instead of adding a duplicate.
           </div>
         </div>
         <div id="import-mapping-wrap" hidden>
