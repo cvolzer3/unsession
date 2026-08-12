@@ -250,9 +250,9 @@ app.get('/app', async (c) => {
   const review = await reviewProgress(db, event.id);
   const myQueue = c.var.user ? await myReviewQueue(db, event.id, c.var.user.id) : null;
 
-  const forms = await all<{ name: string; closes_at: string | null; status: string }>(
+  const forms = await all<{ id: string; name: string; closes_at: string | null; status: string }>(
     db,
-    `SELECT name, closes_at, status FROM forms WHERE event_id = ? AND closes_at IS NOT NULL AND status <> 'draft'`,
+    `SELECT id, name, closes_at, status FROM forms WHERE event_id = ? AND closes_at IS NOT NULL AND status <> 'draft'`,
     event.id
   );
   const plans = await all<{ name: string; deadline: string | null }>(
@@ -279,7 +279,7 @@ app.get('/app', async (c) => {
       sub: `${cnt('confirmed')} confirmed by speaker`,
       href: '/app/sessions',
     },
-    { label: 'UNSCHEDULED', val: unscheduled, sub: 'ready for the agenda', href: '/app/agenda' },
+    { label: 'UNSCHEDULED', val: unscheduled, sub: 'ready for the agenda', href: '/app/agenda?focus=unscheduled' },
   ];
 
   const attention: AttentionItem[] = [];
@@ -309,8 +309,8 @@ app.get('/app', async (c) => {
     attention.push({
       title: `${conflict.name} is double-booked`,
       sub: `Day ${conflict.day + 1}, ${fmtMin(conflict.start_min)} — ${conflict.rooms} at once`,
-      cta: 'Open agenda →',
-      href: '/app/agenda',
+      cta: 'Review conflicts →',
+      href: '/app/agenda?focus=conflicts',
       dot: '#e03131',
     });
   }
@@ -318,8 +318,8 @@ app.get('/app', async (c) => {
     attention.push({
       title: `${overdue!.n} speaker task${overdue!.n === 1 ? '' : 's'} overdue`,
       sub: `${overdue!.speakers} speaker${overdue!.speakers === 1 ? '' : 's'} behind on onboarding`,
-      cta: 'Nudge speakers →',
-      href: '/app/speakers',
+      cta: 'Show who’s behind →',
+      href: '/app/speakers?focus=overdue',
       dot: '#e03131',
     });
   }
@@ -330,8 +330,8 @@ app.get('/app', async (c) => {
     attention.push({
       title: `“${f.name}” closes ${fmtDate(f.closes_at)}`,
       sub: left === 0 ? 'Closes today — extend it or announce the deadline' : `${left} day${left === 1 ? '' : 's'} left — extend it or announce the deadline`,
-      cta: 'Open forms →',
-      href: '/app/forms',
+      cta: 'Extend deadline →',
+      href: `/app/forms?form=${f.id}&focus=deadline`,
       dot: '#b08800',
     });
   }
@@ -342,8 +342,8 @@ app.get('/app', async (c) => {
           ? `1 accepted speaker hasn't confirmed`
           : `${staleAccepted} accepted speakers haven't confirmed`,
       sub: 'Accepted more than 7 days ago — send them a nudge',
-      cta: 'Nudge speakers →',
-      href: '/app/speakers',
+      cta: 'Show unconfirmed →',
+      href: '/app/speakers?focus=unconfirmed',
       dot: '#b08800',
     });
   }
@@ -352,7 +352,7 @@ app.get('/app', async (c) => {
       title: `${unreviewed} submission${unreviewed === 1 ? '' : 's'} have no reviews yet`,
       sub: deadlines.length ? `Assign them before ${fmtDate(deadlines[0].date)}` : 'Assign them to an evaluation plan',
       cta: 'Assign reviewers →',
-      href: '/app/evaluation',
+      href: '/app/evaluation?filter=unreviewed',
       dot: '#b08800',
     });
   }
@@ -360,8 +360,8 @@ app.get('/app', async (c) => {
     attention.push({
       title: `${unscheduled} accepted session${unscheduled === 1 ? '' : 's'} not on the agenda`,
       sub: 'Drag them onto a day in the agenda builder',
-      cta: 'Open agenda →',
-      href: '/app/agenda',
+      cta: 'Open agenda tray →',
+      href: '/app/agenda?focus=unscheduled',
       dot: '#b08800',
     });
   }

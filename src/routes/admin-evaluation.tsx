@@ -216,6 +216,7 @@ app.get('/app/evaluation', async (c) => {
     q: c.req.query('q') ?? '',
     track: c.req.query('track') || 'all',
     plan: tab === 'plans' ? 'all' : c.req.query('plan') || 'all',
+    unreviewed: c.req.query('filter') === 'unreviewed',
   };
   const editing = c.req.query('edit') === '1' || c.req.query('new') === '1';
   const isNew = c.req.query('new') === '1';
@@ -319,7 +320,7 @@ app.get('/app/evaluation', async (c) => {
 
 /* ------------------------------------------------------------ scores tab */
 
-type Filters = { q: string; track: string; plan: string };
+type Filters = { q: string; track: string; plan: string; unreviewed: boolean };
 
 function ScoresTab(opts: { ctx: PageCtx; openSub: string; reminders: RemindersData; filters: Filters }) {
   const { ctx, openSub, reminders, filters } = opts;
@@ -379,6 +380,10 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
     }
   }
   if (fTrack !== 'all') rows = rows.filter((s) => s.trackOptionId === fTrack);
+  if (filters.unreviewed) {
+    const reviewed = new Set(ctx.evaluations.map((e) => e.submissionId));
+    rows = rows.filter((s) => !reviewed.has(s.id));
+  }
   if (q) {
     rows = rows.filter((s) =>
       `${s.title} ${s.displayId} ${s.trackName} ${s.speakers.map((p) => p.name).join(' ')}`.toLowerCase().includes(q)
@@ -390,11 +395,27 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
     return (sb.avg ?? -1) - (sa.avg ?? -1) || sa.remaining - sb.remaining;
   });
 
-  const hasFilters = !!(q || fTrack !== 'all' || fPlan !== 'all');
+  const hasFilters = !!(q || fTrack !== 'all' || fPlan !== 'all' || filters.unreviewed);
 
   return (
     <div>
+      {filters.unreviewed ? (
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;">
+          <span>
+            From the dashboard — showing{' '}
+            <b>{`${rows.length} submission${rows.length === 1 ? '' : 's'} with no evaluations yet`}</b>. Assign
+            evaluators or nudge the ones already assigned.
+          </span>
+          <a
+            href="/app/evaluation"
+            style="margin-left:auto;color:#7a5c0a;font-size:12.5px;text-decoration:underline;white-space:nowrap;"
+          >
+            Show all submissions
+          </a>
+        </div>
+      ) : null}
       <form method="get" action="/app/evaluation" data-autosubmit style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+        {filters.unreviewed ? <input type="hidden" name="filter" value="unreviewed" /> : null}
         <input name="q" value={filters.q} placeholder="Search title or author…" style={`width:250px;${INPUT}`} />
         <select name="track" style={SELECT}>
           <option value="all" selected={fTrack === 'all'}>

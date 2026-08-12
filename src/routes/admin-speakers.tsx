@@ -65,6 +65,7 @@ type GridRow = {
   email: string;
   slug: string;
   session: string;
+  status: string;
   cells: Record<string, string>;
   done: number;
   assigned: number;
@@ -153,6 +154,7 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
       email: p.email,
       slug: p.slug,
       session: mySessions?.title ?? sub?.title ?? '',
+      status: sub?.status ?? '',
       cells,
       done,
       assigned,
@@ -191,6 +193,7 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
             data-id={r.id}
             data-name={r.name}
             data-session={r.session}
+            data-status={r.status}
             data-cells={data.active.map((t) => `${t.id}:${r.cells[t.id]}`).join(',')}
           >
             <div data-open-speaker={r.id} style="padding-right:10px;cursor:pointer;" title="Open speaker profile">

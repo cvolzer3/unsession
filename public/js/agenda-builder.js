@@ -55,6 +55,14 @@ function boot(D) {
     unpublished: !!D.unpublished,
   };
 
+  // Dashboard deep links: ?focus=conflicts lands on the list view filtered to
+  // double-bookings; ?focus=unscheduled pulses the tray (handled after render).
+  const focusParam = new URLSearchParams(location.search).get('focus');
+  if (focusParam === 'conflicts') {
+    S.view = 'list';
+    S.fStatus = 'conflict';
+  }
+
   /* ------------------------------------------------------------- helpers */
   const esc = (s) =>
     String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -1274,4 +1282,29 @@ function boot(D) {
 
   wireNewSession();
   render();
+
+  if (focusParam === 'conflicts') {
+    document.querySelectorAll('[data-view]').forEach((b) => {
+      b.setAttribute('style', tabBtn(b.dataset.view === 'list'));
+    });
+    const n = conflictSet().size;
+    toast(
+      n
+        ? `Showing ${n} double-booked session${n === 1 ? '' : 's'} — drag one to a free slot`
+        : 'No double-bookings right now'
+    );
+  } else if (focusParam === 'unscheduled' && binEl) {
+    const n = bin().length;
+    toast(
+      n
+        ? `${n} accepted session${n === 1 ? '' : 's'} waiting in the tray — drag them onto a day`
+        : 'Nothing waiting in the tray'
+    );
+    const pulse = document.createElement('style');
+    pulse.textContent =
+      '@keyframes usFocusPulse{0%{box-shadow:0 0 0 0 rgba(76,95,213,0.45)}100%{box-shadow:0 0 0 12px rgba(76,95,213,0)}}';
+    document.head.appendChild(pulse);
+    binEl.style.animation = 'usFocusPulse 1.2s ease-out 2';
+    binEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }

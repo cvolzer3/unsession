@@ -67,10 +67,11 @@ const rows = rowsEls.map((el) => ({
   id: el.dataset.id,
   name: el.dataset.name || '',
   session: el.dataset.session || '',
+  status: el.dataset.status || '',
   cells: Object.fromEntries((el.dataset.cells || '').split(',').filter(Boolean).map((p) => p.split(':'))),
 }));
 
-const state = { task: '', state: '', q: '', review: false, page: 0 };
+const state = { task: '', state: '', q: '', review: false, unconfirmed: false, page: 0 };
 
 function filtered() {
   let out = rows;
@@ -80,6 +81,7 @@ function filtered() {
     out = out.filter((r) => Object.values(r.cells).includes(state.state));
   }
   if (state.review) out = out.filter((r) => Object.values(r.cells).includes('r'));
+  if (state.unconfirmed) out = out.filter((r) => r.status === 'accepted');
   const q = state.q.trim().toLowerCase();
   if (q) out = out.filter((r) => r.name.toLowerCase().includes(q) || r.session.toLowerCase().includes(q));
   return out;
@@ -143,6 +145,47 @@ $('#pg-next').addEventListener('click', () => {
 });
 
 renderGrid();
+
+/* ------------------------------------------- dashboard deep links (?focus=) */
+
+const focusParam = new URLSearchParams(location.search).get('focus');
+if (focusParam === 'overdue' || focusParam === 'unconfirmed') {
+  if (focusParam === 'overdue') {
+    state.state = 'o';
+    $('#f-state').value = 'o';
+  } else {
+    state.unconfirmed = true;
+  }
+  state.page = 0;
+  renderGrid();
+
+  const n = filtered().length;
+  const label =
+    focusParam === 'overdue'
+      ? `${n} speaker${n === 1 ? '' : 's'} with overdue tasks`
+      : `${n} accepted speaker${n === 1 ? '' : 's'} who haven’t confirmed yet`;
+  const gridWrap = $('#grid-body').parentElement;
+  const banner = document.createElement('div');
+  banner.style.cssText =
+    'display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;';
+  banner.innerHTML =
+    `<span>From the dashboard — showing <b>${esc(label)}</b>.</span>` +
+    '<button type="button" data-focus-clear style="margin-left:auto;background:none;border:none;color:#7a5c0a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;white-space:nowrap;">Show all speakers</button>';
+  gridWrap.parentNode.insertBefore(banner, gridWrap);
+  banner.querySelector('[data-focus-clear]').addEventListener('click', () => {
+    state.state = '';
+    state.unconfirmed = false;
+    $('#f-state').value = '';
+    banner.remove();
+    history.replaceState(null, '', '/app/speakers');
+    renderGrid();
+  });
+
+  const pulse = document.createElement('style');
+  pulse.textContent = '@keyframes usFocusPulse{0%{box-shadow:0 0 0 0 rgba(176,136,0,0.4)}100%{box-shadow:0 0 0 12px rgba(176,136,0,0)}}';
+  document.head.appendChild(pulse);
+  gridWrap.style.animation = 'usFocusPulse 1.2s ease-out 2';
+}
 
 /* -------------------------------------------------------- speaker drawer */
 

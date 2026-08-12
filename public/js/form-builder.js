@@ -9,7 +9,7 @@
  *     versioning happens server-side)
  *   · Preview mode, rendered by the *public* form's renderer
  */
-import { toast, api, copy } from './ui.js';
+import { toast, api, copy, openDialog } from './ui.js';
 import { renderPreview } from './public-form.js';
 
 const MONO = "'IBM Plex Mono',monospace";
@@ -745,3 +745,24 @@ function mountPreview(D) {
 
 const dataEl = document.getElementById('fb-data');
 if (dataEl) boot(JSON.parse(dataEl.textContent));
+
+// Dashboard deep link: ?focus=deadline opens the settings drawer on the
+// Closes date, so "extend the deadline" is one edit away.
+if (new URLSearchParams(location.search).get('focus') === 'deadline' && document.querySelector('#form-settings')) {
+  openDialog('#form-settings');
+  const closes = document.querySelector('#form-settings [name="closes_at"]');
+  if (closes) {
+    const pulse = document.createElement('style');
+    pulse.textContent =
+      '@keyframes usFocusPulse{0%{box-shadow:0 0 0 0 rgba(76,95,213,0.5)}100%{box-shadow:0 0 0 10px rgba(76,95,213,0)}}';
+    document.head.appendChild(pulse);
+    closes.style.animation = 'usFocusPulse 1.2s ease-out 2';
+    closes.style.outline = '2px solid #4c5fd5';
+    closes.style.outlineOffset = '1px';
+    closes.focus();
+    setTimeout(() => {
+      closes.style.outline = '';
+      closes.style.outlineOffset = '';
+    }, 4000);
+  }
+}
