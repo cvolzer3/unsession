@@ -168,7 +168,7 @@ app.get('/app/emails', async (c) => {
                   {s.rows.map((t) => (
                     <a
                       href={`/app/emails/t/${t.id}`}
-                      style="display:grid;grid-template-columns:220px minmax(0,1fr) 80px;gap:14px;align-items:center;padding:11px 14px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                      style="display:grid;grid-template-columns:220px minmax(0,1fr) 80px auto;gap:14px;align-items:center;padding:11px 14px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
                     >
                       <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {t.name}
@@ -179,6 +179,10 @@ app.get('/app/emails', async (c) => {
                       <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;text-align:right;`}>
                         {`${sentByKey.get(t.key) ?? 0} sent`}
                       </div>
+                      {/* the whole row is the link — this is the affordance, not a nested control */}
+                      <span style="justify-self:end;padding:6px 14px;background:#4c5fd5;color:#fff;font-size:12px;font-weight:600;">
+                        Edit
+                      </span>
                     </a>
                   ))}
                 </div>
