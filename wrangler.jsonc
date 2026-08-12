@@ -5,6 +5,11 @@
   "main": "src/index.tsx",
   "compatibility_date": "2026-08-11",
   "compatibility_flags": ["nodejs_compat"],
+
+  "routes": [
+    { "pattern": "unsession.dev", "custom_domain": true },
+    { "pattern": "www.unsession.dev", "custom_domain": true }
+  ],
   "observability": { "enabled": true },
 
   "assets": {
@@ -42,7 +47,7 @@
     // Single source for absolute URLs in emails and magic links. Must match the
     // origin the worker is actually reachable on — switch to https://unsession.dev
     // once the custom domain route is attached.
-    "APP_ORIGIN": "https://unsession.unsession.workers.dev",
+    "APP_ORIGIN": "https://unsession.dev",
     "EMAIL_FROM": "no-reply@unsession.dev",
     "EMAIL_ENABLED": "0"
   }
