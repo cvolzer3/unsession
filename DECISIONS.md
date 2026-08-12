@@ -8,6 +8,25 @@ Decisions I made on your behalf while you were away (each reversible — flag an
 
 Post-integration notes, minor, for later polish: (a) the Submissions score denominator counts every plan covering a submission (so an AI-track talk reads "1/5" where the mock said "1/3") — data-honest, revisit if it reads oddly; (b) sandbox events accumulate in the production DB (a few test sandboxes exist from the build); a retention job awaits your Q5 call; (c) builder drag-and-drop was verified by the agenda track's own browser run — synthetic automation can't fire HTML5 drag events, so re-test by hand when you're back.
 
+## Review-round decisions (2026-08-12, with Chris — punch list + triage)
+
+Source docs: Chris's `review-punch-list.md` and `triage-todos.md` (Desktop). Chris's calls:
+
+- **R1 · Dashboard pipeline widget: removed.** KPI row keeps the counts; the space goes to the action feed with quick actions (triage B9).
+- **R2 · Submissions row cap:** benchmark at ~3–5k rows, then drop the 500-row cap — everything ships to the client, filter/sort client-side.
+- **R3 · Rich text = WYSIWYG bounded to rich-lite** (bold/italic/links/lists/headings), built as a vanilla-JS island. Applies to email templates, welcome/post-submit messages, section descriptions, task descriptions (triage C3).
+- **R4 · Speaker name stays a single full-name field** — first/last split (triage C5) rejected.
+- **R5 · Speaker CRM stays cut** (C1). Event duplication + form templates remain the answer.
+- **R6 · Auto-scheduler parked** as a post-review fast-follow: constraint-solving "Suggest a schedule" inside the agenda builder, not AI (C2).
+- **R7 · Sponsors = session-type intake forms (B5) + sponsor badge.** No sponsor-management module (C4).
+- **R8 · Custom domains stay deferred** (C6) — self-hosters get domains for free via open source; hosted users live with unsession.dev for now. Event website-URL field (B11) dropped too.
+- **R9 · Public pages never link submission forms** — forms are share-link only. Admin sidebar: per-form links replace the single guessing link; Speaker/Evaluator portal links removed.
+- **R10 · API + MCP (B12): full implementation** — read *and* write, token auth, MCP server. Mini-spec first (`SPECS/`), then build.
+- **R11 · Email sending: GO.** Chris authorized Workers Paid ($5/mo) — card on file. Resolves Q2 below. Purchase, finish Email Service onboarding for unsession.dev, uncomment `send_email` binding, `EMAIL_ENABLED=1`, verify a real send.
+- **R12 · SmolForge migration dropped** (signup blocked). Repo stays on GitHub (D3).
+- **R13 · License: open.** Claude recommends AGPL-3.0 (open source + protects the hosted offering); Chris deciding (D1).
+- Deferred-not-cut, per punch list: internal comments + activity log hidden from the submissions drawer UI (data and endpoints stay).
+
 ## Decisions made
 
 - **D1 · Naming/branding:** Product is **Unsession** (the prototype's placeholder name "Program" is replaced everywhere; logo block "P" → "U"). Hosted at **unsession.dev** — your Cloudflare account already has the zone active, so public URLs are `unsession.dev/{event}/{form}` and admin is `unsession.dev/app`.
