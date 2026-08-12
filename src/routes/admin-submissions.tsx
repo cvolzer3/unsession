@@ -1,6 +1,8 @@
 /**
  * `/app/submissions` — the submissions table, detail drawer, decision modal,
- * internal comments, CSV import/export and the group-mail composer (spec B2).
+ * CSV import, CSV/XLSX export and the group-mail composer (spec B2). Internal
+ * comments and the activity log are hidden from the drawer for now (deferred,
+ * not cut — see DECISIONS); their endpoints and queries stay live below.
  *
  * Markup and inline styles are ported from
  * `prototype/design_handoff_program/design/Submissions.dc.html`; the decision
@@ -21,6 +23,7 @@ import { logActivity } from '../lib/activity';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { applyDecision, isDecision } from '../lib/decisions';
 import { csvHeaders, parseCsvTable, toCsv, type CsvRow } from '../lib/csv';
+import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 
 const app = new Hono<Ctx>();
 
@@ -488,8 +491,11 @@ app.get('/app/submissions', async (c) => {
                 Import CSV
               </button>
             ) : null}
-            <button type="button" id="btn-export" style={HEAD_BTN}>
+            <button type="button" id="btn-export-csv" style={HEAD_BTN}>
               Export CSV
+            </button>
+            <button type="button" id="btn-export-xlsx" style={HEAD_BTN}>
+              Export XLSX
             </button>
           </div>
         </div>
@@ -629,10 +635,17 @@ app.get('/app/submissions', async (c) => {
               ) : null}
               <button
                 type="button"
-                id="bulk-export"
+                id="bulk-export-csv"
                 style="padding:6px 12px;background:transparent;color:#fff;border:1px solid #4a4b55;font-size:12.5px;cursor:pointer;"
               >
-                Export selection
+                Export CSV
+              </button>
+              <button
+                type="button"
+                id="bulk-export-xlsx"
+                style="padding:6px 12px;background:transparent;color:#fff;border:1px solid #4a4b55;font-size:12.5px;cursor:pointer;"
+              >
+                Export XLSX
               </button>
               <button
                 type="button"
@@ -649,14 +662,22 @@ app.get('/app/submissions', async (c) => {
               >
                 <input type="checkbox" id="check-all" style="accent-color:#4c5fd5;" />
                 <div>ID</div>
-                <div>SESSION</div>
-                <div>TRACK</div>
-                <div>FORMAT</div>
-                <div id="sort-score" style="cursor:pointer;">
-                  SCORE <span id="score-arrow"></span>
+                <div data-sort="title" style="cursor:pointer;">
+                  SESSION <span data-arrow=""></span>
                 </div>
-                <div>STATUS</div>
-                <div>SUBMITTED</div>
+                <div data-sort="track" style="cursor:pointer;">
+                  TRACK <span data-arrow=""></span>
+                </div>
+                <div>FORMAT</div>
+                <div data-sort="score" style="cursor:pointer;">
+                  SCORE <span data-arrow=""></span>
+                </div>
+                <div data-sort="status" style="cursor:pointer;">
+                  STATUS <span data-arrow=""></span>
+                </div>
+                <div data-sort="submitted" style="cursor:pointer;">
+                  SUBMITTED <span data-arrow=""></span>
+                </div>
               </div>
               <div id="rows">
                 {rendered.map((r) => (
@@ -666,6 +687,9 @@ app.get('/app/submissions', async (c) => {
                     data-status={r.status}
                     data-form={r.formId}
                     data-track={r.trackId ?? ''}
+                    data-track-name={r.trackId ? r.trackName : ''}
+                    data-title={r.title}
+                    data-submitted={r.submittedAt ?? ''}
                     data-score={r.avg === null ? '' : r.avg.toFixed(3)}
                     data-search={r.search}
                     style={ROW_STYLE + (matchesFilter(r, filter) ? '' : 'display:none;')}
@@ -731,6 +755,7 @@ app.get('/app/submissions', async (c) => {
             </div>
             <div>
               <div id="decision-template" style={`${MICRO}margin-bottom:6px;`}></div>
+              <select id="decision-template-select" hidden style={`${SELECT}width:100%;margin-bottom:6px;`}></select>
               <input
                 id="decision-subject"
                 style={`${INPUT}font-weight:600;margin-bottom:6px;`}
@@ -905,24 +930,27 @@ app.get('/app/submissions', async (c) => {
 
 /* ------------------------------------------------------------------ export */
 
-app.get('/app/api/submissions/export.csv', async (c) => {
-  const event = c.var.event;
-  if (!event) return c.text('No event', 400);
-  const board = await loadBoard(c.env, event);
+/** Shared row builder for the CSV and XLSX exports — same filters/ids handling, same columns. */
+async function exportTable(
+  env: Bindings,
+  event: Event,
+  q: Record<string, string | undefined>
+): Promise<{ rows: CsvRow[]; columns: string[] }> {
+  const board = await loadBoard(env, event);
 
-  const idsParam = (c.req.query('ids') ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const idsParam = (q.ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const filter = {
-    status: c.req.query('status') ?? 'all',
-    form: c.req.query('form') ?? 'all',
-    track: c.req.query('track') ?? 'all',
-    q: (c.req.query('q') ?? '').trim().toLowerCase(),
+    status: q.status ?? 'all',
+    form: q.form ?? 'all',
+    track: q.track ?? 'all',
+    q: (q.q ?? '').trim().toLowerCase(),
   };
   const wanted = idsParam.length
     ? board.rows.filter((r) => idsParam.includes(r.id))
     : board.rows.filter((r) => matchesFilter(r, filter));
 
   const fileRows = await all<FileRow>(
-    c.env.DB,
+    env.DB,
     `SELECT id, filename, size, subject_type, subject_id FROM files WHERE event_id = ?`,
     event.id
   );
@@ -968,9 +996,25 @@ app.get('/app/api/submissions/export.csv', async (c) => {
     return row;
   });
 
-  const csv = toCsv(rows, [...base, ...extra]);
+  return { rows, columns: [...base, ...extra] };
+}
+
+app.get('/app/api/submissions/export.csv', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.text('No event', 400);
+  const { rows, columns } = await exportTable(c.env, event, c.req.query());
   const stamp = new Date().toISOString().slice(0, 10);
-  return new Response(csv, { headers: csvHeaders(`submissions-${event.slug}-${stamp}.csv`) });
+  return new Response(toCsv(rows, columns), { headers: csvHeaders(`submissions-${event.slug}-${stamp}.csv`) });
+});
+
+app.get('/app/api/submissions/export.xlsx', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.text('No event', 400);
+  const { rows, columns } = await exportTable(c.env, event, c.req.query());
+  const stamp = new Date().toISOString().slice(0, 10);
+  return new Response(toXlsx(rows, columns, 'Submissions'), {
+    headers: xlsxHeaders(`submissions-${event.slug}-${stamp}.xlsx`),
+  });
 });
 
 /* ------------------------------------------------------------------ detail */

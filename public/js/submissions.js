@@ -1,7 +1,8 @@
 /**
- * Submissions island (B2) — filtering, selection, the detail drawer, the
- * decision modal, internal comments with @-mentions, the group-mail composer
- * and CSV import/export.
+ * Submissions island (B2) — filtering, column sorting, selection, the detail
+ * drawer, the decision modal, the group-mail composer and CSV import plus
+ * CSV/XLSX export. Internal comments and the activity log are hidden from the
+ * drawer for now (deferred, not cut) — the server endpoints stay live.
  *
  * The server renders every row; this file only shows, hides, reorders and
  * decorates them, so the page works (filtered by query params) without JS.
@@ -22,7 +23,7 @@ function boot(DATA) {
     form: DATA.filter.form || 'all',
     track: DATA.filter.track || 'all',
     q: (DATA.filter.q || '').toLowerCase(),
-    sortScore: false,
+    sort: null, // { key: 'title'|'track'|'score'|'status'|'submitted', dir: 'asc'|'desc' }
     sel: new Set(),
     decision: null,
     drawer: null,
@@ -46,7 +47,6 @@ function boot(DATA) {
   const chips = Array.from(document.querySelectorAll('[data-chip]'));
   const bulkBar = $('#bulk-bar');
   const bulkCount = $('#bulk-count');
-  const scoreArrow = $('#score-arrow');
 
   function matches(el) {
     const d = el.dataset;
@@ -91,15 +91,46 @@ function boot(DATA) {
     }
   }
 
+  /* Column sorting: click cycles direction → opposite → default (server order,
+     newest first). Numeric-ish columns open descending, text columns ascending.
+     DOM reorder only — works within the currently shipped rows (ROW_CAP). */
+  const SORT_STARTS_DESC = { score: true, submitted: true };
+  const statusOrder = Object.keys(DATA.statuses || {});
+
+  function sortValue(el, key) {
+    const d = el.dataset;
+    if (key === 'score') return d.score === '' ? -Infinity : parseFloat(d.score);
+    if (key === 'submitted') return d.submitted || '';
+    if (key === 'status') {
+      const i = statusOrder.indexOf(d.status);
+      return i < 0 ? statusOrder.length : i;
+    }
+    if (key === 'track') return (d.trackName || '').toLowerCase();
+    return (d.title || '').toLowerCase();
+  }
+
   function applySort() {
     if (!rowsEl) return;
-    const list = state.sortScore
-      ? rowEls.slice().sort((a, b) => score(b) - score(a))
-      : original;
+    let list = original;
+    if (state.sort) {
+      const { key, dir } = state.sort;
+      const sign = dir === 'asc' ? 1 : -1;
+      list = rowEls.slice().sort((a, b) => {
+        const va = sortValue(a, key);
+        const vb = sortValue(b, key);
+        if (va < vb) return -sign;
+        if (va > vb) return sign;
+        return 0;
+      });
+    }
     list.forEach((el) => rowsEl.appendChild(el));
-    if (scoreArrow) scoreArrow.textContent = state.sortScore ? '↓' : '';
+    document.querySelectorAll('[data-sort]').forEach((h) => {
+      const arrow = h.querySelector('[data-arrow]');
+      if (!arrow) return;
+      const on = state.sort && state.sort.key === h.dataset.sort;
+      arrow.textContent = on ? (state.sort.dir === 'asc' ? '↑' : '↓') : '';
+    });
   }
-  const score = (el) => (el.dataset.score === '' ? -1 : parseFloat(el.dataset.score));
 
   /** Past ROW_CAP rows the server owns filtering — round-trip through the URL. */
   function reloadFiltered() {
@@ -142,12 +173,17 @@ function boot(DATA) {
       }, DATA.serverFilter ? 400 : 120);
     });
   }
-  const sortBtn = $('#sort-score');
-  if (sortBtn)
-    sortBtn.addEventListener('click', () => {
-      state.sortScore = !state.sortScore;
+  document.querySelectorAll('[data-sort]').forEach((h) =>
+    h.addEventListener('click', () => {
+      const key = h.dataset.sort;
+      const first = SORT_STARTS_DESC[key] ? 'desc' : 'asc';
+      const second = first === 'desc' ? 'asc' : 'desc';
+      if (!state.sort || state.sort.key !== key) state.sort = { key, dir: first };
+      else if (state.sort.dir === first) state.sort = { key, dir: second };
+      else state.sort = null; // third click → default order
       applySort();
-    });
+    })
+  );
 
   /* ------------------------------------------------------------ selection */
 
@@ -303,23 +339,8 @@ function boot(DATA) {
         }</div>
       </div></div>`;
 
-    const comments = `<div>${micro('INTERNAL COMMENTS · TEAM ONLY')}
-      <div id="comment-list">${s.comments.map(commentHtml).join('')}</div>
-      <div style="display:flex;gap:8px;position:relative;">
-        <input id="comment-input" placeholder="Comment… use @ to mention teammates" autocomplete="off" style="flex:1;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;">
-        <button type="button" id="comment-post" style="padding:8px 14px;background:#16171d;color:#fff;border:none;font-size:12.5px;cursor:pointer;">Post</button>
-        <div id="mention-menu" hidden style="position:absolute;bottom:calc(100% + 4px);left:0;width:260px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:5;max-height:180px;overflow-y:auto;"></div>
-      </div></div>`;
-
-    const activity = `<div>${micro('ACTIVITY LOG')}${s.activity
-      .map(
-        (a) => `<div style="display:flex;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid #f2f3f5;">
-          <div style="font-family:${MONO};font-size:11px;color:#9a9da6;min-width:74px;">${esc(a.when)}</div>
-          <div style="color:#33343c;">${esc(a.text)}</div>
-        </div>`
-      )
-      .join('')}</div>`;
-
+    // Internal comments and the activity log are deliberately not rendered here
+    // (deferred, not cut) — the server still returns both in the payload.
     return `<div style="padding:20px 24px;border-bottom:1px solid #e2e3e8;position:sticky;top:0;background:#fff;z-index:2;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="font-family:${MONO};font-size:11.5px;color:#9a9da6;">${esc(s.num)}</span>
@@ -343,16 +364,7 @@ function boot(DATA) {
         ${uploads}
         ${speakers}
         ${evaluation}
-        ${comments}
-        ${activity}
       </div>`;
-  }
-
-  function commentHtml(c) {
-    return `<div style="border-left:2px solid #e2e3e8;padding:2px 0 2px 12px;margin-bottom:10px;">
-      <div style="font-size:13px;color:#33343c;">${esc(c.text)}</div>
-      <div style="font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:2px;">${esc(c.who)} · ${esc(c.when)}</div>
-    </div>`;
   }
 
   function wireDrawer(s) {
@@ -360,89 +372,6 @@ function boot(DATA) {
     drawerPanel
       .querySelectorAll('[data-drawer-action]')
       .forEach((b) => b.addEventListener('click', () => openDecision(b.dataset.drawerAction, [s.id])));
-
-    const input = drawerPanel.querySelector('#comment-input');
-    const post = drawerPanel.querySelector('#comment-post');
-    const list = drawerPanel.querySelector('#comment-list');
-    const menu = drawerPanel.querySelector('#mention-menu');
-    if (!input || !post || !list || !menu) return;
-
-    const hideMenu = () => {
-      menu.hidden = true;
-      menu.innerHTML = '';
-    };
-
-    function mentionQuery() {
-      const upto = input.value.slice(0, input.selectionStart ?? input.value.length);
-      const at = upto.lastIndexOf('@');
-      if (at < 0) return null;
-      const frag = upto.slice(at + 1);
-      if (/\s/.test(frag)) return null;
-      return { at, frag: frag.toLowerCase() };
-    }
-
-    function showMentions() {
-      const q = mentionQuery();
-      if (!q) return hideMenu();
-      const hits = DATA.members
-        .filter((m) => !q.frag || m.name.toLowerCase().includes(q.frag) || m.email.toLowerCase().includes(q.frag))
-        .slice(0, 6);
-      if (!hits.length) return hideMenu();
-      menu.innerHTML = hits
-        .map(
-          (m) => `<button type="button" data-mention="${esc(m.name)}" style="display:block;width:100%;text-align:left;padding:8px 10px;background:#fff;border:none;border-bottom:1px solid #f2f3f5;cursor:pointer;font-size:12.5px;">
-            <span style="font-weight:600;">${esc(m.name)}</span> <span style="font-family:${MONO};font-size:10.5px;color:#9a9da6;">${esc(m.email)}</span>
-          </button>`
-        )
-        .join('');
-      menu.hidden = false;
-      menu.querySelectorAll('[data-mention]').forEach((b) =>
-        b.addEventListener('click', () => {
-          const q2 = mentionQuery();
-          if (!q2) return hideMenu();
-          const before = input.value.slice(0, q2.at);
-          const after = input.value.slice((input.selectionStart ?? input.value.length));
-          input.value = `${before}@${b.dataset.mention} ${after}`;
-          hideMenu();
-          input.focus();
-        })
-      );
-    }
-
-    input.addEventListener('input', showMentions);
-    input.addEventListener('blur', () => setTimeout(hideMenu, 150));
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !menu.hidden) {
-        e.stopPropagation();
-        hideMenu();
-        return;
-      }
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      if (!menu.hidden) {
-        const first = menu.querySelector('[data-mention]');
-        if (first) return first.click();
-      }
-      submit();
-    });
-    post.addEventListener('click', submit);
-
-    async function submit() {
-      const body = input.value.trim();
-      if (!body) return;
-      post.disabled = true;
-      try {
-        const res = await api('/app/api/submissions/comment', { submissionId: s.id, body });
-        list.insertAdjacentHTML('beforeend', commentHtml(res.comment));
-        input.value = '';
-        hideMenu();
-        toast(res.mentioned.length ? `Comment posted · ${res.mentioned.length} teammate${plural(res.mentioned.length)} notified` : 'Comment posted');
-      } catch (err) {
-        toast(err.message, false);
-      } finally {
-        post.disabled = false;
-      }
-    }
   }
 
   /* ------------------------------------------------------- decision modal */
@@ -460,12 +389,23 @@ function boot(DATA) {
     return `On send: status → Waitlisted · ${n} email${s} queued · promoting later re-runs the accept flow · logged to activity.`;
   }
 
+  /** Fill subject/body from a template — still editable per send. */
+  function fillDecisionTemplate(tpl) {
+    $('#decision-subject').value = tpl.subject || '';
+    const body = $('#decision-body');
+    body.value = tpl.body || '';
+    body.rows = Math.min(22, (tpl.body || '').split('\n').length + 1);
+  }
+
   function openDecision(kind, ids) {
     if (!VERB[kind]) return;
     if (!ids.length) return toast('Select at least one submission first.', false);
     const rows = ids.map(rowById).filter(Boolean);
     if (!rows.length) return;
-    const tpl = DATA.templates[kind] || { name: kind, subject: '', body: '' };
+    // Every template whose key matches the decision kind; the picker only
+    // appears when there is a real choice to make.
+    const tplList = (DATA.mailTemplates || []).filter((t) => t.key === kind);
+    const tpl = tplList[0] || DATA.templates[kind] || { name: kind, subject: '', body: '' };
     const n = rows.length;
 
     $('#decision-heading').textContent = `${VERB[kind]} ${n} submission${plural(n)}`;
@@ -487,11 +427,20 @@ function boot(DATA) {
         </div>`;
       })
       .join('');
-    $('#decision-template').textContent = `TEMPLATE “${tpl.name}” — editable per send`;
-    $('#decision-subject').value = tpl.subject || '';
-    const body = $('#decision-body');
-    body.value = tpl.body || '';
-    body.rows = Math.min(22, (tpl.body || '').split('\n').length + 1);
+    const tplSelect = $('#decision-template-select');
+    if (tplSelect && tplList.length > 1) {
+      $('#decision-template').textContent = 'TEMPLATE — editable per send';
+      tplSelect.innerHTML = tplList.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
+      tplSelect.value = '0';
+      tplSelect.hidden = false;
+    } else {
+      $('#decision-template').textContent = `TEMPLATE “${tpl.name}” — editable per send`;
+      if (tplSelect) {
+        tplSelect.hidden = true;
+        tplSelect.innerHTML = '';
+      }
+    }
+    fillDecisionTemplate(tpl);
     $('#decision-vars').textContent =
       'Variables resolve per recipient: {{speaker_name}} {{session_title}} ' +
       (kind === 'accept' ? '{{confirmation_link}}' : kind === 'decline' ? '{{individual_feedback}}' : '');
@@ -503,9 +452,17 @@ function boot(DATA) {
     send.style.background = COLOR[kind];
     send.textContent = `Send ${n} email${plural(n)} & update status`;
 
-    state.decision = { kind, ids: rows.map((r) => r.id) };
+    state.decision = { kind, ids: rows.map((r) => r.id), templates: tplList };
     openDialog('#decision-modal'); // layers above the drawer, which stays open
   }
+
+  const decisionTplSelect = $('#decision-template-select');
+  if (decisionTplSelect)
+    decisionTplSelect.addEventListener('change', () => {
+      if (!state.decision) return;
+      const tpl = state.decision.templates[Number(decisionTplSelect.value)];
+      if (tpl) fillDecisionTemplate(tpl);
+    });
 
   const sendBtn = $('#decision-send');
   if (sendBtn)
@@ -643,7 +600,7 @@ function boot(DATA) {
 
   /* ---------------------------------------------------------------- CSV */
 
-  function exportUrl(ids) {
+  function exportUrl(ids, format) {
     const p = new URLSearchParams();
     if (ids && ids.length) p.set('ids', ids.join(','));
     else {
@@ -653,21 +610,26 @@ function boot(DATA) {
       if (state.q) p.set('q', state.q);
     }
     const qs = p.toString();
-    return `/app/api/submissions/export.csv${qs ? `?${qs}` : ''}`;
+    return `/app/api/submissions/export.${format}${qs ? `?${qs}` : ''}`;
   }
 
-  const exportBtn = $('#btn-export');
-  if (exportBtn)
-    exportBtn.addEventListener('click', () => {
-      location.href = exportUrl(null);
-      toast('Export ready — check your downloads');
-    });
-  const exportSel = $('#bulk-export');
-  if (exportSel)
-    exportSel.addEventListener('click', () => {
-      location.href = exportUrl(Array.from(state.sel));
-      toast(`Exporting ${state.sel.size} submission${plural(state.sel.size)}`);
-    });
+  // CSV and XLSX share the endpoint shape — both honor filters and selection.
+  [['#btn-export-csv', 'csv'], ['#btn-export-xlsx', 'xlsx']].forEach(([sel, format]) => {
+    const btn = $(sel);
+    if (btn)
+      btn.addEventListener('click', () => {
+        location.href = exportUrl(null, format);
+        toast('Export ready — check your downloads');
+      });
+  });
+  [['#bulk-export-csv', 'csv'], ['#bulk-export-xlsx', 'xlsx']].forEach(([sel, format]) => {
+    const btn = $(sel);
+    if (btn)
+      btn.addEventListener('click', () => {
+        location.href = exportUrl(Array.from(state.sel), format);
+        toast(`Exporting ${state.sel.size} submission${plural(state.sel.size)}`);
+      });
+  });
 
   /* Minimal RFC-4180 reader for the mapping preview; the server re-parses the
      same text with lib/csv.ts before writing anything. */
