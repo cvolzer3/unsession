@@ -34,7 +34,10 @@ export const EVAL_QUEUE_CSS = `
 const PAGE_SIZE = 8;
 
 const chip = (bg: string, fg: string) =>
-  `display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:600;font-family:${MONO};background:${bg};color:${fg};`;
+  `display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:600;font-family:${MONO};background:${bg};color:${fg};white-space:nowrap;`;
+
+/** One line, ellipsis on overflow — every list row stays the same height. */
+const ELLIPSIS = 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
 
 export type EvalQueueProps = {
   ctx: EvalContext;
@@ -574,15 +577,15 @@ function ListMode(opts: {
             <a
               data-row-hover
               href={href}
-              style="display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:11px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
+              style="display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:11px 16px;min-height:48px;box-sizing:border-box;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
             >
-              <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{i.submission.displayId}</div>
-              <div style="font-size:13px;font-weight:600;line-height:1.35;">{i.submission.title}</div>
-              <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#33343c;">
+              <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;${ELLIPSIS}`}>{i.submission.displayId}</div>
+              <div style={`font-size:13px;font-weight:600;line-height:1.35;min-width:0;${ELLIPSIS}`}>{i.submission.title}</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#33343c;min-width:0;">
                 <span style={`width:8px;height:8px;background:${i.submission.trackColor};flex:none;`}></span>
-                {i.submission.trackName}
+                <span style={ELLIPSIS}>{i.submission.trackName}</span>
               </div>
-              <div style="font-size:12px;color:#686b74;">{`${i.submission.format || '—'} · ${i.submission.level || '—'}`}</div>
+              <div style={`font-size:12px;color:#686b74;${ELLIPSIS}`}>{`${i.submission.format || '—'} · ${i.submission.level || '—'}`}</div>
               <div>
                 {i.done ? (
                   <span style={chip('#e6f4ea', '#2b8a3e')}>{i.evaluation?.abstained ? 'Abstained' : 'Reviewed'}</span>
@@ -594,7 +597,7 @@ function ListMode(opts: {
                 {i.done ? (
                   <span style={`font-family:${MONO};font-size:12.5px;font-weight:600;`}>{star != null ? `${star.toFixed(1)}★` : '—'}</span>
                 ) : (
-                  <span style="padding:5px 10px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:11.5px;font-weight:600;">
+                  <span style="display:inline-block;padding:5px 10px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:11.5px;font-weight:600;line-height:1.2;white-space:nowrap;">
                     Review →
                   </span>
                 )}
