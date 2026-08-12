@@ -60,6 +60,21 @@ const STATUS_ORDER = ['draft', 'in_review', 'accepted', 'waitlisted', 'declined'
 const IMPORTABLE_STATUS = new Set(STATUS_ORDER);
 
 /**
+ * What the table shows, which is NOT the stored vocabulary: `in_review` splits
+ * into "Needs Assigned" (no evaluation plan's rules cover the row, so nobody
+ * will ever review it) and "In Review" (a plan does). Both are the same stored
+ * status — the split is derived per render from plan coverage, so it can never
+ * go stale the way a flipped flag would. `BoardRow.chip` carries the bucket;
+ * `BoardRow.status` stays the real status for decisions, export and import.
+ */
+const CHIP_ORDER = ['draft', 'needs_assigned', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'];
+
+/** Undecided with no plan covering it — the row nobody is going to look at. */
+function chipFor(status: string, reviewsExpected: number): string {
+  return status === 'in_review' && reviewsExpected === 0 ? 'needs_assigned' : status;
+}
+
+/**
  * Pre-0011 vocabulary, still accepted on import — CSVs exported from this app
  * before the migration (or from another CFP tool) carry these words.
  */
@@ -123,6 +138,8 @@ type BoardRow = {
   seq: number;
   num: string;
   status: string;
+  /** Display bucket — `status`, except `in_review` may render as `needs_assigned`. */
+  chip: string;
   title: string;
   abstract: string;
   formId: string;
@@ -304,7 +321,8 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
     let expected = 0;
     for (const p of parsedPlans) if (planCovers(p.rules, shape)) expected += p.reviews_per;
 
-    counts[s.status] = (counts[s.status] ?? 0) + 1;
+    const chip = chipFor(s.status, expected);
+    counts[chip] = (counts[chip] ?? 0) + 1;
     const form = formById.get(s.form_id);
     const fields = (s.form_version_id ? fieldsByVersion.get(s.form_version_id) : null) ?? fieldsByForm[s.form_id] ?? [];
 
@@ -313,6 +331,7 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
       seq: s.seq,
       num: `SUB-${s.seq}`,
       status: s.status,
+      chip,
       title: s.title,
       abstract: s.abstract,
       formId: s.form_id,
@@ -389,7 +408,8 @@ function matchesFilter(
   row: BoardRow,
   f: { status: string; form: string; track: string; q: string }
 ): boolean {
-  if (f.status !== 'all' && row.status !== f.status) return false;
+  // Filters against the display bucket so ?status=needs_assigned round-trips.
+  if (f.status !== 'all' && row.chip !== f.status) return false;
   if (f.form !== 'all' && row.formId !== f.form) return false;
   if (f.track !== 'all' && (row.trackId ?? '') !== f.track) return false;
   if (f.q && !row.search.includes(f.q)) return false;
@@ -459,7 +479,7 @@ app.get('/app/submissions', async (c) => {
     filter,
     serverFilter,
     total,
-    statuses: Object.fromEntries(STATUS_ORDER.map((s) => [s, statusMeta(s)])),
+    statuses: Object.fromEntries(CHIP_ORDER.map((s) => [s, statusMeta(s)])),
     templates: tplMap,
     mailTemplates: templates.map((t) => ({ key: t.key, name: t.name, subject: t.subject, body: t.body })),
     // Typeahead targets: teammates only — mentioning yourself notifies nobody.
@@ -487,7 +507,7 @@ app.get('/app/submissions', async (c) => {
 
   const chips = [
     { key: 'all', label: 'All', count: total },
-    ...STATUS_ORDER.filter((s) => (board.counts[s] ?? 0) > 0).map((s) => ({
+    ...CHIP_ORDER.filter((s) => (board.counts[s] ?? 0) > 0).map((s) => ({
       key: s,
       label: statusMeta(s).label,
       count: board.counts[s] ?? 0,
@@ -712,7 +732,7 @@ app.get('/app/submissions', async (c) => {
                   <div
                     data-row
                     data-id={r.id}
-                    data-status={r.status}
+                    data-status={r.chip}
                     data-form={r.formId}
                     data-track={r.trackId ?? ''}
                     data-track-name={r.trackId ? r.trackName : ''}
@@ -743,7 +763,7 @@ app.get('/app/submissions', async (c) => {
                       <span style="color:#9a9da6;font-size:10.5px;">{`${r.done}/${r.total}`}</span>
                     </div>
                     <div>
-                      <span style={badgeStyle(r.status)}>{statusMeta(r.status).label}</span>
+                      <span style={badgeStyle(r.chip)}>{statusMeta(r.chip).label}</span>
                       {queued.has(r.id) ? (
                         <span title="Queued in the outbox — nothing sent yet" style={queuedChipStyle(queued.get(r.id)!)}>
                           {`${queued.get(r.id)!.toUpperCase()} · QUEUED`}
@@ -1156,8 +1176,8 @@ app.get('/app/api/submissions/:id', async (c) => {
       id: row.id,
       num: row.num,
       status: row.status,
-      statusLabel: statusMeta(row.status).label,
-      badge: badgeStyle(row.status),
+      statusLabel: statusMeta(row.chip).label,
+      badge: badgeStyle(row.chip),
       title: row.title,
       abstract: row.abstract,
       trackName: row.trackName,

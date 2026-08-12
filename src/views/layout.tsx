@@ -460,6 +460,9 @@ export const STATUS_COLORS: Record<string, { label: string; fg: string; bg: stri
   // submission statuses (migration 0011 retired `submitted` and `confirmed`)
   draft: { label: 'Draft', fg: '#686b74', bg: '#f1f3f5' },
   in_review: { label: 'In Review', fg: '#b08800', bg: '#fdf5dc' },
+  // Display-only split of `in_review`: no evaluation plan covers the row yet.
+  // Never stored — see CHIP_ORDER in routes/admin-submissions.tsx.
+  needs_assigned: { label: 'Needs Assigned', fg: '#1c7ed6', bg: '#e7f1fb' },
   accepted: { label: 'Accepted', fg: '#2b8a3e', bg: '#e6f4ea' },
   declined: { label: 'Declined', fg: '#c92a2a', bg: '#fbe9e9' },
   waitlisted: { label: 'Waitlisted', fg: '#9c36b5', bg: '#f6e8f9' },
