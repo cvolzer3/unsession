@@ -22,6 +22,7 @@ import { requireOrgRole } from '../lib/auth';
 import { parseTheme } from '../lib/theme';
 import {
   listDecisionQueue,
+  OUTBOX_SEND_LIMIT,
   queuedDecisionCount,
   removeQueuedDecisions,
   sendQueuedDecisions,
@@ -60,12 +61,6 @@ const OUTBOX_KINDS: { kind: DecisionKind; label: string; color: string }[] = [
   { kind: 'decline', label: 'Decline', color: '#c92a2a' },
 ];
 
-/**
- * Outbox sends per click — each accept fans out (status, session copy, task
- * generation + digest, confirmation link, email), so a batch must fit one
- * request's CPU/subrequest budget. The redirect reports what remains.
- */
-const OUTBOX_SEND_LIMIT = 40;
 
 type TemplateRow = { id: string; key: string; name: string; subject: string; body: string; updated_at: string };
 
@@ -398,9 +393,20 @@ app.get('/app/emails', async (c) => {
 
 /* ------------------------------------------------------------- outbox */
 
+/**
+ * Outbox actions are posted from two places — this page's Outbox tab and the
+ * queue panel on /app/submissions. A `back` form field (in-app paths only)
+ * sends the redirect home to whichever page the organizer acted from.
+ */
+function backTo(form: Record<string, unknown>, fallback: string): string {
+  const back = String(form.back ?? '');
+  return back.startsWith('/app') && !back.includes('//') ? back : fallback;
+}
+
 app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
   const event = c.var.event!;
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
+  const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
   const res = await sendQueuedDecisions(c.env, event.id, actor, OUTBOX_SEND_LIMIT);
 
   const n = (x: number, word: string) => `${x} ${word}${x === 1 ? '' : 's'}`;
@@ -411,7 +417,8 @@ app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
   if (res.skipped.length) msg += ` · ${res.skipped.length} skipped — no longer decidable`;
   if (res.remaining) msg += ` · ${res.remaining} still queued — send again for the rest`;
 
-  return c.redirect(`/app/emails?tab=${res.remaining ? 'outbox' : 'log'}&ok=${encodeURIComponent(msg)}`);
+  const dest = backTo(form, `/app/emails?tab=${res.remaining ? 'outbox' : 'log'}`);
+  return c.redirect(`${dest}${dest.includes('?') ? '&' : '?'}ok=${encodeURIComponent(msg)}`);
 });
 
 app.post('/app/emails/outbox/remove', requireOrgRole('admin'), async (c) => {
@@ -421,7 +428,8 @@ app.post('/app/emails/outbox/remove', requireOrgRole('admin'), async (c) => {
   const id = String(form.id ?? '');
   const removed = id ? await removeQueuedDecisions(c.env, event.id, [id], actor) : 0;
   const msg = removed ? 'Removed from the outbox — nothing was sent, the decision is undone' : 'Already gone';
-  return c.redirect(`/app/emails?tab=outbox&ok=${encodeURIComponent(msg)}`);
+  const dest = backTo(form, '/app/emails?tab=outbox');
+  return c.redirect(`${dest}${dest.includes('?') ? '&' : '?'}ok=${encodeURIComponent(msg)}`);
 });
 
 /* ------------------------------------------------------ full-page editor */

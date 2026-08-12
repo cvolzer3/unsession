@@ -388,7 +388,7 @@ function boot(DATA) {
         : kind === 'decline'
           ? `status → Declined · decline email${s} with individual feedback merged per recipient`
           : `status → Waitlisted · waitlist email${s} (promoting later re-runs the accept flow)`;
-    return `Queueing sends nothing and changes no status — speakers see nothing yet, and you can still undo. When you send from Emails → Outbox: ${later} · logged to activity.`;
+    return `Queueing sends nothing and changes no status — speakers see nothing yet, and you can still undo. When you send the queue (panel above the table, or Emails → Outbox): ${later} · logged to activity.`;
   }
 
   /** Fill subject/body from a template — still editable per send. */
@@ -504,7 +504,7 @@ function boot(DATA) {
         if (skipped) notes.push(`${skipped} skipped (draft/withdrawn)`);
         const msg =
           `${queued} decision${plural(queued)} queued as ${DONE[kind]} — nothing sent yet. ` +
-          `Review & send from Emails → Outbox.` +
+          `Review & send from the queue panel above the table.` +
           (notes.length ? ` (${notes.join(' · ')})` : '');
         location.href = `/app/submissions?ok=${encodeURIComponent(msg)}`;
       } catch (err) {

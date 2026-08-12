@@ -7,8 +7,8 @@
  * Markup and inline styles are ported from
  * `prototype/design_handoff_program/design/Submissions.dc.html`. The decision
  * modal QUEUES decisions (lib/decision-queue) — nothing reaches the speaker
- * until the organizer sends from Emails → Outbox, so a queued decision is
- * still revertible.
+ * until the organizer sends the queue, from the review panel above the table
+ * (or Emails → Outbox), so a queued decision is still revertible.
  *
  * OWNER: B2. JSON endpoints live under `/app/api/submissions/...`.
  */
@@ -23,7 +23,7 @@ import { requireOrgRole } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { isDecision, type DecisionKind } from '../lib/decisions';
-import { queueDecisions, queuedDecisionMap } from '../lib/decision-queue';
+import { queueDecisions, listDecisionQueue, OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import { csvHeaders, parseCsvTable, toCsv, type CsvRow } from '../lib/csv';
 import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 
@@ -446,7 +446,10 @@ app.get('/app/submissions', async (c) => {
   const rendered = serverFilter ? matched.slice(0, ROW_CAP) : board.rows;
   const shownCount = serverFilter ? Math.min(matched.length, ROW_CAP) : matched.length;
 
-  const queued = await queuedDecisionMap(c.env, event.id);
+  // The outbox lives here, where deciding happens — the full rows feed the
+  // review-and-send panel above the table; the map feeds the row chips.
+  const outbox = await listDecisionQueue(c.env, event.id);
+  const queued = new Map(outbox.map((r) => [r.submission_id, r.decision]));
 
   const templates = await all<{ key: string; name: string; subject: string; body: string }>(
     c.env.DB,
@@ -586,15 +589,72 @@ app.get('/app/submissions', async (c) => {
           </div>
         ) : (
           <>
-            {queued.size > 0 ? (
-              <div style="background:#fbf4e2;border:1px solid #e6d29a;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;color:#33343c;">
-                <span>
-                  <strong>{`${queued.size} queued decision${queued.size === 1 ? '' : 's'}`}</strong>
-                  {' — nothing has been sent to speakers yet.'}
-                </span>
-                <a href="/app/emails?tab=outbox" style="margin-left:auto;font-weight:600;color:#4c5fd5;white-space:nowrap;">
-                  Review &amp; send →
-                </a>
+            {outbox.length > 0 ? (
+              <div style="background:#fbf4e2;border:1px solid #e6d29a;margin-bottom:12px;">
+                <div style="padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#33343c;flex-wrap:wrap;">
+                  <span>
+                    <strong>{`${outbox.length} queued decision${outbox.length === 1 ? '' : 's'}`}</strong>
+                    {' — nothing has been sent to speakers yet.'}
+                  </span>
+                  {canWrite ? (
+                    <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
+                      <input type="hidden" name="back" value="/app/submissions" />
+                      <button
+                        type="submit"
+                        style="padding:8px 16px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                      >
+                        {outbox.length > OUTBOX_SEND_LIMIT
+                          ? `Send ${OUTBOX_SEND_LIMIT} of ${outbox.length} now`
+                          : `Send all ${outbox.length} now`}
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+                <details>
+                  <summary
+                    style={`padding:8px 14px;border-top:1px solid #e6d29a;cursor:pointer;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#8a6d1a;`}
+                  >
+                    REVIEW THE QUEUE
+                  </summary>
+                  <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
+                    {outbox.map((q) => (
+                      <div style="display:grid;grid-template-columns:108px 64px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                        <span style={queuedChipStyle(q.decision).replace('margin-top:3px;', '')}>
+                          {q.decision.toUpperCase()}
+                        </span>
+                        <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`SUB-${q.seq}`}</span>
+                        <a
+                          href={`/app/submissions?open=${q.submission_id}`}
+                          style="font-size:12.5px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                        >
+                          {q.title}
+                        </a>
+                        <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                          {q.speaker_email || 'no speaker email — status only'}
+                        </span>
+                        {canWrite ? (
+                          <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                            <input type="hidden" name="id" value={q.id} />
+                            <input type="hidden" name="back" value="/app/submissions" />
+                            <button
+                              type="submit"
+                              style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
+                            >
+                              Remove
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
+                    ))}
+                    <div style="padding:8px 14px;font-size:11.5px;color:#9a9da6;">
+                      Also lives at{' '}
+                      <a href="/app/emails?tab=outbox" style="color:#4c5fd5;">
+                        Emails → Outbox
+                      </a>
+                      . Removing a row undoes the decision; sending flips statuses and emails everyone above.
+                    </div>
+                  </div>
+                </details>
               </div>
             ) : null}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
