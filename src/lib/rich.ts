@@ -123,6 +123,46 @@ export function sanitizeRich(html: string): string {
   return out;
 }
 
+/**
+ * Legacy Markdown (the welcome page's original format: `#`/`##` headings,
+ * `**bold**`, `- ` bullets) → rich-lite HTML. Bodies saved before the WYSIWYG
+ * editor never trip `looksRich`, so render paths convert them through here.
+ */
+export function markdownToRich(src: string): string {
+  const inline = (s: string) => escapeText(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const out: string[] = [];
+  let list: string[] | null = null;
+  const flush = () => {
+    if (list) {
+      out.push(`<ul>${list.join('')}</ul>`);
+      list = null;
+    }
+  };
+  (src || '').split('\n').forEach((ln) => {
+    const t = ln.trim();
+    if (t.startsWith('- ')) {
+      if (!list) list = [];
+      list.push(`<li>${inline(t.slice(2))}</li>`);
+      return;
+    }
+    flush();
+    if (!t) return;
+    if (t.startsWith('## ')) out.push(`<h3>${inline(t.slice(3))}</h3>`);
+    else if (t.startsWith('# ')) out.push(`<h2>${inline(t.slice(2))}</h2>`);
+    else out.push(`<p>${inline(t)}</p>`);
+  });
+  flush();
+  return out.join('');
+}
+
+/**
+ * A stored formatted-message body (welcome page, post-submit message) → safe
+ * HTML: rich-lite bodies are sanitized, legacy Markdown/plain ones converted.
+ */
+export function richMessageHtml(v: string): string {
+  return sanitizeRich(looksRich(v) ? v : markdownToRich(v));
+}
+
 const NAMED_ENTITIES: Record<string, string> = {
   amp: '&',
   lt: '<',

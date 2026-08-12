@@ -19,6 +19,7 @@ import { slugify } from '../lib/slugify';
 import { logActivity } from '../lib/activity';
 import { requireOrgRole } from '../lib/auth';
 import { parseTheme, themeStyleVars } from '../lib/theme';
+import { looksRich, markdownToRich, sanitizeRich } from '../lib/rich';
 import {
   PALETTE,
   PRESET_NAMES,
@@ -162,7 +163,7 @@ function FieldRow({ f, fields }: { f: FormField; fields: FormField[] }) {
 const TOGGLES: { key: string; label: string; hint: string }[] = [
   { key: 'allowDrafts', label: 'Allow saving drafts', hint: 'Submitters can save and return before the deadline' },
   { key: 'lateLink', label: 'Secret late-submission link', hint: 'Private URL that accepts entries after close' },
-  { key: 'welcome', label: 'Welcome page', hint: 'Markdown intro shown before the first question' },
+  { key: 'welcome', label: 'Welcome page', hint: 'Formatted intro shown before the first question' },
   {
     key: 'sessionIntake',
     label: 'Submissions become sessions',
@@ -276,7 +277,15 @@ function SettingsFields({
       </div>
       <div>
         <div style={FIELD_LABEL}>Post-submit message</div>
-        <textarea name="postSubmitMsg" rows={3} style={`${inputStyle}resize:vertical;`}>
+        {/* Upgraded to the rich-text island (rich-editor.js) on load; the
+            textarea stays the form-post carrier if JS never runs. */}
+        <textarea
+          name="postSubmitMsg"
+          data-rich-editor="1"
+          data-rich-min="90px"
+          rows={3}
+          style={`${inputStyle}resize:vertical;`}
+        >
           {settings.postSubmitMsg}
         </textarea>
       </div>
@@ -624,14 +633,13 @@ app.get('/app/forms', async (c) => {
             >
               <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
                 <span style={MICRO}>PAGE 1 · WELCOME</span>
-                <span style="font-size:11px;color:#9a9da6;">Shown before the first question · Markdown</span>
+                <span style="font-size:11px;color:#9a9da6;">Shown before the first question · autosaves</span>
               </div>
-              <textarea
-                id="fb-welcome"
-                rows={10}
-                style={`display:block;width:100%;border:none;outline:none;font-size:12.5px;font-family:${MONO};line-height:1.55;resize:vertical;padding:14px 16px;box-sizing:border-box;`}
-              >
-                {settings.welcomeMd}
+              {/* Value carrier for the rich editor form-builder.js mounts in its
+                  place — legacy Markdown copy is upgraded to rich-lite here so
+                  the editor never shows raw `##`/`**` syntax. */}
+              <textarea id="fb-welcome" hidden>
+                {looksRich(settings.welcomeMd) ? settings.welcomeMd : markdownToRich(settings.welcomeMd)}
               </textarea>
             </div>
             <div
@@ -871,6 +879,13 @@ app.post('/app/forms/new', guard, async (c) => {
   return c.redirect(`/app/forms?form=${id}&mode=setup`);
 });
 
+/** Formatted-message fields (welcome, post-submit): gate rich bodies through
+ *  the server-side whitelist; legacy Markdown/plain strings pass unchanged. */
+function richField(v: unknown, prev: string): string {
+  if (typeof v !== 'string') return prev;
+  return looksRich(v) ? sanitizeRich(v) : v;
+}
+
 function settingsFromBody(
   body: Record<string, unknown>,
   prev: FormSettings,
@@ -891,9 +906,9 @@ function settingsFromBody(
     welcomeEnabled: welcomeOn,
     // The drawer has no welcomeMd field — the copy is edited in the builder's
     // PAGE 1 card only, so a drawer save must never clobber it.
-    welcomeMd: typeof body.welcomeMd === 'string' ? body.welcomeMd : prev.welcomeMd,
+    welcomeMd: richField(body.welcomeMd, prev.welcomeMd),
     coSpeakerCap: Number.isFinite(cap) ? Math.max(0, Math.min(5, cap)) : prev.coSpeakerCap,
-    postSubmitMsg: typeof body.postSubmitMsg === 'string' ? body.postSubmitMsg : prev.postSubmitMsg,
+    postSubmitMsg: richField(body.postSubmitMsg, prev.postSubmitMsg),
     notifyEmails: String(body.notifyEmails ?? '')
       .split(/[\s,;]+/)
       .map((s) => s.trim())
@@ -1064,6 +1079,8 @@ app.post('/app/api/forms/:id/settings', guard, async (c) => {
       : loaded.settings.notifyMemberIds,
   };
   if (next.lateLinkSecret === null && loaded.settings.lateLinkSecret) next.lateLinkSecret = null;
+  next.welcomeMd = richField(next.welcomeMd, loaded.settings.welcomeMd);
+  next.postSubmitMsg = richField(next.postSubmitMsg, loaded.settings.postSubmitMsg);
   await run(db, `UPDATE forms SET settings_json = ? WHERE id = ?`, JSON.stringify(next), loaded.form.id);
   return c.json({ ok: true, settings: next });
 });

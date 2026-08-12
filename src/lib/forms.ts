@@ -974,34 +974,3 @@ export function inlineLinks(text: string): string {
   });
   return out;
 }
-
-/** Minimal Markdown → HTML (headings, bold, bullet lists) — the prototype's renderMd. */
-export function renderMarkdown(src: string): string {
-  const esc = (s: string) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const inline = (s: string) =>
-    esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  const out: string[] = [];
-  let list: string[] | null = null;
-  const flush = () => {
-    if (list) {
-      out.push(`<ul style="margin:8px 0;padding-left:22px;">${list.join('')}</ul>`);
-      list = null;
-    }
-  };
-  (src || '').split('\n').forEach((ln) => {
-    const t = ln.trim();
-    if (t.startsWith('- ')) {
-      if (!list) list = [];
-      list.push(`<li style="margin-bottom:3px;">${inline(t.slice(2))}</li>`);
-      return;
-    }
-    flush();
-    if (!t) return;
-    if (t.startsWith('## ')) out.push(`<div style="font-size:17px;font-weight:700;margin:14px 0 6px;">${inline(t.slice(3))}</div>`);
-    else if (t.startsWith('# ')) out.push(`<div style="font-size:19px;font-weight:700;margin:14px 0 6px;">${inline(t.slice(2))}</div>`);
-    else out.push(`<p style="margin:8px 0;">${inline(t)}</p>`);
-  });
-  flush();
-  return out.join('');
-}

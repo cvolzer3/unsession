@@ -11,6 +11,9 @@
  */
 import { toast, api, copy, openDialog } from './ui.js';
 import { renderPreview } from './public-form.js';
+// Importing rich-editor.js also auto-mounts the drawer's `data-rich-editor`
+// textareas (post-submit message) as a side effect.
+import { mountRichEditor, sanitizeHtml, looksRich } from './rich-editor.js';
 
 const MONO = "'IBM Plex Mono',monospace";
 const TYPE_CHIP = `font-family:${MONO};font-size:9.5px;background:#eef0fb;color:#4c5fd5;padding:3px 6px;font-weight:600;min-width:34px;text-align:center;line-height:1.4;flex:none;`;
@@ -113,7 +116,6 @@ function boot(D) {
   const rail = document.getElementById('fb-rail');
   const saveState = document.getElementById('fb-save-state');
   const palette = document.getElementById('fb-palette');
-  const welcome = document.getElementById('fb-welcome');
 
   const typeOf = (label) => (D.palette.find((p) => p.label === label) || { type: 'TXT' }).type;
 
@@ -155,17 +157,28 @@ function boot(D) {
     }
   }
 
-  if (welcome) {
+  // PAGE 1 · WELCOME — the hidden #fb-welcome textarea carries the (already
+  // rich-lite) copy; mount the WYSIWYG editor in its place and autosave edits.
+  const welcomeSrc = document.getElementById('fb-welcome');
+  if (welcomeSrc) {
+    const holder = document.createElement('div');
+    welcomeSrc.parentNode.insertBefore(holder, welcomeSrc);
+    const welcomeValue = welcomeSrc.value;
+    welcomeSrc.remove();
     let wTimer = null;
-    welcome.addEventListener('input', () => {
-      clearTimeout(wTimer);
-      wTimer = setTimeout(async () => {
-        try {
-          await api(`/app/api/forms/${D.formId}/settings`, { welcomeMd: welcome.value });
-        } catch (err) {
-          toast(err.message, false);
-        }
-      }, 700);
+    mountRichEditor(holder, {
+      name: 'welcomeMd',
+      value: welcomeValue,
+      onChange: (html) => {
+        clearTimeout(wTimer);
+        wTimer = setTimeout(async () => {
+          try {
+            await api(`/app/api/forms/${D.formId}/settings`, { welcomeMd: sanitizeHtml(html) });
+          } catch (err) {
+            toast(err.message, false);
+          }
+        }, 700);
+      },
     });
   }
 
@@ -746,7 +759,10 @@ function mountPreview(D) {
     formName: (settings.externalName || '').trim() || D.formName,
     title: (settings.pageHeading || '').trim() || `Speak at ${D.eventName}`,
     welcomeOn: !!(D.settings && D.settings.welcomeEnabled && D.settings.welcomeMd),
-    welcomeHtml: renderMd((D.settings && D.settings.welcomeMd) || ''),
+    welcomeHtml: (() => {
+      const w = (D.settings && D.settings.welcomeMd) || '';
+      return looksRich(w) ? sanitizeHtml(w) : renderMd(w);
+    })(),
     started: false,
     onStart: () => {
       state.started = true;

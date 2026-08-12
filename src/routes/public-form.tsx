@@ -33,7 +33,6 @@ import {
   monthDay,
   notifyRecipients,
   openState,
-  renderMarkdown,
   speakerCap,
   wordCount,
   type FormField,
@@ -41,6 +40,7 @@ import {
   type FormSettings,
   type FormSchema,
 } from '../lib/forms';
+import { richMessageHtml } from '../lib/rich';
 import {
   normalizeUrl,
   requiredWhenVisible,
@@ -62,6 +62,17 @@ const LABEL = 'font-size:14px;font-weight:600;margin-bottom:6px;';
 const SECTION =
   'font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;';
 const HINT = 'font-size:12px;color:var(--muted);margin-bottom:6px;';
+/** Block styles for rich-lite message bodies (welcome page, post-submit message). */
+const RICH_CSS =
+  '<style>' +
+  '.pf-rich p{margin:0 0 10px;}.pf-rich p:last-child{margin-bottom:0;}' +
+  '.pf-rich h2{font-size:19px;font-weight:700;letter-spacing:-0.01em;margin:14px 0 6px;}.pf-rich h2:first-child{margin-top:0;}' +
+  '.pf-rich h3{font-size:15.5px;font-weight:700;margin:12px 0 6px;}.pf-rich h3:first-child{margin-top:0;}' +
+  '.pf-rich ul,.pf-rich ol{margin:8px 0;padding-left:22px;}.pf-rich li{margin-bottom:3px;}' +
+  '.pf-rich a{color:var(--primary);}' +
+  /* Lists inside the centered thank-you column read left-aligned. */
+  '.pf-rich-center ul,.pf-rich-center ol{display:inline-block;text-align:left;}' +
+  '</style>';
 
 function inputStyle(bad?: boolean): string {
   return `width:100%;padding:11px 12px;border:1px solid ${
@@ -668,8 +679,9 @@ function renderPage(opts: {
             hidden={!opts.showWelcome}
             style="border:1px solid var(--border-strong);background:var(--card);padding:24px 26px;margin-bottom:26px;"
           >
-            <div style="font-size:14px;line-height:1.65;color:var(--text-secondary);">
-              {raw(renderMarkdown(settings.welcomeMd))}
+            {raw(RICH_CSS)}
+            <div class="pf-rich" style="font-size:14px;line-height:1.65;color:var(--text-secondary);">
+              {raw(richMessageHtml(settings.welcomeMd))}
             </div>
             <a
               href="?start=1"
@@ -974,11 +986,16 @@ app.get('/:event/:form', async (c) => {
               ✓
             </div>
             <h1 style="margin:0 0 10px;font-size:26px;letter-spacing:-0.02em;">It’s in. Nice work.</h1>
-            <p style="font-size:15px;color:var(--text-secondary);line-height:1.6;max-width:440px;margin:0 auto 26px;">
-              {`“${sub.title || 'Your session'}” is with the ${found.event.name} program team. `}
-              {settings.postSubmitMsg ||
-                'You’ll get a confirmation email now, and we’ll be in touch with a decision. Track it any time in your speaker portal.'}
-            </p>
+            {raw(RICH_CSS)}
+            <div class="pf-rich pf-rich-center" style="font-size:15px;color:var(--text-secondary);line-height:1.6;max-width:440px;margin:0 auto 26px;">
+              <p>{`“${sub.title || 'Your session'}” is with the ${found.event.name} program team.`}</p>
+              {raw(
+                richMessageHtml(
+                  settings.postSubmitMsg ||
+                    'You’ll get a confirmation email now, and we’ll be in touch with a decision. Track it any time in your speaker portal.'
+                )
+              )}
+            </div>
             <div style="border:1px solid var(--border-strong);background:var(--card);max-width:360px;margin:0 auto 20px;padding:22px;text-align:left;">
               <div style={`font-family:${MONO_VAR};font-size:10px;letter-spacing:0.14em;color:var(--primary);margin-bottom:8px;`}>
                 I JUST SUBMITTED TO

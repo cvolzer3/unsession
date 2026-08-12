@@ -17,7 +17,7 @@ const ALLOWED = { STRONG: 1, B: 1, EM: 1, I: 1, A: 1, UL: 1, OL: 1, LI: 1, H2: 1
 const DROP = { SCRIPT: 1, STYLE: 1, IFRAME: 1, OBJECT: 1, EMBED: 1, SVG: 1, TEMPLATE: 1, HEAD: 1, TITLE: 1, NOSCRIPT: 1, SELECT: 1, TEXTAREA: 1 };
 
 const escText = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const looksRich = (s) => /<(p|ul|ol|h2|h3|a|strong|em|b|i|br|li)[\s>/]/i.test(s || '');
+export const looksRich = (s) => /<(p|ul|ol|h2|h3|a|strong|em|b|i|br|li)[\s>/]/i.test(s || '');
 const safeHref = (v) => (/^(https?:\/\/|mailto:)/i.test(String(v || '').trim()) ? String(v).trim() : null);
 
 /** Upgrade a legacy plain-text body: blank lines → paragraphs, \n → <br>. */
@@ -90,7 +90,8 @@ function ensureStyles() {
  */
 export function mountRichEditor(container, opts) {
   ensureStyles();
-  const value = (opts && opts.value) || '';
+  opts = opts || {};
+  const value = opts.value || '';
   container.innerHTML = '';
   container.style.cssText += 'border:1px solid #e2e3e8;background:#fff;';
 
@@ -99,14 +100,19 @@ export function mountRichEditor(container, opts) {
   const area = document.createElement('div');
   area.contentEditable = 'true';
   area.className = 'us-rich-area';
+  if (opts.minHeight) area.style.minHeight = opts.minHeight;
   area.innerHTML = looksRich(value) ? sanitizeHtml(value) : plainToRich(value);
   const hidden = document.createElement('textarea');
-  hidden.name = (opts && opts.name) || 'body';
+  hidden.name = opts.name || 'body';
   hidden.hidden = true;
   container.append(bar, area, hidden);
 
+  // A cleared document is `<p><br></p>` in the DOM but means "no content" to
+  // the server (welcome pages toggle off an empty body) — sync it as ''.
+  let notify = false;
   const sync = () => {
-    hidden.value = area.innerHTML;
+    hidden.value = area.textContent.trim() ? area.innerHTML : '';
+    if (notify && opts.onChange) opts.onChange(hidden.value);
   };
   const exec = (cmd, val) => {
     area.focus();
@@ -203,7 +209,10 @@ export function mountRichEditor(container, opts) {
   });
 
   const form = container.closest('form');
-  if (form) form.addEventListener('submit', () => (hidden.value = sanitizeHtml(area.innerHTML)));
+  if (form)
+    form.addEventListener('submit', () => {
+      hidden.value = area.textContent.trim() ? sanitizeHtml(area.innerHTML) : '';
+    });
 
   try {
     document.execCommand('defaultParagraphSeparator', false, 'p');
@@ -211,6 +220,7 @@ export function mountRichEditor(container, opts) {
     /* older engines */
   }
   sync();
+  notify = true;
   return { area, hidden, sync };
 }
 
@@ -221,8 +231,9 @@ for (const src of document.querySelectorAll('textarea[data-rich-editor]')) {
   src.parentNode.insertBefore(holder, src);
   const name = src.name;
   const value = src.value;
+  const minHeight = src.getAttribute('data-rich-min') || '';
   src.remove();
-  mountRichEditor(holder, { name, value });
+  mountRichEditor(holder, { name, value, minHeight });
 }
 
 /* Editor/Preview toggle on /app/emails/t/:id — snaps between the editor and a
