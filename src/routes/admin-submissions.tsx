@@ -40,6 +40,22 @@ const MODAL_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.4);z-index
 const MODAL_PANEL =
   'background:#fff;width:620px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(22,23,29,0.22);';
 const INPUT = 'width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;';
+
+/**
+ * Detail drawer shell. Sizing lives here (not inline) so the full-screen
+ * toggle is one attribute: ui.js flips `data-expanded` on #drawer, and — like
+ * the forms drawer — expanding widens the shell, not the text: the bands grow
+ * their side padding (`--band-x`) so the body stays a readable column.
+ */
+const DRAWER_CSS = `
+  #drawer-panel{position:fixed;top:0;right:0;bottom:0;--band-x:24px;width:520px;max-width:92vw;background:#fff;z-index:41;box-shadow:-12px 0 40px rgba(22,23,29,0.14);animation:slidein 0.18s ease;overflow-y:auto;transition:width 0.16s ease;}
+  #drawer[data-expanded] #drawer-panel{width:100vw;max-width:100vw;--band-x:max(24px,calc((100vw - 880px) / 2));}
+  .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
+  .us-icon-btn:hover{color:#16171d;}
+  #drawer .ic-min{display:none;}
+  #drawer[data-expanded] .ic-max{display:none;}
+  #drawer[data-expanded] .ic-min{display:block;}
+`;
 const TEXTAREA =
   'width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;';
 
@@ -866,12 +882,10 @@ app.get('/app/submissions', async (c) => {
       </div>
 
       {/* ------------------------------------------------------------ drawer */}
+      {raw(`<style>${DRAWER_CSS}</style>`)}
       <div id="drawer" data-drawer hidden>
         <div id="drawer-backdrop" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:40;"></div>
-        <aside
-          id="drawer-panel"
-          style="position:fixed;top:0;right:0;bottom:0;width:520px;max-width:92vw;background:#fff;z-index:41;box-shadow:-12px 0 40px rgba(22,23,29,0.14);animation:slidein 0.18s ease;overflow-y:auto;"
-        ></aside>
+        <aside id="drawer-panel"></aside>
       </div>
 
       {/* --------------------------------------------------- decision modal */}

@@ -386,16 +386,32 @@ function boot(DATA) {
 
     // Internal comments and the activity log are deliberately not rendered here
     // (deferred, not cut) — the server still returns both in the payload.
-    return `<div style="padding:20px 24px;border-bottom:1px solid #e2e3e8;position:sticky;top:0;background:#fff;z-index:2;">
+    return `<div style="padding:20px var(--band-x);border-bottom:1px solid #e2e3e8;position:sticky;top:0;background:#fff;z-index:2;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="font-family:${MONO};font-size:11.5px;color:#9a9da6;">${esc(s.num)}</span>
           <span style="${esc(s.badge)}">${esc(s.statusLabel)}</span>
-          <button type="button" data-drawer-close style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;">✕</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+            <button type="button" class="us-icon-btn" data-drawer-expand aria-label="Expand to full screen" title="Expand to full screen">
+              <svg class="ic-max" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+              <svg class="ic-min" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                <path d="M16 3v3a2 2 0 0 0 2 2h3" />
+                <path d="M8 21v-3a2 2 0 0 0-2-2H3" />
+                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+              </svg>
+            </button>
+            <button type="button" data-drawer-close class="us-icon-btn" aria-label="Close" style="font-size:18px;line-height:1;">✕</button>
+          </div>
         </div>
         <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;line-height:1.25;">${esc(s.title)}</div>
         ${actions}
       </div>
-      <div style="padding:20px 24px;display:grid;gap:20px;">
+      <div style="padding:20px var(--band-x);display:grid;gap:20px;">
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           ${card('TRACK', `<span style="display:inline-block;width:8px;height:8px;background:${esc(s.trackColor)};"></span>${esc(s.trackName)}`)}
           ${card('FORMAT', esc(s.format))}
