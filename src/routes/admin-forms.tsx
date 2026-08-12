@@ -620,7 +620,10 @@ app.get('/app/forms', async (c) => {
       {/* ------------------------------------------------------ build mode */}
       {mode === 'build' ? (
         <div style="display:grid;grid-template-columns:1fr 360px;gap:0;flex:1 0 auto;">
-          <div style="padding:22px 28px;max-width:760px;">
+          {/* padding-top 14px, not 28px: the picker bar above already ends with
+              14px of its own bottom padding, so the air above the welcome card
+              sums to the 28px left gutter. */}
+          <div style="padding:14px 28px 22px;max-width:760px;">
             {/* PAGE 1 · WELCOME — always rendered, just hidden while the page is
                 off, so the settings toggle can flip it live (form-builder.js). */}
             <div
