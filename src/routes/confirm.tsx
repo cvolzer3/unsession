@@ -42,7 +42,8 @@ const Shell = (props: { theme: ReturnType<typeof parseTheme>; eventName: string;
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{props.eventName} — Confirm participation</title>
-      {GOOGLE_FONTS}
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="stylesheet" href={GOOGLE_FONTS} />
       <style>{`html,body{margin:0;padding:0;background:${props.theme.bg};color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}`}</style>
     </head>
     <body>
