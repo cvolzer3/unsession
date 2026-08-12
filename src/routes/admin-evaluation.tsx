@@ -35,6 +35,7 @@ import {
   initialsOfName,
   loadEvalContext,
   loadEvaluatorFields,
+  loadSubmissionFileNames,
   matchesRules,
   members,
   mergeTags,
@@ -243,7 +244,10 @@ app.get('/app/evaluation', async (c) => {
   // it (shared view + island), inside the admin shell.
   if (tab === 'mine') {
     const myPlans = ctx.plans.filter((p) => p.reviewers.some((r) => r.userId === user.id));
-    const fields = await loadEvaluatorFields(db, event.id);
+    const [fields, fileNames] = await Promise.all([
+      loadEvaluatorFields(db, event.id),
+      loadSubmissionFileNames(db, event.id),
+    ]);
     return c.html(
       <AdminLayout {...props} scripts={['/js/evaluate.js']}>
         <style>{raw(PAGE_CSS + EVAL_QUEUE_CSS)}</style>
@@ -255,6 +259,7 @@ app.get('/app/evaluation', async (c) => {
             userId={user.id}
             slug={event.slug}
             fields={fields}
+            fileNames={fileNames}
             basePath="/app/evaluation"
             fixedParams={{ tab: 'mine' }}
             query={(k) => c.req.query(k)}

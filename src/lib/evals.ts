@@ -413,6 +413,21 @@ export async function loadEvaluatorFields(db: D1Database, eventId: string): Prom
   return out;
 }
 
+/**
+ * Filenames of everything attached to this event's submissions, by file id —
+ * what turns a FILE answer (a list of ids) into a download the reviewer can
+ * read. Kept out of `loadEvalContext` so only the screens that render answers
+ * pay for the query.
+ */
+export async function loadSubmissionFileNames(db: D1Database, eventId: string): Promise<Map<string, string>> {
+  const rows = await all<{ id: string; filename: string }>(
+    db,
+    `SELECT id, filename FROM files WHERE event_id = ? AND subject_type = 'submission'`,
+    eventId
+  );
+  return new Map(rows.map((r) => [r.id, r.filename]));
+}
+
 /* ------------------------------------------------------------- mechanics */
 
 export function matchesRules(s: EvalSubmission, r: Rules): boolean {

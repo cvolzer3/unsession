@@ -724,7 +724,7 @@ app.get('/', (c) => {
 
 /** Provisions a sandbox org + event, then hands the visitor the role picker. */
 app.post('/sandbox', async (c) => {
-  const { orgId } = await seedSandbox(c.env.DB);
+  const { orgId } = await seedSandbox(c.env);
   return c.redirect(`/sandbox/${orgId}`);
 });
 

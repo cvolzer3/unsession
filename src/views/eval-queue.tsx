@@ -43,6 +43,8 @@ export type EvalQueueProps = {
   userId: string;
   slug: string;
   fields: Map<string, VisibleField[]>;
+  /** Attached filenames by file id (`loadSubmissionFileNames`) — labels FILE answers. */
+  fileNames: Map<string, string>;
   /** Path every queue link starts from, e.g. `/{slug}/evaluate` or `/app/evaluation`. */
   basePath: string;
   /** Params pinned on every link and filter form, e.g. `{ tab: 'mine' }`. */
@@ -54,7 +56,7 @@ export type EvalQueueProps = {
 /* ------------------------------------------------------------------ queue */
 
 export function EvalQueue(props: EvalQueueProps) {
-  const { ctx, myPlans, userId, slug, fields, basePath, query } = props;
+  const { ctx, myPlans, userId, slug, fields, fileNames, basePath, query } = props;
   const fixed = props.fixedParams ?? {};
 
   const chairOnly = myPlans.every((p) => p.reviewers.find((r) => r.userId === userId)?.role === 'chair');
@@ -169,9 +171,9 @@ export function EvalQueue(props: EvalQueueProps) {
       ) : mode === 'list' ? (
         ListMode({ filters: listFilters, items, keyOf, qs, ctx, basePath, fixed })
       ) : reviewed ? (
-        ReviewedCard({ item: reviewed, qs, fields })
+        ReviewedCard({ item: reviewed, qs, fields, fileNames })
       ) : current ? (
-        ReviewCard({ item: current, fields, plansCount: myPlans.length })
+        ReviewCard({ item: current, fields, fileNames, plansCount: myPlans.length })
       ) : (
         <div style="background:#fff;border:1px solid #e2e3e8;padding:64px 32px;text-align:center;">
           <div style="font-size:34px;margin-bottom:8px;">✓</div>
@@ -200,9 +202,15 @@ export function EvalQueue(props: EvalQueueProps) {
 
 /* ------------------------------------------------------------------ views */
 
-function metaCells(item: QueueItem, fieldsMap: Map<string, VisibleField[]>) {
+type MetaCell = { label: string; val: string; href?: string };
+
+function metaCells(
+  item: QueueItem,
+  fieldsMap: Map<string, VisibleField[]>,
+  fileNames: Map<string, string>
+): MetaCell[] {
   const { plan, submission } = item;
-  const cells = [
+  const cells: MetaCell[] = [
     { label: 'ID', val: submission.displayId },
     { label: 'SUBMITTED', val: fmtDay(submission.submittedAt) },
     { label: 'PLAN', val: plan.name },
@@ -212,24 +220,45 @@ function metaCells(item: QueueItem, fieldsMap: Map<string, VisibleField[]>) {
     },
   ];
   const extra = (fieldsMap.get(submission.formId) ?? [])
-    .map((f) => {
+    .map((f): MetaCell | null => {
       const v = submission.answers[f.id];
       if (v === undefined || v === null || v === '') return null;
+      // FILE answers are lists of file ids — offer the download, never the id.
+      if (f.type === 'FILE') {
+        const ids = (Array.isArray(v) ? v : [v]).map(String).filter(Boolean);
+        if (!ids.length) return null;
+        const name = fileNames.get(ids[0]) ?? '';
+        const ext = (/\.([A-Za-z0-9]+)$/.exec(name)?.[1] ?? 'file').toUpperCase();
+        return {
+          label: f.label.toUpperCase(),
+          // A filename can name its author, so blind review gets the type only.
+          val: `${plan.anonymized || !name ? `Open ${ext}` : name}${ids.length > 1 ? ` +${ids.length - 1}` : ''}`,
+          href: `/files/${ids[0]}`,
+        };
+      }
       const val = Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v);
       if (val === submission.title || val === submission.abstract) return null;
       if (val === submission.format || val === submission.level || val === submission.trackName) return null;
       return { label: f.label.toUpperCase(), val };
     })
-    .filter((x): x is { label: string; val: string } => !!x);
+    .filter((x): x is MetaCell => !!x);
   return [...cells, ...extra];
 }
 
-const MetaGrid: FC<{ cells: { label: string; val: string }[] }> = ({ cells }) => (
+const MetaGrid: FC<{ cells: MetaCell[] }> = ({ cells }) => (
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px;">
     {cells.map((m) => (
       <div>
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>{m.label}</div>
-        <div style="font-size:13px;font-weight:600;margin-top:3px;">{m.val}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:3px;word-break:break-word;">
+          {m.href ? (
+            <a href={m.href} target="_blank" rel="noopener" style="color:#4c5fd5;text-decoration:none;">
+              {`${m.val} ↗`}
+            </a>
+          ) : (
+            m.val
+          )}
+        </div>
       </div>
     ))}
   </div>
@@ -246,9 +275,10 @@ const TrackBadge: FC<{ sub: EvalSubmission }> = ({ sub }) => (
 function ReviewCard(opts: {
   item: QueueItem;
   fields: Map<string, VisibleField[]>;
+  fileNames: Map<string, string>;
   plansCount: number;
 }) {
-  const { item, fields } = opts;
+  const { item, fields, fileNames } = opts;
   const { plan, submission } = item;
   return (
     <div style="background:#fff;border:1px solid #e2e3e8;" id="review-card">
@@ -266,7 +296,7 @@ function ReviewCard(opts: {
         </div>
         <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{submission.title}</div>
         <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{submission.abstract}</div>
-        <MetaGrid cells={metaCells(item, fields)} />
+        <MetaGrid cells={metaCells(item, fields, fileNames)} />
       </div>
       {!plan.anonymized && submission.speakers.length ? (
         <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
@@ -346,8 +376,9 @@ function ReviewedCard(opts: {
   item: QueueItem;
   qs: (extra: Record<string, string>) => string;
   fields: Map<string, VisibleField[]>;
+  fileNames: Map<string, string>;
 }) {
-  const { item, qs, fields } = opts;
+  const { item, qs, fields, fileNames } = opts;
   const { plan, submission, evaluation } = item;
   const star = evaluation ? starAvgOf(plan, evaluation) : null;
   return (
@@ -364,7 +395,7 @@ function ReviewedCard(opts: {
         <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{submission.abstract}</div>
       </div>
       <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
-        <MetaGrid cells={metaCells(item, fields)} />
+        <MetaGrid cells={metaCells(item, fields, fileNames)} />
       </div>
       {!plan.anonymized && submission.speakers.length ? (
         <div style="padding:18px 26px;border-bottom:1px solid #eceded;">

@@ -26,6 +26,7 @@ import {
   cumMaxOf,
   loadEvalContext,
   loadEvaluatorFields,
+  loadSubmissionFileNames,
   recordEvaluation,
   type EvalPlan,
   type EvalSubmission,
@@ -134,7 +135,10 @@ app.get('/:event/evaluate', async (c) => {
     );
   }
 
-  const fields = await loadEvaluatorFields(c.env.DB, event.id);
+  const [fields, fileNames] = await Promise.all([
+    loadEvaluatorFields(c.env.DB, event.id),
+    loadSubmissionFileNames(c.env.DB, event.id),
+  ]);
   const kicker = `REVIEWER · ${myPlans.length} PLAN${myPlans.length === 1 ? '' : 'S'}`;
 
   return c.html(
@@ -146,6 +150,7 @@ app.get('/:event/evaluate', async (c) => {
           userId={user.id}
           slug={event.slug}
           fields={fields}
+          fileNames={fileNames}
           basePath={`/${event.slug}/evaluate`}
           query={(k) => c.req.query(k)}
         />

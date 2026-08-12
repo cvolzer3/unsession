@@ -134,6 +134,83 @@ export const SUBMISSIONS: SeedSubmission[] = [
   },
 ];
 
+/**
+ * Submissions that came in with a file attached. The sandbox generates a real
+ * PDF for each one (`lib/seed-pdf.ts`) and stores it in R2, so the organizer's
+ * drawer, the reviewer's card and the speaker's own form all have something
+ * that actually opens. `summary` continues the submission's abstract — the
+ * paper leads with the abstract itself — and the outline is derived from the
+ * format's duration, so only the parts a speaker would really write live here.
+ */
+export type SeedPaper = {
+  /** Key into SUBMISSIONS. */
+  sub: string;
+  /** The FILE field on that submission's form the upload answers. */
+  field: string;
+  filename: string;
+  summary: string[];
+  takeaways: string[];
+};
+
+export const SUBMISSION_PAPERS: SeedPaper[] = [
+  {
+    sub: 'SUB-147',
+    field: 'f_paper',
+    filename: 'postgres-at-the-edge-extended-abstract.pdf',
+    summary: [
+      'The talk walks through the replication topology we landed on after two rewrites: who reads from where, how traffic routes around a region that falls behind, and the read-your-own-writes guarantee we gave up and then won back.',
+      'Everything is measured against the same production workload — 40k reads a second across 14 regions — so the numbers on stage are the numbers we actually run on, including the two weeks the p99 got worse before it got better.',
+    ],
+    takeaways: [
+      'A decision table for when an edge replica pays for itself, and when it only moves the latency somewhere else.',
+      'The three failure modes we hit in production: lag storms, split-brain routing, and cache stampedes after a failover.',
+      'Our runbook for promoting a regional replica without dropping writes.',
+    ],
+  },
+  {
+    sub: 'SUB-131',
+    field: 'f_paper',
+    filename: 'how-we-got-pwned-incident-review.pdf',
+    summary: [
+      'A minute-by-minute reconstruction of a supply-chain compromise: the build-time dependency that changed hands, the eleven days before anyone noticed, and the Slack thread where we worked out how bad it was.',
+      'The write-up includes the parts companies normally redact — what the response cost, which controls we already had and why they did not fire, and the two changes that would have caught it on day one.',
+    ],
+    takeaways: [
+      'The full timeline, blast radius and invoice, published rather than paraphrased.',
+      'Which of our detections fired, which stayed silent, and what we changed in each.',
+      'A one-page template for running a public post-mortem your legal team will sign off on.',
+    ],
+  },
+  {
+    sub: 'SUB-125',
+    field: 'f_paper',
+    filename: 'threat-modeling-busy-teams.pdf',
+    summary: [
+      'A threat-modeling framework sized for a sprint retro: four questions, one whiteboard, forty-five minutes, no specialist in the room.',
+      'The session is built around two worked examples — a payments webhook and an internal admin tool — with the worksheets handed out so attendees leave with the artifacts, not just the theory.',
+    ],
+    takeaways: [
+      'The four-question script, and how to keep a room of engineers inside the time box.',
+      'Worked threat models for a webhook and an admin panel, with the findings each surfaced.',
+      'A triage rubric for turning the output into tickets people actually pick up.',
+    ],
+  },
+  {
+    sub: 'SUB-121',
+    field: 'f_paper',
+    filename: 'local-first-sync-engines-in-anger.pdf',
+    summary: [
+      'Two years of running a CRDT-backed sync engine in production: what conflict resolution looks like to a user who does not know what a CRDT is, what the storage bill did, and the bug that quietly ate a week of one customer’s edits.',
+      'The deep dive covers the parts the papers skip — compaction, schema migrations on documents already in the field, and the debugging tools we had to build before we could trust any of it.',
+    ],
+    takeaways: [
+      'Conflict UX patterns that survive contact with real users, and the ones that do not.',
+      'What local-first actually costs in storage and sync bandwidth per active document.',
+      'How we found the lost-edits bug, and the invariant check that now runs in CI.',
+    ],
+  },
+];
+
 /** Agenda placements — start/end in minutes from 08:00. type: talk|service|sponsor */
 export const AGENDA = [
   { id: 'A1', title: 'Registration & Coffee', type: 'service', room: 'ALL', day: 0, start: 30, end: 90 },
@@ -279,7 +356,7 @@ export const EVAL_PLANS = [
 export type SeedField = {
   id: string;
   core?: boolean;
-  type: 'TXT' | 'LONG' | 'SEL' | 'GRP' | 'URL' | 'CHK';
+  type: 'TXT' | 'LONG' | 'SEL' | 'GRP' | 'URL' | 'CHK' | 'FILE';
   label: string;
   req?: boolean;
   agenda?: boolean;
@@ -315,6 +392,7 @@ export const FORMS: SeedForm[] = [
       { id: 'f_level', type: 'SEL', label: 'Audience level', req: false, agenda: true, edit: false, eval: true, opts: ['Intro', 'Intermediate', 'Advanced'], val: 'bound to taxonomy: Level' },
       { id: 'f_av', type: 'LONG', label: 'AV & room requirements', req: false, agenda: false, edit: true, eval: false, ph: 'Power strips, second screen, network…', cond: { src: 'f_format', op: 'is', val: 'Workshop (90 min)', alsoReq: true } },
       { id: 'f_prev', type: 'URL', label: 'Link to a previous recorded talk', req: false, agenda: false, edit: false, eval: true, val: 'auto-prepends https:// on blur' },
+      { id: 'f_paper', type: 'FILE', label: 'Extended abstract', req: false, agenda: false, edit: true, eval: true, ph: 'Optional — a longer write-up for the reviewers', val: 'types: pdf · 10 MB · up to 1' },
       { id: 'f_travel', type: 'SEL', label: 'Do you need travel support?', req: false, agenda: false, edit: false, eval: false, opts: ['No', 'Yes — flights', 'Yes — flights + hotel'] },
       { id: 'f_coc', type: 'CHK', label: 'Code of conduct agreement', req: true, agenda: false, edit: false, eval: false, ph: 'I have read and agree to the [DevConf 2027 code of conduct](https://www.youtube.com/watch?v=dQw4w9WgXcQ).', val: '“must be checked” mode — consent/GDPR' },
     ],

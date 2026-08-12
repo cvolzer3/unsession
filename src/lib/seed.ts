@@ -17,7 +17,10 @@ import { newId, shortCode } from './ids';
 import { slugify } from './slugify';
 import { DEFAULT_EMAIL_TEMPLATES } from './defaults';
 import { seedOf } from './evals';
+import { filesEnabled, saveUpload } from './files';
+import { abstractPdf } from './seed-pdf';
 import * as D from './seed-data';
+import type { Bindings } from '../types';
 
 type Stmt = [string, unknown[]];
 
@@ -69,7 +72,51 @@ function daysFromNow(n: number): string {
   return new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
+/**
+ * Generates the extended-abstract PDFs of `D.SUBMISSION_PAPERS` and stores
+ * them through the normal upload path, so a seeded attachment is
+ * indistinguishable from one a speaker uploaded — same R2 key shape, same
+ * `files` row, same `/files/:id` download. Without an R2 binding the sandbox
+ * simply has no attachments; every other screen is unaffected.
+ */
+async function seedPapers(
+  env: Bindings,
+  eventId: string,
+  submissionId: Map<string, string>
+): Promise<Map<string, { field: string; fileId: string }>> {
+  const out = new Map<string, { field: string; fileId: string }>();
+  if (!filesEnabled(env)) return out;
+
+  for (const paper of D.SUBMISSION_PAPERS) {
+    const s = D.SUBMISSIONS.find((x) => x.id === paper.sub);
+    const subId = submissionId.get(paper.sub);
+    if (!s || !subId) continue;
+    const pdf = abstractPdf({
+      event: D.EVENT.name,
+      title: s.title,
+      byline: s.speakers.map((sp) => `${sp.name} · ${sp.email}`).join(' · '),
+      meta: [D.TRACKS.find((t) => t.id === s.track)?.name, s.format, s.level].filter(Boolean).join(' · '),
+      summary: [s.abstract, ...paper.summary],
+      takeaways: paper.takeaways,
+      minutes: D.FORMATS.find((f) => f.label === s.format)?.duration ?? 30,
+      submitted: s.submitted,
+    });
+    const res = await saveUpload(env, {
+      eventId,
+      kind: 'upload',
+      subjectType: 'submission',
+      subjectId: `${subId}:${paper.field}`,
+      file: new File([pdf], paper.filename, { type: 'application/pdf' }),
+      maxMb: 10,
+      allowedExts: 'pdf',
+    });
+    if (res.ok) out.set(paper.sub, { field: paper.field, fileId: res.file.id });
+  }
+  return out;
+}
+
+export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
+  const db = env.DB;
   const suffix = shortCode(4);
   const stamp = now();
   const orgId = newId('org');
@@ -262,9 +309,13 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
     seqOf.set(s.id, ++maxSeq);
   });
 
+  // Row ids first: the attachment PDFs below are stored against their
+  // submission before any of these INSERTs run.
+  D.SUBMISSIONS.forEach((s) => submissionId.set(s.id, newId('sub')));
+  const paperFileIds = await seedPapers(env, eventId, submissionId);
+
   D.SUBMISSIONS.forEach((s) => {
-    const id = newId('sub');
-    submissionId.set(s.id, id);
+    const id = submissionId.get(s.id)!;
     const answers: Record<string, unknown> = {};
     if (s.form === 'cfp') {
       answers.f_title = s.title;
@@ -273,6 +324,9 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
       answers.f_track = D.TRACKS.find((t) => t.id === s.track)?.name ?? '';
       answers.f_level = s.level;
       answers.f_coc = true;
+      // FILE answers are id lists, exactly as the public form posts them.
+      const paper = paperFileIds.get(s.id);
+      if (paper) answers[paper.field] = [paper.fileId];
     } else {
       answers.s_title = s.title;
       answers.s_abstract = s.abstract;
