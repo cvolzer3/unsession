@@ -26,6 +26,7 @@ Source docs: Chris's `review-punch-list.md` and `triage-todos.md` (Desktop). Chr
 - **R12 · SmolForge migration dropped** (signup blocked). Repo stays on GitHub (D3).
 - **R13 · License: open.** Claude recommends AGPL-3.0 (open source + protects the hosted offering); Chris deciding (D1).
 - Deferred-not-cut, per punch list: internal comments + activity log hidden from the submissions drawer UI (data and endpoints stay).
+- **Performance pass (2026-08-12, production):** public surfaces measured — landing ~90–200ms TTFB, public agenda 115–135ms warm / ~625ms on a cold cache after redeploy, agenda.json ~105–170ms, embeds ~105–160ms, public form ~215–225ms. Admin worst case: submissions table at 4,034 rows reaches DOM-ready at ~1.0s (spec budget: interactive <1s — at the line only at pathological scale; typical events are far below). No structural fixes needed; §5.1 budget holds.
 
 ## Decisions made
 
