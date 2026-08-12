@@ -2,6 +2,12 @@
 
 Decisions I made on your behalf while you were away (each reversible — flag any you disagree with), plus questions queued for you. — Claude
 
+## Build outcome (2026-08-12)
+
+**Live at https://unsession.dev** (admin `/app`, workers.dev URL also works). All 15 prototype screens are implemented and functional; the golden path was verified in a real browser against production: sandbox → submissions table → accept with decision email → tokenized confirm → tasks generated → speakers grid → agenda placement → publish → public agenda + agenda.json. The cron reminder engine fired a real (simulated-mode) task reminder in production. Full walkthrough details are in the session log; per-track verification evidence is in the git history's commit messages.
+
+Post-integration notes, minor, for later polish: (a) the Submissions score denominator counts every plan covering a submission (so an AI-track talk reads "1/5" where the mock said "1/3") — data-honest, revisit if it reads oddly; (b) sandbox events accumulate in the production DB (a few test sandboxes exist from the build); a retention job awaits your Q5 call; (c) builder drag-and-drop was verified by the agenda track's own browser run — synthetic automation can't fire HTML5 drag events, so re-test by hand when you're back.
+
 ## Decisions made
 
 - **D1 · Naming/branding:** Product is **Unsession** (the prototype's placeholder name "Program" is replaced everywhere; logo block "P" → "U"). Hosted at **unsession.dev** — your Cloudflare account already has the zone active, so public URLs are `unsession.dev/{event}/{form}` and admin is `unsession.dev/app`.
