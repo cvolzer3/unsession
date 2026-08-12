@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>DevConf 2027 — Speaker Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#faf8f5;color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}
+  a{color:#e8590c;text-decoration:none;} a:hover{color:#c44a0a;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="background:#faf8f5;border-bottom:1px solid #ece7de;">
+  <div style="max-width:680px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px;">
+    <div style="width:26px;height:26px;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;">DC</div>
+    <div style="font-weight:700;font-size:14.5px;">DevConf 2027 · Speaker portal</div>
+    <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b857a;">SOFIA@SYNCABLE.APP · MAGIC LINK</div>
+  </div>
+</div>
+<div style="max-width:680px;margin:0 auto;padding:26px 20px 70px;">
+  <h1 style="margin:0 0 4px;font-size:24px;letter-spacing:-0.02em;">Hi Sofia 👋</h1>
+  <p style="margin:0 0 22px;font-size:14px;color:#555a63;">Everything about your DevConf sessions, in one place.</p>
+  <sc-if value="{{ needsConfirm }}" hint-placeholder-val="{{ true }}">
+    <div style="border:2px solid #e8590c;background:#fff;padding:18px 20px;margin-bottom:18px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#e8590c;margin-bottom:6px;">ACTION NEEDED · EXPIRES IN 5 DAYS</div>
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Your session was accepted 🎉 Can you make it?</div>
+      <div style="font-size:13.5px;color:#555a63;margin-bottom:14px;">Confirming puts “Local-First Apps: Sync Engines in Anger” on the public agenda and unlocks your onboarding checklist.</div>
+      <div style="display:flex;gap:8px;">
+        <button onClick="{{ confirm }}" style="padding:10px 18px;background:#e8590c;color:#fff;border:none;font-size:13.5px;font-weight:700;cursor:pointer;">Confirm participation</button>
+        <button onClick="{{ cantMake }}" style="padding:10px 18px;background:#fff;border:1px solid #ded8cd;font-size:13.5px;color:#555a63;cursor:pointer;">I can’t make it</button>
+      </div>
+    </div>
+  </sc-if>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;margin-bottom:10px;">MY SUBMISSIONS</div>
+  <div style="background:#fff;border:1px solid #ece7de;padding:18px 20px;margin-bottom:10px;">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+      <span style="{{ mainBadge }}">{{ mainStatus }}</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b857a;">SUB-121 · WITH TIM OKADA</span>
+    </div>
+    <div style="font-size:16.5px;font-weight:700;letter-spacing:-0.01em;">Local-First Apps: Sync Engines in Anger</div>
+    <sc-if value="{{ isConfirmed }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:18px;border:1px solid #ece7de;background:#faf8f5;padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#8b857a;">YOUR SLOT</div>
+          <div style="font-size:14px;font-weight:600;margin-top:2px;">Wed Oct 14 · 14:30–15:15 · Main Stage</div>
+        </div>
+        <button onClick="{{ addCal }}" style="margin-left:auto;padding:8px 14px;background:#1a1a2e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">＋ Add to calendar (.ics)</button>
+      </div>
+      <div style="font-size:12px;color:#8b857a;margin-top:8px;">If your time or room changes, you’ll get an updated calendar invite automatically.</div>
+    </sc-if>
+    <sc-if value="{{ isWithdrawn }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:10px;font-size:13px;color:#8b857a;">You withdrew this session. The organizers were notified and it was removed from the agenda.</div>
+    </sc-if>
+  </div>
+  <div style="background:#fff;border:1px solid #ece7de;padding:14px 20px;margin-bottom:24px;display:flex;align-items:center;gap:10px;">
+    <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;background:#f0ece4;color:#8b857a;padding:3px 8px;font-weight:600;">DRAFT</span>
+    <div style="font-size:14px;font-weight:600;color:#555a63;">CRDTs for Mortals (untitled draft)</div>
+    <a href="Submit.dc.html" style="margin-left:auto;font-size:12.5px;">Continue editing →</a>
+  </div>
+  <sc-if value="{{ isConfirmed }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;">YOUR CHECKLIST</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#e8590c;">{{ taskFrac }}</div>
+    </div>
+    <div style="background:#fff;border:1px solid #ece7de;margin-bottom:24px;">
+      <sc-for list="{{ tasks }}" as="t" hint-placeholder-count="5">
+        <div style="display:flex;gap:12px;align-items:center;padding:13px 18px;border-bottom:1px solid #f5f2ec;">
+          <span onClick="{{ t.toggle }}" style="{{ t.boxStyle }}">{{ t.glyph }}</span>
+          <div style="flex:1;">
+            <div style="{{ t.nameStyle }}">{{ t.name }}</div>
+            <div style="font-size:11.5px;color:{{ t.dueColor }};">{{ t.due }}</div>
+          </div>
+          <sc-if value="{{ t.action }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ t.act }}" style="padding:6px 12px;background:#fff;border:1px solid #ded8cd;font-size:12px;color:#555a63;cursor:pointer;">{{ t.action }}</button>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+  <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;margin-bottom:10px;">MY PROFILE · SHOWN ON THE PUBLIC AGENDA</div>
+  <div style="background:#fff;border:1px solid #ece7de;padding:18px 20px;display:grid;gap:12px;margin-bottom:26px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div><div style="font-size:12px;color:#8b857a;margin-bottom:4px;">Name</div><input defaultValue="Sofia Rossi" style="width:100%;padding:9px 11px;border:1px solid #ded8cd;font-size:13.5px;"></div>
+      <div><div style="font-size:12px;color:#8b857a;margin-bottom:4px;">Email (locked by organizer)</div><input defaultValue="sofia@syncable.app" disabled="{{ true }}" style="width:100%;padding:9px 11px;border:1px solid #ece7de;font-size:13.5px;background:#faf8f5;color:#8b857a;"></div>
+    </div>
+    <div><div style="font-size:12px;color:#8b857a;margin-bottom:4px;">Bio</div><textarea rows="2" defaultValue="Product engineer, local-first convert." style="width:100%;padding:9px 11px;border:1px solid #ded8cd;font-size:13.5px;resize:vertical;font-family:inherit;"></textarea></div>
+    <button onClick="{{ saveProfile }}" style="justify-self:start;padding:8px 16px;background:#1a1a2e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Save profile</button>
+  </div>
+  <sc-if value="{{ canWithdraw }}" hint-placeholder-val="{{ true }}">
+    <div style="border-top:1px solid #ece7de;padding-top:16px;font-size:12.5px;color:#8b857a;">
+      Can’t speak anymore? <button onClick="{{ startWithdraw }}" style="background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;">Withdraw your session</button>. The organizers are notified and your slot is freed.
+    </div>
+  </sc-if>
+</div>
+<sc-if value="{{ withdrawModal }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(26,26,46,0.45);z-index:60;display:grid;place-items:center;padding:20px;">
+    <div style="background:#fff;width:440px;max-width:100%;padding:24px;">
+      <div style="font-size:17px;font-weight:700;margin-bottom:8px;">Withdraw “Local-First Apps”?</div>
+      <div style="font-size:13.5px;color:#555a63;line-height:1.55;margin-bottom:14px;">This notifies the DevConf organizers, removes your session from the published agenda, and cancels your calendar invite. Your co-speaker Tim will be notified too. This can’t be undone from the portal.</div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;color:#8b857a;margin-bottom:10px;">Why are you withdrawing? (optional)</div>
+        <textarea rows="2" placeholder="e.g. Schedule conflict — happy to speak next year" style="width:100%;padding:9px 11px;border:1px solid #ded8cd;font-size:13.5px;resize:vertical;font-family:inherit;"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onClick="{{ cancelWithdraw }}" style="padding:9px 16px;background:#fff;border:1px solid #ded8cd;font-size:13px;cursor:pointer;">Cancel withdraw</button>
+        <button onClick="{{ doWithdraw }}" style="padding:9px 16px;background:#c92a2a;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Withdraw</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;box-shadow:0 8px 24px rgba(26,26,46,0.3);">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 760, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = {
+    phase: 'accepted', // accepted -> confirmed -> withdrawn
+    withdrawModal: false, toast: null,
+    tasks: [
+      { name: 'Confirm participation', due: 'Done — thank you!', done: true, auto: true },
+      { name: 'Complete your profile', due: 'Auto-completes when profile is filled', done: false, action: 'Jump to profile' },
+      { name: 'Upload headshot', due: 'Due Sep 14 · JPG/PNG · versioned', done: false, action: 'Upload' },
+      { name: 'Upload slides', due: 'Due Oct 11 · PDF or Keynote · 100 MB', done: false, action: 'Upload' },
+      { name: 'AV requirements', due: 'Due Sep 30 · 2-minute mini-form', done: false, action: 'Open form' },
+      { name: 'Travel details', due: 'Due Sep 30 · only because you requested support', done: false, action: 'Open form' }
+    ]
+  };
+  flash(msg) { clearTimeout(this._t); this.setState({ toast: msg }); this._t = setTimeout(() => this.setState({ toast: null }), 2800); }
+  renderVals() {
+    const st = this.state, mono = "'IBM Plex Mono',monospace";
+    const badge = (label, fg, bg) => `display:inline-block;padding:3px 9px;font-size:11px;font-weight:600;color:${fg};background:${bg};font-family:${mono};`;
+    const statusMap = {
+      accepted: ['ACCEPTED — CONFIRM TO GO PUBLIC', '#2b8a3e', '#e6f4ea'],
+      confirmed: ['CONFIRMED ✓', '#087f5b', '#dcf2eb'],
+      withdrawn: ['WITHDRAWN', '#868e96', '#f1f3f5']
+    };
+    const s = statusMap[st.phase];
+    const done = st.tasks.filter(t => t.done).length;
+    return {
+      needsConfirm: st.phase === 'accepted',
+      isConfirmed: st.phase === 'confirmed',
+      isWithdrawn: st.phase === 'withdrawn',
+      canWithdraw: st.phase !== 'withdrawn',
+      mainStatus: s[0], mainBadge: badge(s[0], s[1], s[2]),
+      confirm: () => { this.setState({ phase: 'confirmed' }); this.flash('Confirmed! You’re on the agenda — 5 onboarding tasks generated below.'); },
+      cantMake: () => this.setState({ withdrawModal: true }),
+      addCal: () => this.flash('.ics downloaded — works natively in Gmail, Outlook, Apple Calendar'),
+      taskFrac: `${done} OF ${st.tasks.length} DONE`,
+      tasks: st.tasks.map((t, i) => ({
+        name: t.name, due: t.due, action: t.done ? null : t.action || null,
+        dueColor: t.done ? '#8b857a' : t.due.includes('Sep 14') ? '#c92a2a' : '#8b857a',
+        glyph: t.done ? '✓' : '',
+        boxStyle: `display:inline-grid;place-items:center;width:22px;height:22px;border:1.5px solid ${t.done ? '#e8590c' : '#c9c2b4'};background:${t.done ? '#e8590c' : '#fff'};color:#fff;font-size:13px;cursor:${t.auto ? 'default' : 'pointer'};flex-shrink:0;`,
+        nameStyle: `font-size:14px;font-weight:600;${t.done ? 'color:#8b857a;text-decoration:line-through;' : ''}`,
+        toggle: () => { if (t.auto) return; this.setState({ tasks: st.tasks.map((x, j) => j === i ? { ...x, done: !x.done } : x) }); },
+        act: () => {
+          if (t.action === 'Upload') this.flash(`Upload dialog for “${t.name}” — re-uploads replace with version history`);
+          else if (t.action === 'Open form') this.flash(`“${t.name}” mini-form opens — it reuses the same form engine as the CFP`);
+          else window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+      })),
+      saveProfile: () => this.flash('Profile saved — the public agenda updates on next publish'),
+      startWithdraw: () => this.setState({ withdrawModal: true }),
+      cancelWithdraw: () => this.setState({ withdrawModal: false }),
+      doWithdraw: () => { this.setState({ withdrawModal: false, phase: 'withdrawn' }); this.flash('Withdrawn. Organizers notified — your slot shows a conflict-free warning on their agenda.'); },
+      withdrawModal: st.withdrawModal, toast: st.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

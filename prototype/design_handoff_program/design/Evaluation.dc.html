@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Evaluation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">DevConf 2027</div>
+      </div>
+      <div style="margin-left:auto;display:flex;border:1px solid #e2e3e8;">
+        <button onClick="{{ viewQueue }}" style="{{ queueBtnStyle }}">Evaluator queue</button>
+        <button onClick="{{ viewOrg }}" style="{{ orgBtnStyle }}">Organizer view</button>
+      </div>
+    </header>
+    <sc-if value="{{ isQueue }}" hint-placeholder-val="{{ true }}">
+      <div style="max-width:1120px;margin:0 auto;padding:26px 28px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+          <h1 style="margin:0;font-size:20px;letter-spacing:-0.02em;">Your review queue</h1>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#686b74;">{{ progressLabel }}</div>
+          <div style="flex:1;height:6px;background:#e7e8ec;max-width:220px;"><div style="{{ progressBarStyle }}"></div></div>
+          <div style="margin-left:auto;">
+            <button onClick="{{ toggleFocus }}" style="{{ focusBtnStyle }}">{{ focusBtnLabel }}</button>
+          </div>
+        </div>
+        <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+            <input value="{{ q }}" onInput="{{ onSearch }}" placeholder="Search title or ID…" style="width:240px;padding:7px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;background:#fff;">
+            <div style="display:flex;border:1px solid #e2e3e8;background:#fff;">
+              <button onClick="{{ quickAll }}" style="{{ quickAllStyle }}">All</button>
+              <button onClick="{{ quickTodo }}" style="{{ quickTodoStyle }}">Not reviewed</button>
+              <button onClick="{{ quickDone }}" style="{{ quickDoneStyle }}">Reviewed</button>
+            </div>
+            <select value="{{ fTrack }}" onChange="{{ onTrack }}" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+              <option value="all">All tracks</option>
+              <option value="ai">AI &amp; ML</option>
+              <option value="web">Web Platform</option>
+              <option value="infra">Infrastructure</option>
+              <option value="sec">Security</option>
+              <option value="dx">Developer Experience</option>
+            </select>
+            <select value="{{ fFormat }}" onChange="{{ onFormat }}" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+              <option value="all">All formats</option>
+              <option value="Talk (30 min)">Talk (30 min)</option>
+              <option value="Deep Dive (45 min)">Deep Dive (45 min)</option>
+              <option value="Workshop (90 min)">Workshop (90 min)</option>
+              <option value="Lightning (10 min)">Lightning (10 min)</option>
+              <option value="Panel (45 min)">Panel (45 min)</option>
+            </select>
+            <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ clearFilters }}" style="padding:7px 10px;background:none;border:none;color:#4c5fd5;font-size:12.5px;font-weight:600;cursor:pointer;">Clear ×</button>
+            </sc-if>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">
+              <div>ID</div><div>TITLE</div><div>TRACK</div><div>FORMAT</div><div>STATUS</div><div style="text-align:right;">YOUR SCORE</div>
+            </div>
+            <sc-for list="{{ listRows }}" as="r" hint-placeholder-count="8">
+              <div onClick="{{ r.open }}" style="{{ r.rowStyle }}" style-hover="background:#f8f9fc;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ r.id }}</div>
+                <div style="font-size:13px;font-weight:600;line-height:1.35;text-wrap:pretty;">{{ r.title }}</div>
+                <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#33343c;"><span style="{{ r.dotStyle }}"></span>{{ r.trackName }}</div>
+                <div style="font-size:12px;color:#686b74;">{{ r.format }} · {{ r.level }}</div>
+                <div><span style="{{ r.statusStyle }}">{{ r.statusLabel }}</span></div>
+                <div style="text-align:right;">
+                  <sc-if value="{{ r.review }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ r.review }}" style="padding:5px 10px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:11.5px;font-weight:600;cursor:pointer;">Review →</button>
+                  </sc-if>
+                  <sc-if value="{{ r.score }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;font-weight:600;">{{ r.score }}</span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:36px 16px;text-align:center;font-size:13px;color:#686b74;">No submissions match — <button onClick="{{ clearFilters }}" style="background:none;border:none;color:#4c5fd5;font-size:13px;font-weight:600;cursor:pointer;padding:0;">clear filters</button></div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #eceded;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#686b74;">{{ pageLabel }}</div>
+              <sc-if value="{{ showPager }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-left:auto;display:flex;gap:5px;align-items:center;">
+                  <button onClick="{{ prevPage }}" style="{{ prevStyle }}">← Prev</button>
+                  <sc-for list="{{ pageBtns }}" as="p" hint-placeholder-count="2">
+                    <button onClick="{{ p.go }}" style="{{ p.style }}">{{ p.n }}</button>
+                  </sc-for>
+                  <button onClick="{{ nextPage }}" style="{{ nextStyle }}">Next →</button>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isCard }}" hint-placeholder-val="{{ true }}">
+        <sc-if value="{{ reviewed }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+                <span style="{{ reviewed.trackBadge }}">{{ reviewed.trackName }}</span>
+                <span style="font-size:12px;color:#686b74;">{{ reviewed.format }} · {{ reviewed.level }}</span>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#2b8a3e;">REVIEWED · SCORE LOCKED</span>
+              </div>
+              <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{{ reviewed.title }}</div>
+              <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{{ reviewed.abstract }}</div>
+            </div>
+            <div style="padding:18px 26px;border-bottom:1px solid #eceded;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+              <sc-for list="{{ reviewed.meta }}" as="m" hint-placeholder-count="4">
+                <div>
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">{{ m.label }}</div>
+                  <div style="font-size:13px;font-weight:600;margin-top:3px;">{{ m.val }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:10px;">SPEAKERS</div>
+              <div style="display:grid;gap:10px;">
+                <sc-for list="{{ reviewed.speakers }}" as="p" hint-placeholder-count="1">
+                  <div style="display:flex;gap:12px;align-items:baseline;">
+                    <div style="font-size:13.5px;font-weight:600;">{{ p.name }}</div>
+                    <div style="font-size:12px;color:#4c5fd5;font-family:'IBM Plex Mono',monospace;">{{ p.email }}</div>
+                    <div style="font-size:12.5px;color:#686b74;">{{ p.bio }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:20px 26px;display:flex;align-items:center;gap:28px;">
+              <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">AVG SCORE</div><div style="font-size:24px;font-weight:700;">{{ reviewed.avg }}★</div></div>
+              <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">EVALUATIONS IN</div><div style="font-size:24px;font-weight:700;">{{ reviewed.n }}</div></div>
+              <div style="margin-left:auto;font-size:12px;color:#9a9da6;">Submitted scores are final and can’t be edited.</div>
+            </div>
+            <div style="padding:0 26px 20px;">
+              <button onClick="{{ reviewed.back }}" style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">← Back to list</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ current }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
+              <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+                <span style="{{ current.trackBadge }}">{{ current.trackName }}</span>
+                <span style="font-size:12px;color:#686b74;">{{ current.format }} · {{ current.level }}</span>
+              </div>
+              <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{{ current.title }}</div>
+              <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{{ current.abstract }}</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px;">
+                <sc-for list="{{ current.meta }}" as="m" hint-placeholder-count="4">
+                  <div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">{{ m.label }}</div>
+                    <div style="font-size:13px;font-weight:600;margin-top:3px;">{{ m.val }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:20px 26px;display:grid;gap:16px;">
+              <sc-for list="{{ criteria }}" as="c" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:center;">
+                  <div><div style="font-size:13.5px;font-weight:600;">{{ c.name }}</div><div style="font-size:11.5px;color:#9a9da6;">{{ c.hint }}</div></div>
+                  <div style="display:flex;gap:4px;">
+                    <sc-for list="{{ c.stars }}" as="s" hint-placeholder-count="5">
+                      <button onClick="{{ s.set }}" style="{{ s.style }}" style-hover="border-color:#4c5fd5;">{{ s.n }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+              <textarea onInput="{{ onNote }}" value="{{ note }}" placeholder="Comment for the organizers (optional, evaluator-only)…" rows="2" style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"></textarea>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <button onClick="{{ submitScore }}" style="{{ submitStyle }}">{{ submitLabel }}</button>
+                <button onClick="{{ skip }}" style="padding:10px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Skip for now</button>
+                <button onClick="{{ abstain }}" style="margin-left:auto;padding:10px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#686b74;cursor:pointer;" style-hover="border-color:#c9cbd2;color:#33353c;">Abstain</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ queueDone }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #e2e3e8;padding:64px 32px;text-align:center;">
+            <div style="font-size:34px;margin-bottom:8px;">✓</div>
+            <div style="font-size:19px;font-weight:700;">Queue clear — 14 of 14 reviewed</div>
+            <div style="font-size:13.5px;color:#686b74;margin-top:6px;">The organizers can see your scores now. Nothing else is assigned to you.</div>
+          </div>
+        </sc-if>
+        <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+          <sc-for list="{{ queueDots }}" as="q" hint-placeholder-count="10">
+            <div title="{{ q.title }}" style="{{ q.style }}"></div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ isOrg }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:24px 28px;" data-screen-label="Evaluation — organizer view">
+        <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
+          <button onClick="{{ goScores }}" style="{{ orgTabScoresStyle }}">Evaluations</button>
+          <button onClick="{{ goPlans }}" style="{{ orgTabPlansStyle }}">Evaluation Plans</button>
+        </div>
+        <sc-if value="{{ orgScores }}" hint-placeholder-val="{{ true }}">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">{{ s.label }}</div>
+              <div style="font-size:24px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin-top:4px;">{{ s.val }}</div>
+              <div style="font-size:11.5px;color:#686b74;">{{ s.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
+          <div style="min-width:0;">
+            <sc-if value="{{ orgSel }}" hint-placeholder-val="{{ false }}">
+              <div style="background:#fff;border:1px solid #e2e3e8;">
+                <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
+                  <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+                    <span style="{{ orgSel.trackBadge }}">{{ orgSel.trackName }}</span>
+                    <span style="font-size:12px;color:#686b74;">{{ orgSel.format }} · {{ orgSel.level }}</span>
+                    <span style="{{ orgSel.remStyle }}">{{ orgSel.remLabel }}</span>
+                  </div>
+                  <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{{ orgSel.title }}</div>
+                  <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{{ orgSel.abstract }}</div>
+                </div>
+                <div style="padding:18px 26px;border-bottom:1px solid #eceded;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+                  <sc-for list="{{ orgSel.meta }}" as="m" hint-placeholder-count="4">
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">{{ m.label }}</div>
+                      <div style="font-size:13px;font-weight:600;margin-top:3px;">{{ m.val }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:10px;">SPEAKERS</div>
+                  <div style="display:grid;gap:10px;">
+                    <sc-for list="{{ orgSel.speakers }}" as="p" hint-placeholder-count="1">
+                      <div style="display:flex;gap:12px;align-items:baseline;">
+                        <div style="font-size:13.5px;font-weight:600;">{{ p.name }}</div>
+                        <div style="font-size:12px;color:#4c5fd5;font-family:'IBM Plex Mono',monospace;">{{ p.email }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:12px;">SCORES BY EVALUATOR</div>
+                  <div style="display:grid;gap:14px;">
+                    <sc-for list="{{ orgSel.evals }}" as="ev" hint-placeholder-count="3">
+                      <div>
+                        <div style="display:grid;grid-template-columns:160px 1fr 54px;gap:14px;align-items:center;">
+                          <div>
+                            <div style="font-size:13px;font-weight:600;">{{ ev.name }}</div>
+                            <div style="{{ ev.statusStyle }}">{{ ev.statusLabel }}</div>
+                          </div>
+                          <div style="display:grid;gap:5px;">
+                            <sc-for list="{{ ev.crit }}" as="c" hint-placeholder-count="3">
+                              <div style="display:grid;grid-template-columns:80px 1fr 18px;gap:10px;align-items:center;font-size:11.5px;color:#686b74;">
+                                <div>{{ c.name }}</div>
+                                <div style="height:4px;background:#eef0f3;"><div style="{{ c.barStyle }}"></div></div>
+                                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#16171d;">{{ c.val }}</div>
+                              </div>
+                            </sc-for>
+                            <sc-if value="{{ ev.pending }}" hint-placeholder-val="{{ false }}">
+                              <div style="font-size:12px;color:#9a9da6;">Not submitted yet</div>
+                            </sc-if>
+                          </div>
+                          <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;text-align:right;">{{ ev.my }}</div>
+                        </div>
+                        <sc-if value="{{ ev.note }}" hint-placeholder-val="{{ false }}">
+                          <div style="border-left:2px solid #e2e3e8;padding:2px 0 2px 12px;margin:8px 0 0 174px;font-size:12.5px;color:#33343c;">{{ ev.note }}</div>
+                        </sc-if>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="padding:20px 26px;display:flex;align-items:center;gap:28px;">
+                  <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">AVG SCORE</div><div style="font-size:24px;font-weight:700;">{{ orgSel.avg }}</div></div>
+                  <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">EVALUATIONS IN</div><div style="font-size:24px;font-weight:700;">{{ orgSel.n }}</div></div>
+                  <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">REMAINING</div><div style="font-size:24px;font-weight:700;">{{ orgSel.rem }}</div></div>
+                  <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                    <div style="{{ orgSel.decGroupStyle }}">
+                      <sc-for list="{{ orgSel.decisions }}" as="b" hint-placeholder-count="3">
+                        <button onClick="{{ b.act }}" title="{{ b.title }}" style="{{ b.style }}">{{ b.label }}</button>
+                      </sc-for>
+                    </div>
+                    <button onClick="{{ orgSel.back }}" style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">← Back to list</button>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ orgList }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                <input value="{{ oq }}" onInput="{{ onOq }}" placeholder="Search title or author…" style="width:250px;padding:7px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;background:#fff;">
+                <select value="{{ oTrack }}" onChange="{{ onOTrack }}" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+                  <option value="all">All tracks</option>
+                  <sc-for list="{{ trackOpts }}" as="t" hint-placeholder-count="4"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+                </select>
+                <select value="{{ oPlan }}" onChange="{{ onOPlan }}" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+                  <option value="all">All evaluation plans</option>
+                  <sc-for list="{{ planOpts }}" as="p" hint-placeholder-count="2"><option value="{{ p.id }}">{{ p.name }}</option></sc-for>
+                </select>
+                <sc-if value="{{ orgHasFilters }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ orgClearFilters }}" style="padding:7px 10px;background:none;border:none;color:#4c5fd5;font-size:12.5px;font-weight:600;cursor:pointer;">Clear ×</button>
+                </sc-if>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e3e8;">
+                <div style="display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">
+                  <div>ID</div><div>TITLE</div><div>TRACK</div><div>SCORES BY EVALUATOR</div><div style="text-align:right;">AVG</div><div style="text-align:right;">LEFT</div><div style="text-align:right;">DECISION</div>
+                </div>
+                <sc-for list="{{ orgRows }}" as="r" hint-placeholder-count="10">
+                  <div onClick="{{ r.open }}" style="{{ r.rowStyle }}" style-hover="background:#f8f9fc;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ r.id }}</div>
+                    <div style="min-width:0;">
+                      <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.title }}</div>
+                      <div style="font-size:11px;color:#9a9da6;">{{ r.format }} · {{ r.level }}</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#33343c;"><span style="{{ r.dotStyle }}"></span>{{ r.trackName }}</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                      <sc-for list="{{ r.chips }}" as="c" hint-placeholder-count="3">
+                        <span title="{{ c.t }}" style="{{ c.style }}">{{ c.label }}</span>
+                      </sc-for>
+                    </div>
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;text-align:right;">{{ r.avg }}</div>
+                    <div style="text-align:right;"><span style="{{ r.remStyle }}">{{ r.remLabel }}</span></div>
+                    <div style="text-align:right;"><span style="{{ r.decStyle }}">{{ r.decLabel }}</span></div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ orgNoResults }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:36px 16px;text-align:center;font-size:13px;color:#686b74;">No submissions match — <button onClick="{{ orgClearFilters }}" style="background:none;border:none;color:#4c5fd5;font-size:13px;font-weight:600;cursor:pointer;padding:0;">clear filters</button></div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+          <div style="display:grid;gap:16px;">
+            <div style="background:#fff;border:1px solid #e2e3e8;">
+              <div style="padding:12px 16px;border-bottom:1px solid #e2e3e8;font-size:14px;font-weight:700;">Evaluator progress</div>
+              <sc-for list="{{ evaluators }}" as="e" hint-placeholder-count="4">
+                <div style="padding:10px 16px;border-bottom:1px solid #f2f3f5;">
+                  <div style="display:flex;font-size:13px;"><span style="font-weight:600;">{{ e.name }}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#686b74;">{{ e.frac }}</span></div>
+                  <div style="height:5px;background:#eef0f3;margin-top:6px;"><div style="{{ e.barStyle }}"></div></div>
+                </div>
+              </sc-for>
+              <div style="padding:12px 16px;display:grid;gap:9px;">
+                <button onClick="{{ openRem }}" style="width:100%;padding:9px 0;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Remind evaluators…</button>
+                <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#686b74;">
+                  <span style="{{ autoDotStyle }}"></span><span>{{ autoStatusLine }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ orgPlans }}" hint-placeholder-val="{{ false }}">
+          <sc-if value="{{ plansList }}" hint-placeholder-val="{{ true }}">
+            <div data-screen-label="Evaluation plans — list">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+                <button onClick="{{ newPlan }}" style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">+ New plan</button>
+              </div>
+              <div style="display:grid;gap:10px;">
+                <sc-for list="{{ planRows }}" as="r" hint-placeholder-count="3">
+                  <div onClick="{{ r.open }}" style="background:#fff;border:1px solid #e2e3e8;padding:16px 20px;display:grid;grid-template-columns:minmax(230px,1.3fr) minmax(140px,0.8fr) minmax(200px,1.1fr) 110px 80px;gap:20px;align-items:center;cursor:pointer;" style-hover="border-color:#4c5fd5;background:#fdfdff;">
+                    <div style="min-width:0;">
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <div style="font-size:15px;font-weight:700;letter-spacing:-0.01em;">{{ r.name }}</div>
+                        <sc-if value="{{ r.anon }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;padding:2px 7px;font-size:9.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:0.06em;background:#f6e8f9;color:#9c36b5;">ANONYMIZED</span></sc-if>
+                      </div>
+                      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;">
+                        <sc-for list="{{ r.crits }}" as="c" hint-placeholder-count="3"><span style="display:inline-block;padding:3px 8px;font-size:11px;font-weight:500;background:#eef0fb;color:#3a4ab8;">{{ c }}</span></sc-for>
+                      </div>
+                    </div>
+                    <div>
+                      <div style="display:flex;gap:4px;">
+                        <sc-for list="{{ r.avatars }}" as="a" hint-placeholder-count="4"><div title="{{ a.name }}" style="{{ a.style }}">{{ a.txt }}</div></sc-for>
+                      </div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:5px;">{{ r.revLine }}</div>
+                    </div>
+                    <div>
+                      <div style="display:flex;align-items:baseline;gap:8px;">
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#686b74;flex:none;">{{ r.progLine }}</div>
+                        <div style="height:6px;background:#e7e8ec;flex:1;"><div style="{{ r.barStyle }}"></div></div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#686b74;flex:none;">{{ r.pct }}</div>
+                      </div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:5px;">{{ r.subLine }}</div>
+                    </div>
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;">{{ r.score }}</div>
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">{{ r.scoreSub }}</div>
+                    </div>
+                    <button onClick="{{ r.edit }}" style="padding:6px 12px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:12px;font-weight:600;cursor:pointer;">Edit</button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ plansEdit }}" hint-placeholder-val="{{ false }}">
+            <div data-screen-label="Evaluation plan — editor">
+              <div style="display:flex;align-items:center;gap:16px;margin:0 0 16px;">
+                <h1 style="margin:0;font-size:19px;letter-spacing:-0.02em;">{{ editTitle }}</h1>
+                <button onClick="{{ cancelEdit }}" style="margin-left:auto;padding:8px 16px;background:#f4f4f7;border:1px solid #c9cbd4;color:#2b2d33;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#e8e9ef;border-color:#9a9da6;">← Go back</button>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;">
+                <div style="background:#fff;border:1px solid #e2e3e8;">
+                  <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:14px;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">01 · PLAN</div>
+                    <div style="display:flex;gap:14px;flex-wrap:wrap;">
+                      <div style="flex:1;min-width:260px;">
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:6px;">NAME</div>
+                        <input value="{{ dName }}" onInput="{{ onDName }}" placeholder="e.g. Main CFP Review" style="width:100%;padding:9px 12px;border:1px solid #e2e3e8;font-size:14px;font-weight:600;outline-color:#4c5fd5;">
+                      </div>
+                      <div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:6px;">DEADLINE</div>
+                        <input type="date" value="{{ dDeadline }}" onInput="{{ onDDeadline }}" style="width:160px;padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;">
+                      </div>
+                    </div>
+                    <div style="display:grid;gap:12px;">
+                      <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                        <span style="position:relative;display:inline-block;width:34px;height:20px;flex:none;margin-top:1px;">
+                          <input type="checkbox" checked="{{ anonOn }}" onChange="{{ toggleAnon }}" style="position:absolute;inset:0;margin:0;opacity:0;cursor:pointer;">
+                          <span style="{{ anonTrack }}"></span>
+                          <span style="{{ anonKnob }}"></span>
+                        </span>
+                        <span style="font-size:12.5px;color:#686b74;line-height:1.45;"><strong style="color:#16171d;font-size:13px;">Anonymized review.</strong> Speaker names, emails, and bios are hidden from reviewers; other reviewers' scores stay hidden until they submit their own.</span>
+                      </label>
+                      <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+                        <span style="position:relative;display:inline-block;width:34px;height:20px;flex:none;margin-top:1px;">
+                          <input type="checkbox" checked="{{ remOn }}" onChange="{{ toggleRem }}" style="position:absolute;inset:0;margin:0;opacity:0;cursor:pointer;">
+                          <span style="{{ remTrack }}"></span>
+                          <span style="{{ remKnob }}"></span>
+                        </span>
+                        <span style="font-size:12.5px;color:#686b74;line-height:1.45;"><strong style="color:#16171d;font-size:13px;">Automatic reminders.</strong> Reviewers with work left will be nudged automatically based on reminders you set.</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:14px;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">02 · REVIEWER INSTRUCTIONS</div>
+                    <div>
+                      <textarea value="{{ dInstructions }}" onInput="{{ onDInstructions }}" rows="3" placeholder="Scoring expectations, conflict-of-interest rules, what a 5 means…" style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.55;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"></textarea>
+                    </div>
+                    <div>
+                      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">CRITERIA</div>
+                        <div style="font-size:11.5px;color:#9a9da6;">Reviewers score each one on its own scale; the sum is their cumulative score.</div>
+                      </div>
+                      <div style="display:grid;gap:8px;">
+                        <sc-for list="{{ critRows }}" as="c" hint-placeholder-count="3">
+                          <div style="display:grid;grid-template-columns:170px 1fr 86px 30px;gap:8px;align-items:center;">
+                            <input value="{{ c.name }}" onInput="{{ c.onName }}" placeholder="Criterion" style="padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-weight:600;outline-color:#4c5fd5;">
+                            <input value="{{ c.hint }}" onInput="{{ c.onHint }}" placeholder="One-line hint for reviewers (optional)" style="padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;">
+                            <select value="{{ c.scale }}" onChange="{{ c.onScale }}" style="padding:8px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;">
+                              <option value="3">1–3</option>
+                              <option value="5">1–5</option>
+                              <option value="10">1–10</option>
+                            </select>
+                            <button onClick="{{ c.remove }}" style="background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;">✕</button>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="display:flex;gap:16px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+                        <button onClick="{{ addCrit }}" style="padding:7px 14px;background:#fafafc;border:1px dashed #c9cbd2;color:#686b74;font-size:12.5px;cursor:pointer;">+ Add criterion</button>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">cumulative max {{ cumMax }}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:12px;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">03 · REVIEWERS</div>
+                    <select value="" onChange="{{ addReviewer }}" style="width:260px;padding:8px 10px;border:1px dashed #c9cbd2;background:#fafafc;font-size:12.5px;color:#686b74;">
+                      <option value="">+ Add reviewer…</option>
+                      <sc-for list="{{ revAddOpts }}" as="o" hint-placeholder-count="2"><option value="{{ o.id }}">{{ o.name }}</option></sc-for>
+                    </select>
+                    <div style="display:grid;gap:6px;">
+                      <sc-for list="{{ revRows }}" as="m" hint-placeholder-count="3">
+                        <div style="display:grid;grid-template-columns:1fr 110px 30px;gap:10px;align-items:center;border:1px solid #eceded;padding:7px 12px;">
+                          <div style="min-width:0;"><div style="font-size:13px;font-weight:600;">{{ m.name }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">{{ m.email }}</div></div>
+                          <select value="{{ m.role }}" onChange="{{ m.setRole }}" style="padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                            <option value="member">Member</option>
+                            <option value="chair">Chair</option>
+                          </select>
+                          <button onClick="{{ m.remove }}" style="background:none;border:none;color:#9a9da6;font-size:14px;cursor:pointer;">✕</button>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+                      <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:#33343c;">Reviews per submission
+                        <select value="{{ reviewsPerVal }}" onChange="{{ onReviewsPer }}" style="padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+                  <div style="padding:20px 24px;display:grid;gap:10px;">
+                    <div style="display:flex;align-items:baseline;gap:10px;">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">04 · SUBMISSIONS</div>
+                      <div style="font-size:11.5px;color:#9a9da6;">Filters work as rules — everything matching all of them is in the plan.</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                      <select value="{{ pTrack }}" onChange="{{ onPTrack }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                        <option value="all">All tracks</option>
+                        <sc-for list="{{ trackOpts }}" as="t" hint-placeholder-count="4"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+                      </select>
+                      <select value="{{ pForm }}" onChange="{{ onPForm }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                        <option value="all">All forms</option>
+                        <sc-for list="{{ formOpts }}" as="f" hint-placeholder-count="2"><option value="{{ f.id }}">{{ f.name }}</option></sc-for>
+                      </select>
+                      <select value="{{ pFormat }}" onChange="{{ onPFormat }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                        <option value="all">All formats</option>
+                        <sc-for list="{{ formatOpts }}" as="f" hint-placeholder-count="4"><option value="{{ f }}">{{ f }}</option></sc-for>
+                      </select>
+                      <select value="{{ pLevel }}" onChange="{{ onPLevel }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                        <option value="all">All levels</option>
+                        <sc-for list="{{ levelOpts }}" as="l" hint-placeholder-count="3"><option value="{{ l }}">{{ l }}</option></sc-for>
+                      </select>
+                      <select value="{{ pStatus }}" onChange="{{ onPStatus }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+                        <option value="active">Submitted or In Review</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="in_review">In Review</option>
+                        <option value="all">Any status</option>
+                      </select>
+                      <sc-if value="{{ pHasFilters }}" hint-placeholder-val="{{ false }}">
+                        <button onClick="{{ pClearFilters }}" style="padding:7px 8px;background:none;border:none;color:#4c5fd5;font-size:12px;font-weight:600;cursor:pointer;">Reset rules ×</button>
+                      </sc-if>
+                    </div>
+                    <div style="background:#eef0fb;border:1px solid #d5daf3;padding:10px 14px;">
+                      <div style="font-size:13px;font-weight:700;color:#3a4ab8;">{{ matchLabel }}</div>
+                      <div style="font-size:11.5px;color:#686b74;margin-top:2px;">New submissions that match these rules join the plan automatically.</div>
+                    </div>
+                    <div style="border:1px solid #eceded;max-height:320px;overflow-y:auto;">
+                      <div style="display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;position:sticky;top:0;background:#fff;">
+                        <div>ID</div><div>TITLE</div><div>TRACK</div><div>STATUS</div>
+                      </div>
+                      <sc-for list="{{ pickRows }}" as="r" hint-placeholder-count="8">
+                        <div style="display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;padding:7px 12px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                          <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;">{{ r.id }}</div>
+                          <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.title }}</div>
+                          <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#33343c;"><span style="{{ r.dotStyle }}"></span>{{ r.trackName }}</div>
+                          <span style="{{ r.statusStyle }}">{{ r.statusLabel }}</span>
+                        </div>
+                      </sc-for>
+                      <sc-if value="{{ noMatches }}" hint-placeholder-val="{{ false }}">
+                        <div style="padding:24px 16px;text-align:center;font-size:12.5px;color:#686b74;">Nothing matches these rules.</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:10px;align-items:center;">
+                    <div style="font-size:12px;color:#686b74;">{{ editSummary }}</div>
+                    <div style="margin-left:auto;display:flex;gap:8px;">
+                      <button onClick="{{ cancelEdit }}" style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+                      <button onClick="{{ savePlan }}" style="padding:9px 18px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">{{ saveLabel }}</button>
+                    </div>
+                  </div>
+                </div>
+                <div style="position:sticky;top:16px;display:grid;gap:14px;">
+                  <div style="background:#fff;border:1px solid #e2e3e8;">
+                    <div style="padding:10px 16px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">WHAT REVIEWERS SEE</div>
+                    <div style="padding:14px 16px;display:grid;gap:12px;">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9c36b5;">{{ pvAnonNote }}</div>
+                      <div style="font-size:12px;line-height:1.55;color:#33343c;background:#f8f8fa;border:1px solid #eceded;padding:9px 11px;">{{ pvInstructions }}</div>
+                      <div style="display:grid;gap:10px;">
+                        <sc-for list="{{ pvCrits }}" as="c" hint-placeholder-count="3">
+                          <div>
+                            <div style="display:flex;gap:8px;align-items:baseline;"><span style="font-size:12.5px;font-weight:600;">{{ c.name }}</span><span style="font-size:11px;color:#9a9da6;">{{ c.hint }}</span></div>
+                            <div style="display:flex;gap:3px;margin-top:5px;">
+                              <sc-for list="{{ c.btns }}" as="b" hint-placeholder-count="5"><button onClick="{{ b.set }}" style="{{ b.style }}" style-hover="border-color:#4c5fd5;">{{ b.n }}</button></sc-for>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="border-top:1px solid #eceded;padding-top:10px;display:flex;align-items:baseline;gap:8px;">
+                        <div style="font-size:12.5px;font-weight:600;">Cumulative score</div>
+                        <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;">{{ demoCum }}<span style="font-size:11px;color:#9a9da6;font-weight:400;"> / {{ cumMax }}</span></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="background:#fff;border:1px solid #e2e3e8;">
+                    <div style="padding:10px 16px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">SCOPE</div>
+                    <div style="padding:12px 16px;display:grid;gap:7px;">
+                      <sc-for list="{{ scopeLines }}" as="s" hint-placeholder-count="4">
+                        <div style="display:flex;font-size:12.5px;"><span style="color:#686b74;">{{ s.k }}</span><span style="margin-left:auto;font-weight:600;font-family:'IBM Plex Mono',monospace;font-size:12px;">{{ s.v }}</span></div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ plansDetail }}" hint-placeholder-val="{{ false }}">
+            <div data-screen-label="Evaluation plan — results">
+              <button onClick="{{ dtBack }}" style="background:none;border:none;padding:0;color:#686b74;font-size:12.5px;cursor:pointer;margin-bottom:12px;">← Evaluation plans</button>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                <h1 style="margin:0;font-size:19px;letter-spacing:-0.02em;">{{ dtName }}</h1>
+                <sc-if value="{{ dtAnon }}" hint-placeholder-val="{{ false }}"><span style="display:inline-block;padding:2px 7px;font-size:9.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;letter-spacing:0.06em;background:#f6e8f9;color:#9c36b5;">ANONYMIZED</span></sc-if>
+                <button onClick="{{ dtEdit }}" style="margin-left:auto;padding:7px 14px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:12.5px;font-weight:600;cursor:pointer;">Edit plan</button>
+              </div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;margin-bottom:16px;">{{ dtMeta }}</div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+                <sc-for list="{{ dtStats }}" as="s" hint-placeholder-count="4">
+                  <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+                    <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">{{ s.label }}</div>
+                    <div style="font-size:24px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin-top:4px;">{{ s.val }}</div>
+                    <div style="font-size:11.5px;color:#686b74;">{{ s.sub }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start;">
+                <div style="background:#fff;border:1px solid #e2e3e8;">
+                  <div style="display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">
+                    <div>ID</div><div>TITLE</div><div>CRITERION AVERAGES</div><div>REVIEWERS</div><div style="text-align:right;">{{ dtCumHead }}</div>
+                  </div>
+                  <sc-for list="{{ dtRows }}" as="r" hint-placeholder-count="8">
+                    <div style="display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ r.id }}</div>
+                      <div style="min-width:0;">
+                        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.title }}</div>
+                        <div style="font-size:11px;color:#9a9da6;">{{ r.fmt }}</div>
+                      </div>
+                      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                        <sc-for list="{{ r.critChips }}" as="c" hint-placeholder-count="3"><span style="{{ c.style }}">{{ c.label }}</span></sc-for>
+                      </div>
+                      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                        <sc-for list="{{ r.revChips }}" as="c" hint-placeholder-count="3"><span title="{{ c.t }}" style="{{ c.style }}">{{ c.label }}</span></sc-for>
+                      </div>
+                      <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;">{{ r.cum }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="background:#fff;border:1px solid #e2e3e8;">
+                  <div style="padding:12px 16px;border-bottom:1px solid #e2e3e8;font-size:14px;font-weight:700;">Reviewer progress</div>
+                  <sc-for list="{{ dtReviewers }}" as="e" hint-placeholder-count="4">
+                    <div style="padding:10px 16px;border-bottom:1px solid #f2f3f5;">
+                      <div style="display:flex;font-size:13px;"><span style="font-weight:600;">{{ e.name }}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#686b74;">{{ e.frac }}</span></div>
+                      <div style="height:5px;background:#eef0f3;margin-top:6px;"><div style="{{ e.barStyle }}"></div></div>
+                    </div>
+                  </sc-for>
+                  <div style="padding:12px 16px;display:grid;gap:9px;">
+                    <button onClick="{{ dtRemind }}" style="width:100%;padding:9px 0;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Remind reviewers with work left</button>
+                    <div style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#686b74;">
+                      <span style="{{ dtAutoDot }}"></span><span>{{ dtAutoLine }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+</div>
+<sc-if value="{{ remOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeRem }}" style="position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:60;"></div>
+  <div data-screen-label="Evaluator reminders modal" style="position:fixed;top:44px;left:50%;transform:translateX(-50%);width:1160px;max-width:calc(100vw - 64px);max-height:calc(100vh - 88px);background:#fff;border:1px solid #e2e3e8;z-index:70;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(22,23,29,0.25);">
+    <div style="display:flex;align-items:center;gap:16px;padding:13px 20px;border-bottom:1px solid #e2e3e8;flex:none;">
+      <div style="font-size:15px;font-weight:700;letter-spacing:-0.01em;">{{ remTitle }}</div>
+      <sc-if value="{{ remIsEditor }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-left:auto;display:flex;border:1px solid #e2e3e8;">
+          <button onClick="{{ edTabEdit }}" style="{{ edTabEditStyle }}">Edit</button>
+          <button onClick="{{ edTabPrev }}" style="{{ edTabPrevStyle }}">Preview</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ remHdrBtn }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ remHdrGo }}" style="margin-left:auto;display:flex;align-items:center;gap:6px;background:#eef0fb;border:1px solid #c3cbee;padding:6px 11px;color:#3548b8;font-size:12px;font-weight:600;cursor:pointer;" style-hover="background:#e2e6f8;border-color:#a8b3e4;"><span style="font-size:13px;line-height:1;">⚙</span>{{ remHdrBtn }}</button>
+      </sc-if>
+      <button onClick="{{ remX }}" style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:2px 6px;line-height:1;">×</button>
+    </div>
+    <sc-if value="{{ remIsSend }}" hint-placeholder-val="{{ true }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;overflow:auto;flex:1;min-height:0;">
+        <div style="border-right:1px solid #eceded;">
+          <div style="display:flex;gap:6px;align-items:center;padding:12px 20px;border-bottom:1px solid #eceded;flex-wrap:wrap;">
+            <button onClick="{{ selLeft }}" style="{{ chipBtn }}">Anyone with work left ({{ nLeft }})</button>
+            <button onClick="{{ selNone }}" style="{{ chipBtn }}">Clear</button>
+            <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#686b74;">{{ remCount }} selected</div>
+          </div>
+          <div style="display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;padding:8px 20px;border-bottom:1px solid #eceded;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">
+            <div></div><div>EVALUATOR</div><div>REMAINING</div><div>DUE</div><div>LAST NUDGE</div>
+          </div>
+          <sc-for list="{{ remRows }}" as="r" hint-placeholder-count="6">
+            <div onClick="{{ r.toggle }}" style="{{ r.rowStyle }}">
+              <div style="{{ r.boxStyle }}">{{ r.tick }}</div>
+              <div style="min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:600;">{{ r.name }}</span><sc-if value="{{ r.chip }}" hint-placeholder-val="{{ false }}"><span style="{{ r.chipStyle }}">{{ r.chipLabel }}</span></sc-if></div>
+                <div style="font-size:11px;color:#9a9da6;font-family:'IBM Plex Mono',monospace;margin-top:2px;">{{ r.email }} · {{ r.coms }}</div>
+              </div>
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">{{ r.remLabel }}</div>
+                <div style="height:4px;background:#eef0f3;margin-top:4px;max-width:90px;"><div style="{{ r.barStyle }}"></div></div>
+              </div>
+              <div><div style="font-size:12.5px;font-weight:600;">{{ r.deadline }}</div><div style="{{ r.daysStyle }}">{{ r.daysLabel }}</div></div>
+              <div style="font-size:12px;color:#686b74;">{{ r.last }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:16px 20px;display:grid;gap:10px;align-content:start;">
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">REMINDER EMAIL</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+              <button onClick="{{ sendTest }}" style="padding:5px 10px;background:#fdf6e0;border:1px solid #e8d79a;color:#7a5c0a;font-size:11.5px;cursor:pointer;" style-hover="background:#faeec5;border-color:#d8c078;">Send test to me</button>
+            </div>
+          </div>
+          <div>
+            <input value="{{ remSubject }}" onInput="{{ onRemSubject }}" title="Subject line" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;border-bottom:none;font-size:12.5px;font-weight:600;background:#fff;outline-color:#4c5fd5;">
+            <textarea value="{{ remBody }}" onInput="{{ onRemBody }}" rows="9" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:12.5px;line-height:1.55;resize:vertical;outline-color:#4c5fd5;font-family:inherit;display:block;"></textarea>
+          </div>
+          <div style="font-size:11px;color:#9a9da6;line-height:1.5;">Merge tags <span style="font-family:'IBM Plex Mono',monospace;color:#4c5fd5;">{{ mergeTags }}</span> fill in per recipient.</div>
+          <sc-if value="{{ remPreview }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #eceded;background:#f8f9fc;padding:10px 12px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:6px;">PREVIEW — {{ remPreviewName }}</div>
+              <div style="font-size:12px;font-weight:600;">{{ remPreviewSubject }}</div>
+              <div style="font-size:11.5px;color:#33343c;line-height:1.55;margin-top:5px;white-space:pre-line;">{{ remPreviewBody }}</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;">
+        <div style="margin-left:auto;"></div>
+        <button onClick="{{ sendRem }}" style="{{ sendRemStyle }}">{{ sendRemLabel }}</button>
+      </div>
+    </sc-if>
+    <sc-if value="{{ remIsEditor }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;">
+        <sc-if value="{{ edIsEdit }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;gap:14px;max-width:720px;margin:0 auto;">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SUBJECT</div>
+              <input value="{{ edSubj }}" onChange="{{ onEdSubj }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;font-weight:600;background:#fff;outline-color:#4c5fd5;">
+            </div>
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">BODY</div>
+              <textarea rows="12" value="{{ edBody }}" onChange="{{ onEdBody }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;resize:vertical;line-height:1.5;display:block;outline-color:#4c5fd5;font-family:inherit;"></textarea>
+              <div style="font-size:11px;color:#9a9da6;margin-top:5px;line-height:1.45;">Merge tags <span style="font-family:'IBM Plex Mono',monospace;color:#4c5fd5;">{{ mergeTags }}</span> fill in per recipient.</div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ edIsPrev }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width:720px;margin:0 auto;">
+            <div style="border:1px solid #e2e3e8;">
+              <div style="padding:10px 14px;border-bottom:1px solid #eceded;display:grid;gap:4px;font-size:12px;color:#686b74;">
+                <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">FROM</span>DevConf 2027 Program · program@devconf.org</div>
+                <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">TO</span>{{ edPrevTo }}</div>
+                <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">SUBJ</span><span style="font-weight:600;color:#16171d;">{{ edPrevSubj }}</span></div>
+              </div>
+              <div style="padding:16px 14px;font-size:13px;line-height:1.6;white-space:pre-line;color:#16171d;">{{ edPrevBody }}</div>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;margin-top:8px;">VARIABLES FILLED WITH ONE REAL RECIPIENT</div>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;">
+        <button onClick="{{ sendTest }}" style="padding:8px 14px;background:#fdf6e0;border:1px solid #e8d79a;color:#7a5c0a;font-size:12.5px;cursor:pointer;" style-hover="background:#faeec5;border-color:#d8c078;">Send test to me</button>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button onClick="{{ edCancel }}" style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+          <button onClick="{{ edSave }}" style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">Save</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ remIsAuto }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;overflow:auto;flex:1;min-height:0;">
+        <div style="padding:18px 20px;border-right:1px solid #eceded;display:grid;gap:18px;align-content:start;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <button onClick="{{ autoToggle }}" style="{{ autoTrackStyle }}"><span style="{{ autoKnobStyle }}"></span></button>
+            <div>
+              <div style="font-size:13.5px;font-weight:700;">{{ autoTitle }}</div>
+              <div style="font-size:11.5px;color:#686b74;">Runs daily at 09:00 (Europe/Berlin), using the message from the Send tab.</div>
+            </div>
+          </div>
+          <div style="{{ autoBodyStyle }}">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;">WHO QUALIFIES</div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap;">
+                <span>Evaluators with at least</span>
+                <select value="{{ autoMinLeft }}" onChange="{{ onAutoMinLeft }}" style="padding:5px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;cursor:pointer;outline-color:#4c5fd5;">
+                  <option value="1">1</option>
+                  <option value="3">3</option>
+                  <option value="5">5</option>
+                </select>
+                <span>evaluations remaining on a committee</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:4px;">WHEN</div>
+              <sc-for list="{{ schedRows }}" as="s" hint-placeholder-count="4">
+                <div onClick="{{ s.toggle }}" style="display:flex;gap:10px;align-items:center;padding:7px 0;cursor:pointer;">
+                  <div style="{{ s.boxStyle }}">{{ s.tick }}</div>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;">{{ s.label }}</div>
+                    <div style="font-size:11.5px;color:#9a9da6;">{{ s.sub }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">EMAIL TEMPLATE</div>
+                <button onClick="{{ sendTest }}" style="margin-left:auto;padding:5px 10px;background:#fdf6e0;border:1px solid #e8d79a;color:#7a5c0a;font-size:11.5px;cursor:pointer;" style-hover="background:#faeec5;border-color:#d8c078;">Send test to me</button>
+              </div>
+              <div>
+                <input value="{{ remSubject }}" onInput="{{ onRemSubject }}" title="Subject line" style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;border-bottom:none;font-size:12.5px;font-weight:600;background:#fff;outline-color:#4c5fd5;">
+                <textarea value="{{ remBody }}" onInput="{{ onRemBody }}" rows="8" style="width:100%;padding:10px 11px;border:1px solid #e2e3e8;font-size:12px;line-height:1.6;resize:vertical;outline-color:#4c5fd5;font-family:inherit;display:block;"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:18px 20px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:6px;">NEXT SCHEDULED SENDS</div>
+          <sc-if value="{{ autoOn }}" hint-placeholder-val="{{ true }}">
+            <sc-for list="{{ upcoming }}" as="u" hint-placeholder-count="3">
+              <div style="padding:9px 0;border-bottom:1px solid #f2f3f5;">
+                <div style="display:flex;gap:8px;align-items:baseline;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;">{{ u.date }}</span>
+                  <span style="font-size:11.5px;color:#686b74;">{{ u.when }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{ autoOff }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:12px;color:#9a9da6;">Turn automation on to see the schedule.</div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;">
+        <button onClick="{{ saveAuto }}" style="padding:10px 18px;background:#16171d;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Save automation</button>
+      </div>
+    </sc-if>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);">
+    <span style="color:#69db7c;">✓</span>{{ toast }}
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { data: null, view: 'queue', mode: 'card', idx: 0, done: 9, scores: {}, note: '', toast: null, q: '', quick: 'all', fTrack: 'all', fFormat: 'all', page: 0, orgSel: null, decisions: {},
+    remOpen: false, remTab: 'send', remSel: { deniz: true, priya: true, grace: true, elif: true }, sentToday: {}, remEd: null,
+    remSubject: 'Reminder: {remaining} evaluations due {deadline}',
+    remBody: 'Hi {first_name},\n\nA quick nudge from the DevConf 2027 program team: you have {remaining} evaluations left in your queue, due {deadline}.\n\nOpen your queue: app.com/devconf-2027/evaluate\n\nThanks for the time you\'re putting in,\nMarta',
+    auto: { on: true, minLeft: 1, d14: false, d7: true, d3: true, over: true, cooldown: 3 },
+    orgTab: 'scores', plans: null, planView: 'list', planDraft: null, planDetailId: null, demo: {}, oq: '', oTrack: 'all', oPlan: 'all' };
+  setFilter(patch) { this.setState({ ...patch, page: 0 }); }
+  componentDidMount() {
+    import('./data.js').then(m => {
+      const plans = (m.EVAL_PLANS || []).map(p => this.normalize(p));
+      this.setState({ data: m, plans });
+    });
+    if (location.hash === '#committees' || location.hash === '#plans') this.setState({ view: 'org', orgTab: 'plans' });
+    this._key = (e) => {
+      if (this.state.view !== 'queue' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key >= '1' && e.key <= '5') {
+        const crits = ['Relevance', 'Depth', 'Delivery'];
+        const next = crits.find(c => !this.state.scores[c]) || 'Delivery';
+        this.setState({ scores: { ...this.state.scores, [next]: +e.key } });
+      }
+      if (e.key === 'Enter') this.submit();
+    };
+    window.addEventListener('keydown', this._key);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._key); }
+  flash(msg) { clearTimeout(this._t); this.setState({ toast: msg }); this._t = setTimeout(() => this.setState({ toast: null }), 2600); }
+  queueItems() {
+    const d = this.state.data;
+    return d ? d.SUBMISSIONS.filter(s => ['in_review', 'submitted'].includes(s.status)).slice(0, 5) : [];
+  }
+  orgEvals(s) {
+    const d = this.state.data;
+    const com = d.COMMITTEES.find(c => c.subs.includes(s.id));
+    const people = com ? com.members.map(m => d.PEOPLE.find(p => p.id === m.id)).filter(p => p && p.role !== 'Organizer') : [];
+    while (people.length < s.evalTotal) people.push(d.PEOPLE[(people.length + 3) % d.PEOPLE.length]);
+    const seed = s.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+    const CRITN = ['Relevance', 'Depth', 'Delivery'];
+    const DENIZ = {
+      'SUB-147': [4, 5, 4, 'Strong operational detail. Check the demo fits 45 minutes.'],
+      'SUB-141': [3, 4, 3, 'Solid, but 90 hands-on minutes is a pacing risk.'],
+      'SUB-138': [4, 4, 4, ''],
+      'SUB-131': [5, 5, 5, 'Best submission in my queue. Keynote material.']
+    };
+    return people.slice(0, s.evalTotal).map((p, j) => {
+      if (j >= s.evalDone || s.avg == null) return { name: p.name, done: false };
+      let vals, note = '';
+      if (p.id === 'deniz' && DENIZ[s.id]) { const r = DENIZ[s.id]; vals = r.slice(0, 3); note = r[3]; }
+      else vals = CRITN.map((_, k) => Math.max(1, Math.min(5, Math.round(s.avg + ((seed + j * 7 + k * 3) % 3) - 1))));
+      return { name: p.name, done: true, vals, note, avg: vals.reduce((a, b) => a + b, 0) / 3 };
+    });
+  }
+  submit() {
+    const full = ['Relevance', 'Depth', 'Delivery'].every(c => this.state.scores[c]);
+    if (!full) { this.flash('Score all three criteria first (keys 1–5)'); return; }
+    this.setState({ idx: this.state.idx + 1, done: this.state.done + 1, scores: {}, note: '' });
+    this.flash('Score submitted — next one loaded');
+  }
+  toISODate(s) { const t = Date.parse(s); if (isNaN(t)) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  fromISODate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+  sub(id) { return this.state.data.SUBMISSIONS.find(s => s.id === id); }
+  person(id) { return this.state.data.PEOPLE.find(p => p.id === id) || { name: id, email: '' }; }
+  normalize(p) {
+    return { ...p,
+      criteria: p.criteria.map(c => ({ scale: 5, ...c })),
+      reviewers: p.reviewers.map(r => typeof r === 'string' ? { id: r, role: 'member' } : { ...r }),
+      rules: { track: 'all', form: 'all', format: 'all', level: 'all', status: 'active', ...(p.rules || {}) },
+      reviewsPer: p.reviewsPer || 3, subs: [...p.subs] };
+  }
+  blankDraft() {
+    return { id: null, name: '', instructions: '', deadline: 'Sep 5, 2026', anonymized: true, reminders: true, reviewsPer: 3,
+      criteria: [{ name: 'Relevance', hint: 'Fits this audience?', scale: 5 }, { name: 'Depth', hint: 'Substance over hype?', scale: 5 }, { name: 'Delivery', hint: 'Will it land on stage?', scale: 5 }],
+      reviewers: [], rules: { track: 'all', form: 'all', format: 'all', level: 'all', status: 'active' } };
+  }
+  draftOf(p) {
+    return { id: p.id, name: p.name, instructions: p.instructions, deadline: p.deadline, anonymized: p.anonymized, reminders: p.reminders,
+      reviewsPer: p.reviewsPer, criteria: p.criteria.map(c => ({ ...c })), reviewers: p.reviewers.map(r => ({ ...r })), rules: { ...p.rules } };
+  }
+  members(p) { return p.reviewers.filter(r => r.role !== 'chair'); }
+  effRp(p) { const m = this.members(p).length; return Math.max(1, Math.min(p.reviewsPer, m || 1)); }
+  seedOf(s) { return s.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0); }
+  assignedFor(p, s) {
+    const sc = this.members(p);
+    if (!sc.length) return [];
+    const start = this.seedOf(s) % sc.length;
+    return Array.from({ length: this.effRp(p) }, (_, i) => sc[(start + i) % sc.length]);
+  }
+  evalsFor(p, s) {
+    const assigned = this.assignedFor(p, s);
+    const done = s.avg == null ? 0 : Math.min(s.evalDone, assigned.length);
+    const seed = this.seedOf(s);
+    const evals = assigned.slice(0, done).map((r, j) => {
+      const vals = p.criteria.map((c, k) => {
+        const v5 = Math.max(1, Math.min(5, Math.round(s.avg + ((seed + j * 7 + k * 3) % 3) - 1)));
+        return c.scale === 5 ? v5 : Math.max(1, Math.round(v5 * c.scale / 5));
+      });
+      return { rid: r.id, vals, cum: vals.reduce((a, b) => a + b, 0) };
+    });
+    return { assigned, evals };
+  }
+  planProgress(p) {
+    const rp = this.effRp(p);
+    const subs = p.subs.map(id => this.sub(id)).filter(Boolean);
+    const total = subs.length * rp;
+    const done = subs.reduce((a, s) => a + Math.min(s.evalDone, rp), 0);
+    return { done, total, pct: total ? Math.round(done / total * 100) : 0 };
+  }
+  avgCum(p) {
+    const cums = p.subs.map(id => this.sub(id)).filter(Boolean).map(s => {
+      const { evals } = this.evalsFor(p, s);
+      return evals.length ? evals.reduce((a, e) => a + e.cum, 0) / evals.length : null;
+    }).filter(v => v != null);
+    return cums.length ? cums.reduce((a, b) => a + b, 0) / cums.length : null;
+  }
+  matchesRules(s, r) {
+    if (r.track !== 'all' && s.track !== r.track) return false;
+    if (r.form !== 'all' && (s.form || 'cfp') !== r.form) return false;
+    if (r.format !== 'all' && s.format !== r.format) return false;
+    if (r.level !== 'all' && s.level !== r.level) return false;
+    if (r.status === 'active') return ['submitted', 'in_review'].includes(s.status);
+    if (r.status !== 'all' && s.status !== r.status) return false;
+    return true;
+  }
+  cumMaxOf(crits) { return crits.reduce((a, c) => a + (+c.scale || 5), 0); }
+  updPD(patch) { this.setState({ planDraft: { ...this.state.planDraft, ...patch } }); }
+  plansVals() {
+    const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
+    const noop = () => {};
+    const base = { plansList: st.planView === 'list', plansEdit: st.planView === 'edit', plansDetail: st.planView === 'detail',
+      countLabel: '…', planRows: [], newPlan: noop, cancelEdit: noop, editTitle: '', dName: '', onDName: noop, dDeadline: '', onDDeadline: noop,
+      anonOn: false, toggleAnon: noop, anonTrack: '', anonKnob: '', remOn: false, toggleRem: noop, remTrack: '', remKnob: '',
+      dInstructions: '', onDInstructions: noop, critRows: [], addCrit: noop, cumMax: 0,
+      revRows: [], revAddOpts: [], addReviewer: noop, reviewsPerVal: '3', onReviewsPer: noop,
+      pTrack: 'all', onPTrack: noop, pForm: 'all', onPForm: noop, pFormat: 'all', onPFormat: noop, pLevel: 'all', onPLevel: noop, pStatus: 'active', onPStatus: noop,
+      pHasFilters: false, pClearFilters: noop, matchLabel: '', pickRows: [], noMatches: false, editSummary: '', saveLabel: '', savePlan: noop,
+      pvAnonNote: '', pvInstructions: '', pvCrits: [], demoCum: '—', scopeLines: [],
+      dtBack: noop, dtName: '', dtAnon: false, dtEdit: noop, dtMeta: '', dtStats: [], dtCumHead: 'CUMULATIVE', dtRows: [], dtReviewers: [], dtRemind: noop, dtAutoLine: '', dtAutoDot: '',
+      trackOpts: [], formOpts: [], formatOpts: [], levelOpts: [] };
+    if (!d || !st.plans) return base;
+    Object.assign(base, { trackOpts: d.TRACKS, formOpts: d.FORMS, formatOpts: d.FORMATS, levelOpts: d.LEVELS });
+    const initials = (n) => n.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const avStyle = (chair) => `width:26px;height:26px;display:grid;place-items:center;font-family:${mono};font-size:10px;font-weight:600;background:${chair ? '#4c5fd5' : '#eef0fb'};color:${chair ? '#fff' : '#4c5fd5'};flex:none;`;
+    const chip = (bg, fg) => `display:inline-block;padding:2px 6px;font-family:${mono};font-size:10.5px;font-weight:600;background:${bg};color:${fg};`;
+    base.newPlan = () => this.setState({ planView: 'edit', planDraft: this.blankDraft(), demo: {} });
+    base.countLabel = `${st.plans.length} plans · ${d.PEOPLE.length} people`;
+    base.planRows = st.plans.map(p => {
+      const pr = this.planProgress(p);
+      const cumMax = this.cumMaxOf(p.criteria);
+      const ac = this.avgCum(p);
+      const chairs = p.reviewers.filter(r => r.role === 'chair').length;
+      const avatars = p.reviewers.slice(0, 5).map(r => ({ txt: initials(this.person(r.id).name), name: this.person(r.id).name, style: avStyle(r.role === 'chair') }));
+      if (p.reviewers.length > 5) avatars.push({ txt: '+' + (p.reviewers.length - 5), name: '', style: `width:26px;height:26px;display:grid;place-items:center;font-family:${mono};font-size:10px;font-weight:600;background:#f2f3f5;color:#686b74;flex:none;` });
+      return { name: p.name, anon: p.anonymized, crits: p.criteria.map(c => c.name), avatars,
+        revLine: `${p.reviewers.length} reviewer${p.reviewers.length === 1 ? '' : 's'}${chairs ? ` · ${chairs} chair${chairs > 1 ? 's' : ''}` : ''}`,
+        progLine: `${pr.done}/${pr.total} reviews`, pct: pr.pct + '%',
+        barStyle: `height:6px;width:${pr.pct}%;background:${pr.pct === 100 ? '#2b8a3e' : '#4c5fd5'};`,
+        subLine: `Due ${p.deadline}`,
+        score: ac != null ? ac.toFixed(1) : '—', scoreSub: `/ ${cumMax} avg cumulative`,
+        open: () => this.setState({ planView: 'edit', planDraft: this.draftOf(p), planDetailId: p.id, demo: {} }),
+        edit: (e) => { e.stopPropagation(); this.setState({ planView: 'edit', planDraft: this.draftOf(p), planDetailId: p.id, demo: {} }); } };
+    });
+    const draft = st.planDraft;
+    if (st.planView === 'edit' && draft) {
+      const updD = (patch) => this.updPD(patch);
+      const tog = (on) => [
+        `position:absolute;inset:0;background:${on ? '#4c5fd5' : '#d5d6db'};border-radius:10px;transition:background .15s;`,
+        `position:absolute;top:2px;left:${on ? '16px' : '2px'};width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s;`];
+      const [anonTrack, anonKnob] = tog(draft.anonymized);
+      const [remTrack, remKnob] = tog(draft.reminders);
+      const namedCrits = draft.criteria.filter(c => c.name.trim());
+      const cumMax = this.cumMaxOf(namedCrits);
+      const rules = draft.rules;
+      const matched = d.SUBMISSIONS.filter(s => this.matchesRules(s, rules));
+      const memberN = this.members(draft).length;
+      const rp = Math.max(1, Math.min(draft.reviewsPer, memberN || 1));
+      const setRule = (k) => (e) => updD({ rules: { ...rules, [k]: e.target.value } });
+      const demoSum = namedCrits.reduce((a, c) => a + (st.demo[c.name] || 0), 0);
+      Object.assign(base, {
+        editTitle: draft.id ? 'Edit plan' : 'New evaluation plan',
+        cancelEdit: () => this.setState({ planView: draft.id ? 'detail' : 'list', planDraft: null }),
+        dName: draft.name, onDName: (e) => updD({ name: e.target.value }),
+        dDeadline: this.toISODate(draft.deadline), onDDeadline: (e) => updD({ deadline: this.fromISODate(e.target.value) }),
+        anonOn: draft.anonymized, toggleAnon: () => updD({ anonymized: !draft.anonymized }), anonTrack, anonKnob,
+        remOn: draft.reminders, toggleRem: () => updD({ reminders: !draft.reminders }), remTrack, remKnob,
+        dInstructions: draft.instructions, onDInstructions: (e) => updD({ instructions: e.target.value }),
+        critRows: draft.criteria.map((c, i) => ({
+          name: c.name, onName: (e) => updD({ criteria: draft.criteria.map((x, j) => j === i ? { ...x, name: e.target.value } : x) }),
+          hint: c.hint, onHint: (e) => updD({ criteria: draft.criteria.map((x, j) => j === i ? { ...x, hint: e.target.value } : x) }),
+          scale: String(c.scale), onScale: (e) => updD({ criteria: draft.criteria.map((x, j) => j === i ? { ...x, scale: +e.target.value } : x) }),
+          remove: () => updD({ criteria: draft.criteria.filter((x, j) => j !== i) }) })),
+        addCrit: () => updD({ criteria: [...draft.criteria, { name: '', hint: '', scale: 5 }] }),
+        cumMax,
+        revRows: draft.reviewers.map(r => { const p = this.person(r.id); return {
+          name: p.name + (r.id === 'marta' ? ' (you)' : ''), email: p.email, role: r.role,
+          setRole: (e) => { const role = e.target.value; updD({ reviewers: draft.reviewers.map(x => x.id === r.id ? { ...x, role } : x) }); },
+          remove: () => updD({ reviewers: draft.reviewers.filter(x => x.id !== r.id) }) }; }),
+        revAddOpts: d.PEOPLE.filter(p => !draft.reviewers.some(r => r.id === p.id)),
+        addReviewer: (e) => { const id = e.target.value; if (id) updD({ reviewers: [...draft.reviewers, { id, role: 'member' }] }); },
+        reviewsPerVal: String(draft.reviewsPer), onReviewsPer: (e) => updD({ reviewsPer: +e.target.value }),
+        pTrack: rules.track, onPTrack: setRule('track'),
+        pForm: rules.form, onPForm: setRule('form'),
+        pFormat: rules.format, onPFormat: setRule('format'),
+        pLevel: rules.level, onPLevel: setRule('level'),
+        pStatus: rules.status, onPStatus: setRule('status'),
+        pHasFilters: !!(rules.track !== 'all' || rules.form !== 'all' || rules.format !== 'all' || rules.level !== 'all' || rules.status !== 'active'),
+        pClearFilters: () => updD({ rules: { track: 'all', form: 'all', format: 'all', level: 'all', status: 'active' } }),
+        matchLabel: `${matched.length} submission${matched.length === 1 ? '' : 's'} currently match`,
+        noMatches: matched.length === 0,
+        pickRows: matched.map(s => { const stt = d.STATUS[s.status] || { label: s.status, fg: '#686b74', bg: '#f2f3f5' }; return {
+          id: s.id, title: s.title, trackName: d.trackOf(s.track).name,
+          dotStyle: `width:8px;height:8px;background:${d.trackOf(s.track).color};flex:none;`,
+          statusLabel: stt.label, statusStyle: chip(stt.bg, stt.fg) }; }),
+        editSummary: `${namedCrits.length} criteria · ${draft.reviewers.length} reviewer${draft.reviewers.length === 1 ? '' : 's'} · ${matched.length} submissions · ${rp} review${rp === 1 ? '' : 's'} each`,
+        saveLabel: draft.id ? 'Save plan' : `Create plan (${matched.length})`,
+        savePlan: () => {
+          if (!draft.name.trim()) { this.flash('Name the plan first'); return; }
+          if (!namedCrits.length) { this.flash('Add at least one criterion'); return; }
+          if (!memberN) { this.flash('Assign at least one member reviewer'); return; }
+          if (!matched.length) { this.flash('No submissions match — loosen the rules'); return; }
+          const rec = { id: draft.id || 'p' + Date.now(), name: draft.name.trim(), instructions: draft.instructions, deadline: draft.deadline,
+            anonymized: draft.anonymized, reminders: draft.reminders, reviewsPer: draft.reviewsPer, criteria: namedCrits,
+            reviewers: draft.reviewers, rules: { ...rules }, subs: matched.map(s => s.id) };
+          if (draft.id) {
+            this.setState({ plans: st.plans.map(p => p.id === draft.id ? rec : p), planView: 'list', planDetailId: null, planDraft: null });
+            this.flash(`Plan saved — ${rec.subs.length} submissions match the rules`);
+          } else {
+            this.setState({ plans: [rec, ...st.plans], planView: 'detail', planDetailId: rec.id, planDraft: null });
+            this.flash(`“${rec.name}” created — ${draft.reviewers.length} reviewers invited, ${rec.subs.length} submissions matched${draft.reminders ? ', reminders scheduled' : ''}`);
+          }
+        },
+        pvAnonNote: draft.anonymized ? 'ANONYMIZED — SPEAKERS HIDDEN' : 'OPEN REVIEW — SPEAKERS VISIBLE',
+        pvInstructions: draft.instructions.trim() || 'Your instructions appear here, above every scoring form.',
+        pvCrits: namedCrits.map(c => ({ name: c.name, hint: c.hint,
+          btns: Array.from({ length: c.scale }, (_, i) => i + 1).map(n => ({ n,
+            set: () => this.setState({ demo: { ...st.demo, [c.name]: n } }),
+            style: `flex:1;min-width:20px;height:26px;padding:0;border:1px solid ${st.demo[c.name] === n ? '#4c5fd5' : '#e2e3e8'};background:${st.demo[c.name] && n <= st.demo[c.name] ? '#eef0fb' : '#fff'};color:${st.demo[c.name] && n <= st.demo[c.name] ? '#4c5fd5' : '#686b74'};font-size:11px;font-weight:600;cursor:pointer;font-family:${mono};` })) })),
+        demoCum: demoSum ? String(demoSum) : '—',
+        scopeLines: [
+          { k: 'Submissions', v: String(matched.length) },
+          { k: 'Reviewers', v: `${draft.reviewers.length} (${memberN} member${memberN === 1 ? '' : 's'})` },
+          { k: 'Reviews per submission', v: String(rp) },
+          { k: 'Evaluations', v: String(matched.length * rp) },
+          { k: 'Deadline', v: draft.deadline || '—' },
+          { k: 'Reminders', v: draft.reminders ? 'on' : 'off' }
+        ]
+      });
+    }
+    const dp = st.plans.find(p => p.id === st.planDetailId);
+    if (st.planView === 'detail' && dp) {
+      const pr = this.planProgress(dp);
+      const rp = this.effRp(dp);
+      const cumMax = this.cumMaxOf(dp.criteria);
+      const ac = this.avgCum(dp);
+      const subsL = dp.subs.map(id => this.sub(id)).filter(Boolean);
+      const rows = subsL.map(s => {
+        const { assigned, evals } = this.evalsFor(dp, s);
+        const cum = evals.length ? evals.reduce((a, e) => a + e.cum, 0) / evals.length : null;
+        const critAvgs = dp.criteria.map((c, k) => evals.length ? evals.reduce((a, e) => a + e.vals[k], 0) / evals.length : null);
+        return { s, assigned, evals, cum, critAvgs };
+      }).sort((a, b) => (b.cum ?? -1) - (a.cum ?? -1));
+      Object.assign(base, {
+        dtBack: () => this.setState({ planView: 'list', planDetailId: null }),
+        dtName: dp.name, dtAnon: dp.anonymized,
+        dtEdit: () => this.setState({ planView: 'edit', planDraft: this.draftOf(dp), demo: {} }),
+        dtMeta: `DUE ${dp.deadline.toUpperCase()} · ${dp.reviewers.length} REVIEWERS · ${rp} REVIEW${rp === 1 ? '' : 'S'} PER SUBMISSION · CUMULATIVE MAX ${cumMax}`,
+        dtStats: [
+          { label: 'SUBMISSIONS', val: String(dp.subs.length), sub: '' },
+          { label: 'EVALUATIONS IN', val: `${pr.done}/${pr.total}`, sub: `${pr.pct}% complete` },
+          { label: 'AVG CUMULATIVE', val: ac != null ? ac.toFixed(1) : '—', sub: `of ${cumMax} max` },
+          { label: 'OUTSTANDING', val: String(pr.total - pr.done), sub: 'reviews left' }
+        ],
+        dtCumHead: `CUM. / ${cumMax}`,
+        dtRows: rows.map(({ s, assigned, evals, cum, critAvgs }) => ({
+          id: s.id, title: s.title, fmt: `${s.format.replace(/ \(.+\)/, '')} · ${d.trackOf(s.track).name}`,
+          critChips: cum == null ? [{ label: 'no scores yet', style: chip('#f2f3f5', '#c0c2ca') }] : dp.criteria.map((c, k) => ({ label: `${c.name} ${critAvgs[k].toFixed(1)}`, style: chip('#eef0fb', '#33343c') })),
+          revChips: assigned.map((r, j) => { const e = evals[j]; const nm = this.person(r.id).name; return e
+            ? { label: `${initials(nm)} ${e.cum}`, t: `${nm}: cumulative ${e.cum} of ${cumMax}`, style: chip('#eef0fb', '#33343c') }
+            : { label: `${initials(nm)} —`, t: `${nm} — not submitted yet`, style: chip('#f2f3f5', '#c0c2ca') }; }),
+          cum: cum != null ? cum.toFixed(1) : '—' })),
+        dtReviewers: dp.reviewers.map(r => {
+          const nm = this.person(r.id).name;
+          if (r.role === 'chair') return { name: nm + ' · chair', frac: 'no queue', barStyle: 'height:5px;width:0;' };
+          let load = 0, done = 0;
+          subsL.forEach(s => {
+            const assigned = this.assignedFor(dp, s);
+            const i = assigned.findIndex(x => x.id === r.id);
+            if (i === -1) return;
+            load++;
+            if (s.avg != null && Math.min(s.evalDone, assigned.length) > i) done++;
+          });
+          return { name: nm, frac: `${done}/${load}`,
+            barStyle: `height:5px;width:${load ? Math.round(done / load * 100) : 0}%;background:${load && done === load ? '#2b8a3e' : '#4c5fd5'};` };
+        }),
+        dtRemind: () => this.setState({ remOpen: true, remTab: 'send' }),
+        dtAutoLine: dp.reminders ? 'Auto reminders on' : 'Auto-reminders off — enable them in plan settings',
+        dtAutoDot: `width:7px;height:7px;flex:none;background:${dp.reminders ? '#2b8a3e' : '#c9cbd3'};`
+      });
+    }
+    return base;
+  }
+  remVals() {
+    const st = this.state, a = st.auto, mono = "'IBM Plex Mono',monospace";
+    const evs = [
+      { id: 'deniz', name: 'Deniz Aksoy', email: 'deniz@aksoy.dev', coms: 'Main CFP + AI Deep-Dive', total: 17, done: 9, deadline: 'Aug 24', days: 13, last: 'Aug 4' },
+      { id: 'priya', name: 'Priya Nair', email: 'priya.n@webfoundry.co', coms: 'Main CFP', total: 14, done: 6, deadline: 'Aug 24', days: 13, last: null },
+      { id: 'grace', name: 'Grace Osei', email: 'grace@platformlab.gh', coms: 'Main CFP', total: 14, done: 11, deadline: 'Aug 24', days: 13, last: 'Aug 4' },
+      { id: 'elif', name: 'Elif Şahin', email: 'elif@mlberlin.io', coms: 'AI Deep-Dive', total: 3, done: 1, deadline: 'Aug 28', days: 17, last: null },
+      { id: 'sam', name: 'Sam Ortiz', email: 'sam@ortiz.codes', coms: 'Main CFP', total: 14, done: 14, deadline: 'Aug 24', days: 13, last: 'Jul 28' },
+      { id: 'tom', name: 'Tom Baker', email: 'tom@devrel.uk', coms: 'Sponsor Sessions', total: 2, done: 2, deadline: 'Sep 18', days: 38, last: null }
+    ].map(e => ({ ...e, rem: e.total - e.done, lastLabel: st.sentToday[e.id] ? 'Today' : (e.last || 'Never') }));
+    const eligible = evs.filter(e => e.rem > 0);
+    const selIds = eligible.filter(e => st.remSel[e.id]);
+    const setSel = (list) => this.setState({ remSel: Object.fromEntries(list.map(e => [e.id, true])) });
+    const merge = (tpl, e) => tpl.replace(/\{first_name\}/g, e.name.split(' ')[0]).replace(/\{remaining\}/g, String(e.rem)).replace(/\{deadline\}/g, e.deadline);
+    const box = (on, dis) => `width:16px;height:16px;border:1px solid ${on ? '#4c5fd5' : '#c9cbd3'};background:${on ? '#4c5fd5' : '#fff'};color:#fff;display:grid;place-items:center;font-size:11px;line-height:1;flex:none;${dis ? 'opacity:0.35;' : ''}`;
+    const tab = (on) => `padding:6px 13px;border:none;font-size:12px;cursor:pointer;font-weight:600;background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#686b74'};`;
+    const comOf = { deniz: ['Main CFP', 'AI Track Deep-Dive'], priya: ['Main CFP'], grace: ['Main CFP'], elif: ['AI Track Deep-Dive'], sam: ['Main CFP'], tom: ['Sponsor Sessions'] };
+    const deadlines = [{ name: 'Main CFP', iso: '2026-08-24' }, { name: 'AI Track Deep-Dive', iso: '2026-08-28' }, { name: 'Sponsor Sessions', iso: '2026-09-18' }];
+    const points = [];
+    if (a.d14) points.push({ minus: 14, label: '14 days before' });
+    if (a.d7) points.push({ minus: 7, label: '7 days before' });
+    if (a.d3) points.push({ minus: 3, label: '3 days before' });
+    if (a.over) points.push({ minus: -1, label: '1 day overdue · chair CC’d' });
+    const upcoming = [];
+    deadlines.forEach(dl => {
+      const rec = evs.filter(e => e.rem >= a.minLeft && comOf[e.id].includes(dl.name));
+      if (!rec.length) return;
+      points.forEach(p => {
+        const dt = new Date(dl.iso + 'T09:00:00');
+        dt.setDate(dt.getDate() - p.minus);
+        if (dt < new Date('2026-08-11')) return;
+        upcoming.push({ t: dt.getTime(), date: dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), when: `${p.label} · ${dl.name}`, who: rec.map(e => e.name.split(' ')[0]).join(', ') + ' (est.)' });
+      });
+    });
+    upcoming.sort((x, y) => x.t - y.t);
+    const pv = selIds[0];
+    const pvE = selIds[0] || eligible[0];
+    const ed = st.remEd || { subj: st.remSubject, body: st.remBody, view: 'edit' };
+    return {
+      remOpen: st.remOpen,
+      openRem: () => this.setState({ remOpen: true, remTab: 'send' }),
+      closeRem: () => this.setState({ remOpen: false }),
+      remTitle: st.remTab === 'auto' ? 'Automation settings' : st.remTab === 'editor' ? 'Edit reminder email' : 'Remind evaluators',
+      remIsSend: st.remTab === 'send', remIsAuto: st.remTab === 'auto', remIsEditor: st.remTab === 'editor',
+      remHdrBtn: st.remTab === 'send' ? 'Automation settings' : st.remTab === 'auto' ? '← Back to send' : null,
+      remHdrGo: () => this.setState({ remTab: st.remTab === 'send' ? 'auto' : 'send' }),
+      remX: () => st.remTab === 'send' ? this.setState({ remOpen: false }) : this.setState({ remTab: 'send' }),
+      openEditor: () => this.setState({ remTab: 'editor', remEd: { subj: st.remSubject, body: st.remBody, view: 'edit' } }),
+      edTabEdit: () => this.setState({ remEd: { ...ed, view: 'edit' } }),
+      edTabPrev: () => this.setState({ remEd: { ...ed, view: 'prev' } }),
+      edTabEditStyle: tab(ed.view !== 'prev'), edTabPrevStyle: tab(ed.view === 'prev'),
+      edIsEdit: ed.view !== 'prev', edIsPrev: ed.view === 'prev',
+      edSubj: ed.subj, onEdSubj: (e) => this.setState({ remEd: { ...ed, subj: e.target.value } }),
+      edBody: ed.body, onEdBody: (e) => this.setState({ remEd: { ...ed, body: e.target.value } }),
+      edPrevTo: pvE ? `${pvE.name} · ${pvE.email}` : '—',
+      edPrevSubj: pvE ? merge(ed.subj, pvE) : ed.subj,
+      edPrevBody: pvE ? merge(ed.body, pvE) : ed.body,
+      edSave: () => { this.setState({ remTab: 'send', remSubject: ed.subj, remBody: ed.body }); this.flash('Reminder email updated'); },
+      edCancel: () => this.setState({ remTab: 'send' }),
+      sendTest: () => this.flash('Test email sent to marta@devconf.org'),
+      chipBtn: 'padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;font-weight:600;color:#33343c;cursor:pointer;',
+      selLeft: () => setSel(eligible), selNone: () => setSel([]),
+      nLeft: eligible.length, remCount: selIds.length,
+      remRows: evs.map(e => {
+        const dis = e.rem === 0;
+        const on = !dis && !!st.remSel[e.id];
+        return {
+          name: e.name, email: e.email, coms: e.coms,
+          chip: dis, chipLabel: 'Done',
+          chipStyle: `display:inline-block;padding:1px 7px;font-family:${mono};font-size:10px;font-weight:600;background:#e6f4ea;color:#2b8a3e;`,
+          remLabel: dis ? 'All done' : `${e.rem} of ${e.total} left`,
+          barStyle: `height:4px;width:${e.done / e.total * 100}%;background:${dis ? '#2b8a3e' : '#4c5fd5'};`,
+          deadline: e.deadline,
+          daysLabel: dis ? '—' : `in ${e.days} days`,
+          daysStyle: `font-size:10.5px;font-family:${mono};color:${e.days <= 14 ? '#b08800' : '#9a9da6'};margin-top:1px;`,
+          last: e.lastLabel, tick: on ? '✓' : '', boxStyle: box(on, dis),
+          rowStyle: `display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;padding:10px 20px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:${dis ? 'default' : 'pointer'};${dis ? 'opacity:0.55;' : ''}`,
+          toggle: dis ? null : () => this.setState({ remSel: { ...st.remSel, [e.id]: !st.remSel[e.id] } })
+        };
+      }),
+      remSubject: st.remSubject, onRemSubject: (e) => this.setState({ remSubject: e.target.value }),
+      remBody: st.remBody, onRemBody: (e) => this.setState({ remBody: e.target.value }),
+      mergeTags: '{first_name} {remaining} {deadline}',
+      remPreview: !!pv,
+      remPreviewName: pv ? pv.name : '', remPreviewSubject: pv ? merge(st.remSubject, pv) : '', remPreviewBody: pv ? merge(st.remBody, pv) : '',
+      sendRem: selIds.length ? () => {
+        const sent = { ...st.sentToday };
+        selIds.forEach(e => { sent[e.id] = true; });
+        this.setState({ remOpen: false, sentToday: sent, remSel: {} });
+        this.flash(`Reminder emailed to ${selIds.map(e => e.name.split(' ')[0]).join(', ')}`);
+      } : null,
+      sendRemStyle: `margin-left:auto;padding:10px 18px;background:${selIds.length ? '#4c5fd5' : '#c0c5e8'};color:#fff;border:none;font-size:13px;font-weight:600;cursor:${selIds.length ? 'pointer' : 'not-allowed'};flex:none;`,
+      sendRemLabel: `Send now to ${selIds.length} evaluator${selIds.length === 1 ? '' : 's'}`,
+      autoToggle: () => this.setState({ auto: { ...a, on: !a.on } }),
+      autoTrackStyle: `position:relative;width:38px;height:21px;border:none;background:${a.on ? '#4c5fd5' : '#c9cbd3'};cursor:pointer;padding:0;flex:none;`,
+      autoKnobStyle: `position:absolute;top:2px;left:${a.on ? '19px' : '2px'};width:17px;height:17px;background:#fff;transition:left 0.15s;display:block;`,
+      autoTitle: a.on ? 'Automatic reminders are on' : 'Automatic reminders are off',
+      autoBodyStyle: `display:grid;gap:18px;${a.on ? '' : 'opacity:0.45;pointer-events:none;'}`,
+      autoMinLeft: String(a.minLeft), onAutoMinLeft: (e) => this.setState({ auto: { ...a, minLeft: +e.target.value } }),
+      autoCooldown: String(a.cooldown), onAutoCooldown: (e) => this.setState({ auto: { ...a, cooldown: +e.target.value } }),
+      schedRows: [
+        { k: 'd14', label: '14 days before committee deadline', sub: 'Early heads-up' },
+        { k: 'd7', label: '7 days before deadline', sub: 'Main nudge' },
+        { k: 'd3', label: '3 days before deadline', sub: 'Final call' },
+        { k: 'over', label: '1 day after deadline', sub: 'Overdue — committee chair CC’d' }
+      ].map(s => ({ label: s.label, sub: s.sub, tick: a[s.k] ? '✓' : '', boxStyle: box(a[s.k], false), toggle: () => this.setState({ auto: { ...a, [s.k]: !a[s.k] } }) })),
+      upcoming, autoOn: a.on, autoOff: !a.on,
+      saveAuto: () => { this.setState({ remTab: 'send' }); this.flash(a.on ? `Automation saved — next send ${upcoming.length ? upcoming[0].date : '—'}` : 'Automation saved (turned off)'); },
+      autoStatusLine: a.on ? `Auto-reminders on · next ${upcoming.length ? upcoming[0].date : '—'}` : 'Auto-reminders off',
+      autoDotStyle: `width:7px;height:7px;flex:none;background:${a.on ? '#2b8a3e' : '#c9cbd3'};`
+    };
+  }
+  renderVals() {
+    const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
+    const tabBtn = (on) => `padding:7px 14px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${on ? '#fff' : '#686b74'};`;
+    const seg = (on) => `padding:7px 12px;border:none;font-size:12px;cursor:pointer;font-weight:600;background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#686b74'};`;
+    const subTab = (on) => `padding:0 2px 10px;background:none;border:none;border-bottom:2px solid ${on ? '#4c5fd5' : 'transparent'};margin-bottom:-1px;font-size:13.5px;font-weight:600;color:${on ? '#16171d' : '#686b74'};cursor:pointer;`;
+    const base = {
+      viewQueue: () => this.setState({ view: 'queue' }), viewOrg: () => this.setState({ view: 'org' }),
+      queueBtnStyle: tabBtn(st.view === 'queue'), orgBtnStyle: tabBtn(st.view === 'org'),
+      isQueue: st.view === 'queue', isOrg: st.view === 'org', toast: st.toast,
+      isCard: st.mode === 'card', isList: st.mode === 'list',
+      toggleFocus: () => this.setState({ mode: st.mode === 'card' ? 'list' : 'card', viewReviewed: null, scores: {}, note: '' }),
+      focusBtnLabel: st.mode === 'card' ? 'Exit review' : 'Start review',
+      focusBtnStyle: st.mode === 'card'
+        ? 'padding:6px 14px;background:#c0392b;border:1px solid #c0392b;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;'
+        : 'padding:6px 14px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;',
+      listRows: [],
+      q: st.q, onSearch: (e) => this.setFilter({ q: e.target.value }),
+      fTrack: st.fTrack, onTrack: (e) => this.setFilter({ fTrack: e.target.value }),
+      fFormat: st.fFormat, onFormat: (e) => this.setFilter({ fFormat: e.target.value }),
+      quickAll: () => this.setFilter({ quick: 'all' }),
+      quickTodo: () => this.setFilter({ quick: 'todo' }),
+      quickDone: () => this.setFilter({ quick: 'done' }),
+      quickAllStyle: seg(st.quick === 'all'), quickTodoStyle: seg(st.quick === 'todo'), quickDoneStyle: seg(st.quick === 'done'),
+      hasFilters: !!(st.q || st.quick !== 'all' || st.fTrack !== 'all' || st.fFormat !== 'all'),
+      clearFilters: () => this.setFilter({ q: '', quick: 'all', fTrack: 'all', fFormat: 'all' }),
+      noResults: false, showPager: false, pageLabel: '', pageBtns: [], prevPage: null, nextPage: null, prevStyle: '', nextStyle: '',
+      fakeExport: () => this.flash('Stats CSV export queued'),
+      ...this.remVals(),
+      ...this.plansVals(),
+      orgScores: st.orgTab === 'scores', orgPlans: st.orgTab === 'plans',
+      goScores: () => this.setState({ orgTab: 'scores' }),
+      goPlans: () => this.setState({ orgTab: 'plans', planView: 'list', planDraft: null, planDetailId: null }),
+      orgTabScoresStyle: subTab(st.orgTab === 'scores'), orgTabPlansStyle: subTab(st.orgTab === 'plans'),
+      oq: st.oq, onOq: (e) => this.setState({ oq: e.target.value }),
+      oTrack: st.oTrack, onOTrack: (e) => this.setState({ oTrack: e.target.value }),
+      oPlan: st.oPlan, onOPlan: (e) => this.setState({ oPlan: e.target.value }),
+      planOpts: st.plans ? st.plans.map(p => ({ id: p.id, name: p.name })) : [],
+      orgHasFilters: !!(st.oq || st.oTrack !== 'all' || st.oPlan !== 'all'),
+      orgClearFilters: () => this.setState({ oq: '', oTrack: 'all', oPlan: 'all' }),
+      orgNoResults: false,
+      note: st.note, onNote: (e) => this.setState({ note: e.target.value }),
+      criteria: [], queueDots: [], stats: [], evaluators: [], current: null, queueDone: false, reviewed: null,
+      orgRows: [], orgSel: null, orgList: true
+    };
+    if (!d) return { ...base, progressLabel: '…', progressBarStyle: '', submitStyle: '', submitLabel: 'Submit score' };
+    const items = this.queueItems();
+    const cur = items[st.idx];
+    const total = 14, done = Math.min(st.done + 0, total);
+    const hints = { Relevance: 'Fits this audience?', Depth: 'Substance over hype?', Delivery: 'Will it land on stage?' };
+    const criteria = ['Relevance', 'Depth', 'Delivery'].map(name => ({
+      name, hint: hints[name],
+      stars: [1, 2, 3, 4, 5].map(n => ({
+        n,
+        set: () => this.setState({ scores: { ...st.scores, [name]: n } }),
+        style: `width:40px;height:36px;border:1px solid ${st.scores[name] === n ? '#4c5fd5' : '#e2e3e8'};background:${st.scores[name] && n <= st.scores[name] ? '#eef0fb' : '#fff'};color:${st.scores[name] && n <= st.scores[name] ? '#4c5fd5' : '#686b74'};font-size:13.5px;font-weight:600;cursor:pointer;font-family:${mono};`
+      }))
+    }));
+    const full = ['Relevance', 'Depth', 'Delivery'].every(c => st.scores[c]);
+    const scoredSubs = d.SUBMISSIONS.filter(s => s.avg != null).sort((a, b) => b.avg - a.avg);
+    const chip = (bg, fg) => `display:inline-block;padding:2px 8px;font-size:10.5px;font-weight:600;font-family:${mono};background:${bg};color:${fg};`;
+    const listRows = [
+      ...items.map((s, i) => ({
+        id: s.id, title: s.title, format: s.format, level: s.level, trackId: s.track,
+        trackName: d.trackOf(s.track).name,
+        dotStyle: `width:8px;height:8px;background:${d.trackOf(s.track).color};flex:none;`,
+        statusLabel: i === st.idx ? 'Up next' : i < st.idx ? 'Skipped' : 'Pending',
+        statusStyle: i === st.idx ? chip('#eef0fb', '#4c5fd5') : chip('#f2f3f5', '#686b74'),
+        open: () => this.setState({ mode: 'card', idx: i, scores: {}, note: '', viewReviewed: null }),
+        review: () => this.setState({ mode: 'card', idx: i, scores: {}, note: '', viewReviewed: null }),
+        rowStyle: 'display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:11px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;',
+        score: null
+      })),
+      ...scoredSubs.map(s => ({
+        id: s.id, title: s.title, format: s.format, level: s.level, trackId: s.track,
+        trackName: d.trackOf(s.track).name,
+        dotStyle: `width:8px;height:8px;background:${d.trackOf(s.track).color};flex:none;`,
+        statusLabel: 'Reviewed', statusStyle: chip('#e6f4ea', '#2b8a3e'),
+        open: () => this.setState({ mode: 'card', viewReviewed: s.id }),
+        review: null, score: `${s.avg.toFixed(1)}★`,
+        rowStyle: 'display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:11px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;'
+      }))
+    ];
+    let rows = listRows;
+    if (st.quick === 'todo') rows = rows.filter(r => !r.score);
+    if (st.quick === 'done') rows = rows.filter(r => r.score);
+    if (st.fTrack !== 'all') rows = rows.filter(r => r.trackId === st.fTrack);
+    if (st.fFormat !== 'all') rows = rows.filter(r => r.format === st.fFormat);
+    const needle = st.q.trim().toLowerCase();
+    if (needle) rows = rows.filter(r => `${r.title} ${r.id} ${r.trackName}`.toLowerCase().includes(needle));
+    const PS = 8;
+    const pages = Math.max(1, Math.ceil(rows.length / PS));
+    const page = Math.min(st.page, pages - 1);
+    const pageRows = rows.slice(page * PS, page * PS + PS);
+    const navBtn = (enabled) => `padding:6px 10px;border:1px solid #e2e3e8;background:#fff;font-size:12px;font-weight:600;color:${enabled ? '#33343c' : '#c3c5cc'};cursor:${enabled ? 'pointer' : 'default'};`;
+    return {
+      ...base,
+      listRows: pageRows,
+      noResults: rows.length === 0,
+      pageLabel: rows.length === 0 ? '0 of 0' : `${page * PS + 1}–${Math.min(rows.length, (page + 1) * PS)} of ${rows.length}`,
+      showPager: pages > 1,
+      pageBtns: Array.from({ length: pages }, (_, i) => ({
+        n: i + 1, go: () => this.setState({ page: i }),
+        style: `width:30px;padding:6px 0;border:1px solid ${i === page ? '#4c5fd5' : '#e2e3e8'};background:${i === page ? '#eef0fb' : '#fff'};color:${i === page ? '#4c5fd5' : '#686b74'};font-size:12px;font-weight:600;cursor:pointer;font-family:${mono};`
+      })),
+      prevPage: () => page > 0 && this.setState({ page: page - 1 }),
+      nextPage: () => page < pages - 1 && this.setState({ page: page + 1 }),
+      prevStyle: navBtn(page > 0), nextStyle: navBtn(page < pages - 1),
+      progressLabel: `${done} of ${total} done`,
+      progressBarStyle: `height:6px;width:${done / total * 100}%;background:#4c5fd5;`,
+      reviewed: (() => {
+        if (!st.viewReviewed) return null;
+        const s = d.SUBMISSIONS.find(x => x.id === st.viewReviewed);
+        if (!s) return null;
+        return {
+          title: s.title, abstract: s.abstract, format: s.format, level: s.level,
+          trackName: d.trackOf(s.track).name,
+          trackBadge: `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:#fff;background:${d.trackOf(s.track).color};font-family:${mono};`,
+          avg: s.avg.toFixed(1), n: `${s.evalTotal} of 3`,
+          meta: [
+            { label: 'ID', val: s.id },
+            { label: 'SUBMITTED', val: s.submitted },
+            { label: 'FORM', val: s.form === 'sponsor' ? 'Sponsor Session Request' : 'Main CFP' },
+            { label: 'STATUS', val: d.STATUS[s.status] ? d.STATUS[s.status].label : s.status }
+          ],
+          speakers: s.speakers,
+          back: () => this.setState({ viewReviewed: null, mode: 'list' })
+        };
+      })(),
+      current: cur && !st.viewReviewed ? {
+        title: cur.title, abstract: cur.abstract, format: cur.format, level: cur.level,
+        trackName: d.trackOf(cur.track).name,
+        trackBadge: `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:#fff;background:${d.trackOf(cur.track).color};font-family:${mono};`,
+        meta: [
+          { label: 'ID', val: cur.id },
+          { label: 'SUBMITTED', val: cur.submitted },
+          { label: 'FORM', val: cur.form === 'sponsor' ? 'Sponsor Session Request' : 'Main CFP' },
+          { label: 'SPEAKERS', val: 'Hidden — blind review' }
+        ]
+      } : null,
+      queueDone: !cur && !st.viewReviewed,
+      criteria,
+      submitStyle: `padding:10px 20px;background:${full ? '#4c5fd5' : '#c0c5e8'};color:#fff;border:none;font-size:13.5px;font-weight:600;cursor:${full ? 'pointer' : 'not-allowed'};`,
+      submitLabel: 'Submit score →',
+      submitScore: () => this.submit(),
+      skip: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Skipped — it stays in your queue'); },
+      abstain: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Abstained — removed from your queue'); },
+      queueDots: Array.from({ length: total }, (_, i) => ({
+        title: i < done ? 'Reviewed' : i === done ? 'Current' : 'Pending',
+        style: `width:22px;height:8px;background:${i < done ? '#4c5fd5' : i === done ? '#9aa4e8' : '#e2e3e8'};`
+      })),
+      stats: (() => {
+        const all = d.SUBMISSIONS;
+        const remTotal = all.reduce((a, s) => a + Math.max(0, s.evalTotal - s.evalDone), 0);
+        const fully = all.filter(s => s.evalDone >= s.evalTotal).length;
+        const withAvg = all.filter(s => s.avg != null);
+        const avgAll = withAvg.length ? (withAvg.reduce((a, s) => a + s.avg, 0) / withAvg.length).toFixed(1) : '—';
+        return [
+          { label: 'SUBMISSIONS', val: String(all.length), sub: 'in evaluation scope' },
+          { label: 'FULLY SCORED', val: String(fully), sub: 'all evaluations in' },
+          { label: 'EVALUATIONS REMAINING', val: String(remTotal), sub: 'across all evaluators' },
+          { label: 'AVG SCORE', val: avgAll, sub: 'across scored submissions' }
+        ];
+      })(),
+      ...(() => {
+        const ini = (n) => n.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+        let subs = d.SUBMISSIONS.slice().sort((a, b) => ((b.avg ?? -1) - (a.avg ?? -1)) || ((a.evalTotal - a.evalDone) - (b.evalTotal - b.evalDone)));
+        const planSel = st.oPlan !== 'all' && st.plans ? st.plans.find(p => p.id === st.oPlan) : null;
+        if (planSel) subs = subs.filter(s => planSel.subs.includes(s.id));
+        if (st.oTrack !== 'all') subs = subs.filter(s => s.track === st.oTrack);
+        const oNeedle = st.oq.trim().toLowerCase();
+        if (oNeedle) subs = subs.filter(s => (s.title + ' ' + s.id + ' ' + (s.speakers || []).map(p => p.name).join(' ')).toLowerCase().includes(oNeedle));
+        const DEC = { accepted: { label: 'APPROVED', on: '#2b8a3e', tint: '#eaf5ec' }, waitlist: { label: 'WAITLIST', on: '#b08800', tint: '#fbf4e2' }, declined: { label: 'DENIED', on: '#c0392b', tint: '#fbeceb' } };
+        const orgRows = subs.map(s => {
+          const evals = this.orgEvals(s);
+          const rem = Math.max(0, s.evalTotal - s.evalDone);
+          return {
+            id: s.id, title: s.title, format: s.format.replace(/ \(.+\)/, ''), level: s.level,
+            trackName: d.trackOf(s.track).name,
+            dotStyle: `width:8px;height:8px;background:${d.trackOf(s.track).color};flex:none;`,
+            chips: evals.map(e => ({
+              t: e.done ? `${e.name}: ${e.avg.toFixed(1)}★` : `${e.name} — not submitted yet`,
+              label: e.done ? `${ini(e.name)} ${e.avg.toFixed(1)}` : `${ini(e.name)} —`,
+              style: `display:inline-block;padding:2px 6px;font-family:${mono};font-size:10.5px;font-weight:600;background:${e.done ? '#eef0fb' : '#f2f3f5'};color:${e.done ? '#33343c' : '#c0c2ca'};`
+            })),
+            avg: s.avg != null ? s.avg.toFixed(1) : '—',
+            remLabel: rem === 0 ? '✓' : `${rem} left`,
+            remStyle: rem === 0 ? `font-family:${mono};font-size:12px;font-weight:600;color:#2b8a3e;` : `display:inline-block;padding:2px 7px;font-family:${mono};font-size:10.5px;font-weight:600;background:#fdf5dc;color:#b08800;`,
+            decLabel: DEC[(st.decisions || {})[s.id]] ? DEC[st.decisions[s.id]].label : '—',
+            decStyle: DEC[(st.decisions || {})[s.id]]
+              ? `display:inline-block;padding:2px 7px;font-family:${mono};font-size:10.5px;font-weight:600;background:${DEC[st.decisions[s.id]].tint};color:${DEC[st.decisions[s.id]].on};`
+              : `font-family:${mono};font-size:11px;color:#c0c2ca;`,
+            open: () => this.setState({ orgSel: s.id }),
+            rowStyle: 'display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;'
+          };
+        });
+        return { orgRows, orgNoResults: orgRows.length === 0 };
+      })(),
+      orgSel: (() => {
+        if (!st.orgSel) return null;
+        const s = d.SUBMISSIONS.find(x => x.id === st.orgSel);
+        if (!s) return null;
+        const evals = this.orgEvals(s);
+        const rem = Math.max(0, s.evalTotal - s.evalDone);
+        const CRITN = ['Relevance', 'Depth', 'Delivery'];
+        return {
+          title: s.title, abstract: s.abstract, format: s.format, level: s.level,
+          trackName: d.trackOf(s.track).name,
+          trackBadge: `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:#fff;background:${d.trackOf(s.track).color};font-family:${mono};`,
+          remLabel: rem === 0 ? 'ALL EVALUATIONS IN' : `${rem} EVALUATION${rem === 1 ? '' : 'S'} REMAINING`,
+          remStyle: `margin-left:auto;font-family:${mono};font-size:10.5px;font-weight:600;color:${rem === 0 ? '#2b8a3e' : '#b08800'};`,
+          meta: [
+            { label: 'ID', val: s.id },
+            { label: 'SUBMITTED', val: s.submitted },
+            { label: 'FORM', val: s.form === 'sponsor' ? 'Sponsor Session Request' : 'Main CFP' },
+            { label: 'STATUS', val: d.STATUS[s.status] ? d.STATUS[s.status].label : s.status }
+          ],
+          speakers: s.speakers,
+          evals: evals.map(e => ({
+            name: e.name,
+            statusLabel: e.done ? 'SUBMITTED' : 'PENDING',
+            statusStyle: `font-family:${mono};font-size:9.5px;letter-spacing:0.06em;color:${e.done ? '#2b8a3e' : '#b08800'};margin-top:2px;`,
+            crit: e.done ? CRITN.map((name, k) => ({ name, val: String(e.vals[k]), barStyle: `height:4px;width:${e.vals[k] / 5 * 100}%;background:#4c5fd5;` })) : [],
+            pending: !e.done,
+            my: e.done ? e.avg.toFixed(1) + '★' : '—',
+            note: e.done ? e.note : ''
+          })),
+          avg: s.avg != null ? s.avg.toFixed(1) + '★' : '—',
+          n: `${s.evalDone} of ${s.evalTotal}`,
+          rem: String(rem),
+          decGroupStyle: `display:flex;gap:6px;padding-right:8px;margin-right:4px;border-right:1px solid #eceded;${rem === 0 ? '' : 'opacity:0.45;'}`,
+          decisions: [
+            { key: 'accepted', label: 'Approve', on: '#2b8a3e', tint: '#eaf5ec', edge: '#bcdcc4' },
+            { key: 'waitlist', label: 'Waitlist', on: '#b08800', tint: '#fbf4e2', edge: '#e6d29a' },
+            { key: 'declined', label: 'Deny', on: '#c0392b', tint: '#fbeceb', edge: '#e9bdb8' }
+          ].map(b => {
+            const active = (st.decisions || {})[s.id] === b.key;
+            return {
+              label: b.label,
+              title: rem === 0 ? `Mark as ${b.label.toLowerCase()}` : `${rem} evaluation${rem === 1 ? '' : 's'} still outstanding`,
+              style: `padding:9px 15px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid ${active ? b.on : b.edge};background:${active ? b.on : b.tint};color:${active ? '#fff' : b.on};`,
+              act: () => {
+                this.setState({ decisions: { ...(st.decisions || {}), [s.id]: active ? null : b.key } });
+                if (!active) this.flash(rem === 0 ? `${s.id} marked ${b.label.toLowerCase()}` : `${s.id} marked ${b.label.toLowerCase()} — ${rem} evaluation${rem === 1 ? '' : 's'} still outstanding`);
+              }
+            };
+          }),
+          back: () => this.setState({ orgSel: null })
+        };
+      })(),
+      orgList: !st.orgSel,
+      evaluators: [
+        { name: 'You (Marta)', donev: done }, { name: 'Deniz Aksoy', donev: 8 }, { name: 'Priya N.', donev: 6 }, { name: 'Sam Ortiz', donev: 14 }
+      ].map(e => ({
+        name: e.name, frac: `${e.donev}/14`,
+        barStyle: `height:5px;width:${e.donev / 14 * 100}%;background:${e.donev === 14 ? '#2b8a3e' : '#4c5fd5'};`
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

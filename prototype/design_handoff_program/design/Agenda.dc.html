@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>DevConf 2027 — Agenda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#faf8f5;color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}
+  a{color:#e8590c;text-decoration:none;} a:hover{color:#c44a0a;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+</style>
+</helmet>
+
+<div style="max-width:1240px;margin:0 auto;padding:24px 28px 60px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div style="width:26px;height:26px;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;">DC</div>
+    <div style="font-weight:700;font-size:15px;">DevConf 2027</div>
+    <button onClick="{{ tzToggle }}" style="margin-left:auto;padding:6px 10px;background:#fff;border:1px solid #ded8cd;font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;color:#555a63;white-space:nowrap;">{{ tzLabel }}</button>
+  </div>
+  <h1 style="margin:12px 0 2px;font-size:28px;letter-spacing:-0.02em;">Agenda</h1>
+  <div style="font-size:13px;color:#8b857a;margin-bottom:16px;">Oct 14–15 · Station Berlin + online</div>
+  <div style="position:sticky;top:0;background:#faf8f5;padding:10px 0 12px;z-index:5;border-bottom:1px solid #ece7de;margin-bottom:18px;display:grid;gap:9px;">
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+      <sc-for list="{{ viewBtns }}" as="v" hint-placeholder-count="5">
+        <button onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <sc-if value="{{ showDayTabs }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:5px;">
+          <button onClick="{{ day0 }}" style="{{ day0Btn }}">Wed Oct 14</button>
+          <button onClick="{{ day1 }}" style="{{ day1Btn }}">Thu Oct 15</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ showChips }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <sc-for list="{{ trackChips }}" as="t" hint-placeholder-count="6">
+            <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.name }}</button>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+        <input placeholder="Search title or speaker…" value="{{ q }}" onChange="{{ setQ }}" style="margin-left:auto;width:220px;padding:6px 10px;border:1px solid #ded8cd;font-size:12px;background:#fff;"></input>
+      </sc-if>
+      <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ clearFilters }}" style="padding:6px 4px;background:none;border:none;color:#e8590c;font-size:11.5px;cursor:pointer;text-decoration:underline;">Clear filters</button>
+      </sc-if>
+    </div>
+  </div>
+
+  <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+  <div data-screen-label="List view" style="background:#fff;border:1px solid #ece7de;">
+    <div style="display:grid;grid-template-columns:96px 100px 1fr 160px 120px;gap:12px;padding:10px 16px;border-bottom:1px solid #ece7de;">
+      <sc-for list="{{ listHead }}" as="hc" hint-placeholder-count="5">
+        <button onClick="{{ hc.click }}" style="{{ hc.style }}">{{ hc.label }}</button>
+      </sc-for>
+    </div>
+    <sc-for list="{{ tableRows }}" as="r" hint-placeholder-count="10">
+      <div onClick="{{ r.click }}" style="{{ r.style }}">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b857a;">{{ r.day }}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#1a1a2e;font-weight:600;">{{ r.time }}</span>
+        <span>
+          <span style="{{ r.titleStyle }}">{{ r.title }}</span>
+          <sc-if value="{{ r.sponsored }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;background:#f0ece4;color:#8b857a;padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">SPONSORED</span></sc-if>
+          <div style="font-size:11.5px;color:#8b857a;margin-top:2px;">{{ r.speakers }}</div>
+        </span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#555a63;">
+          <sc-if value="{{ r.isTalk }}" hint-placeholder-val="{{ true }}"><span style="{{ r.dot }}"></span>{{ r.trackName }}</sc-if>
+        </span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#8b857a;">{{ r.room }}</span>
+      </div>
+    </sc-for>
+    <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:28px 16px;text-align:center;font-size:12.5px;color:#8b857a;">No sessions match — try clearing the search or track filter.</div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isDay }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Day view" style="background:#fff;border:1px solid #ece7de;padding-top:8px;">
+    <div style="{{ dayGridStyle }}">
+      <sc-for list="{{ dayHours }}" as="h" hint-placeholder-count="8">
+        <div style="{{ h.lineStyle }}"></div>
+        <div style="{{ h.labelStyle }}">{{ h.label }}</div>
+      </sc-for>
+      <sc-for list="{{ dayBlocks }}" as="b" hint-placeholder-count="8">
+        <div onClick="{{ b.click }}" style="{{ b.style }}">
+          <div style="display:flex;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8b857a;overflow:hidden;"><span style="white-space:nowrap;flex-shrink:0;">{{ b.time }}</span><span style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ b.room }}</span></div>
+          <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+          <div style="font-size:10px;color:#8b857a;margin-top:1px;">{{ b.speakers }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isWeek }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Week view" style="background:#fff;border:1px solid #ece7de;">
+    <div style="display:grid;grid-template-columns:56px 1fr 1fr;border-bottom:1px solid #ece7de;">
+      <div></div>
+      <div style="padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#8b857a;border-left:1px solid #f0ece4;">WED · OCT 14</div>
+      <div style="padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#8b857a;border-left:1px solid #f0ece4;">THU · OCT 15</div>
+    </div>
+    <div style="{{ weekGridStyle }}">
+      <sc-for list="{{ weekHours }}" as="h" hint-placeholder-count="8">
+        <div style="{{ h.lineStyle }}"></div>
+        <div style="{{ h.labelStyle }}">{{ h.label }}</div>
+      </sc-for>
+      <div style="{{ weekDivider }}"></div>
+      <sc-for list="{{ weekBlocks }}" as="b" hint-placeholder-count="10">
+        <div onClick="{{ b.click }}" style="{{ b.style }}">
+          <div style="display:flex;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8b857a;overflow:hidden;"><span style="white-space:nowrap;flex-shrink:0;">{{ b.time }}</span><span style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ b.room }}</span></div>
+          <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+          <div style="font-size:10px;color:#8b857a;margin-top:1px;">{{ b.speakers }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isTrack }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Track view" style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;">
+    <sc-for list="{{ trackCols }}" as="col" hint-placeholder-count="5">
+      <div>
+        <div style="{{ col.headStyle }}">{{ col.name }}</div>
+        <div style="display:grid;gap:8px;">
+          <sc-for list="{{ col.items }}" as="it" hint-placeholder-count="2">
+            <div onClick="{{ it.click }}" style="{{ it.style }}" style-hover="border-color:#e8590c;">
+              <div style="display:flex;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#8b857a;">
+                <span style="color:#1a1a2e;font-weight:600;">{{ it.time }}</span>
+                <span style="margin-left:auto;">{{ it.room }}</span>
+              </div>
+              <div style="font-size:13px;font-weight:700;line-height:1.3;margin-top:4px;letter-spacing:-0.01em;">{{ it.title }}</div>
+              <div style="font-size:11px;color:#8b857a;margin-top:3px;">{{ it.speakers }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ col.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#b0a99c;">NO SESSIONS THIS DAY</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ false }}">
+  <div data-screen-label="Rooms view" style="background:#fff;border:1px solid #ece7de;">
+    <div style="display:grid;grid-template-columns:56px repeat(4,1fr);border-bottom:1px solid #ece7de;">
+      <div></div>
+      <sc-for list="{{ roomHeads }}" as="r" hint-placeholder-count="4">
+        <div style="padding:9px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#8b857a;border-left:1px solid #f0ece4;">{{ r }}</div>
+      </sc-for>
+    </div>
+    <div style="{{ dayGridStyle }}">
+      <sc-for list="{{ dayHours }}" as="h" hint-placeholder-count="8">
+        <div style="{{ h.lineStyle }}"></div>
+        <div style="{{ h.labelStyle }}">{{ h.label }}</div>
+      </sc-for>
+      <sc-for list="{{ roomBlocks }}" as="b" hint-placeholder-count="8">
+        <div onClick="{{ b.click }}" style="{{ b.style }}">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#8b857a;">{{ b.time }}</div>
+          <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+          <div style="font-size:10px;color:#8b857a;margin-top:1px;">{{ b.speakers }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+<sc-if value="{{ sel }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;right:20px;bottom:20px;width:340px;background:#fff;border:1px solid #ece7de;box-shadow:0 16px 48px rgba(26,26,46,0.18);z-index:50;">
+    <div style="padding:14px 16px;border-bottom:1px solid #f0ece4;display:flex;align-items:flex-start;gap:8px;">
+      <div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;">
+          <span style="{{ sel.trackStyle }}">{{ sel.trackName }}</span>
+          <sc-if value="{{ sel.sponsored }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;background:#f0ece4;color:#8b857a;padding:2px 6px;letter-spacing:0.08em;">SPONSORED</span></sc-if>
+        </div>
+        <div style="font-size:15px;font-weight:700;line-height:1.3;">{{ sel.title }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b857a;margin-top:3px;">{{ sel.meta }}</div>
+      </div>
+      <button onClick="{{ closeSel }}" style="margin-left:auto;background:none;border:none;font-size:16px;color:#8b857a;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px;display:grid;gap:16px;">
+      <div style="font-size:13px;line-height:1.7;color:#555a63;padding-bottom:16px;border-bottom:1px solid #f0ece4;">{{ sel.abstract }}</div>
+      <sc-for list="{{ sel.bios }}" as="b" hint-placeholder-count="1">
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="width:32px;height:32px;background:#f0ece4;color:#e8590c;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0;">{{ b.initials }}</div>
+          <div><a href="{{ b.href }}" style="font-size:13px;font-weight:600;color:#1a1a2e;text-decoration:none;border-bottom:1px solid #ded8cd;" style-hover="color:#e8590c;border-bottom-color:#e8590c;">{{ b.name }}</a> <span style="font-size:12.5px;color:#8b857a;">— {{ b.bio }}</span></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1280, &quot;height&quot;: 900}, &quot;showPending&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Content&quot;}, &quot;hideSponsored&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Content&quot;}}">
+class Component extends DCLogic {
+  state = { data: null, view: 'list', day: 0, track: 'all', tz: 'event', q: '', sortKey: 'time', sortDir: 1, selId: null };
+  componentDidMount() { import('./data.js').then(m => this.setState({ data: m })); }
+  renderVals() {
+    const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
+    const showPending = this.props.showPending ?? false;
+    const hideSponsored = this.props.hideSponsored ?? false;
+    const viewBtn = (on) => `padding:7px 14px;border:1px solid ${on ? '#1a1a2e' : '#ded8cd'};background:${on ? '#1a1a2e' : '#fff'};color:${on ? '#fff' : '#555a63'};font-family:${mono};font-size:10.5px;letter-spacing:0.1em;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+    const dayBtn = (on) => `padding:7px 13px;border:1px solid ${on ? '#1a1a2e' : '#ded8cd'};background:${on ? '#1a1a2e' : '#fff'};color:${on ? '#fff' : '#555a63'};font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
+    const shift = st.tz === 'local' ? -360 : 0;
+    const VIEWS = [['list', 'LIST'], ['day', 'DAY'], ['week', 'WEEK'], ['track', 'TRACK'], ['rooms', 'ROOMS']];
+    const base = {
+      viewBtns: VIEWS.map(([id, label]) => ({ label, style: viewBtn(st.view === id), onClick: () => this.setState({ view: id }) })),
+      isList: st.view === 'list', isDay: st.view === 'day', isWeek: st.view === 'week', isTrack: st.view === 'track', isRooms: st.view === 'rooms',
+      showDayTabs: st.view === 'day' || st.view === 'rooms' || st.view === 'track', showChips: st.view !== 'track',
+      day0: () => this.setState({ day: 0 }), day1: () => this.setState({ day: 1 }),
+      day0Btn: dayBtn(st.day === 0), day1Btn: dayBtn(st.day === 1),
+      tzToggle: () => this.setState({ tz: st.tz === 'event' ? 'local' : 'event' }),
+      tzLabel: st.tz === 'event' ? 'EVENT TIME · CEST' : 'YOUR TIME · EDT (−6)',
+      q: st.q, setQ: (e) => this.setState({ q: e.target.value }),
+      hasFilters: false, clearFilters: () => this.setState({ q: '', track: 'all' }),
+      sel: null, closeSel: () => this.setState({ selId: null }),
+      trackChips: [], tableRows: [], listHead: [], listEmpty: false, dayHours: [], dayBlocks: [], roomBlocks: [], roomHeads: [],
+      dayGridStyle: 'position:relative;height:200px;', weekGridStyle: 'position:relative;height:200px;',
+      weekHours: [], weekBlocks: [], weekDivider: 'display:none;', trackCols: []
+    };
+    if (!d) return base;
+    const ft = (m) => d.fmtTime(m + shift);
+    const span = (a) => `${ft(a.start)}–${ft(a.end)}`;
+    const byStart = (a, b) => a.start - b.start || a.end - b.end || (a.room === 'ALL' ? -1 : 1);
+    const confirmed = (a) => a.type !== 'talk' || a.status === 'confirmed' || !a.status || showPending;
+    const vis = (day) => d.AGENDA.filter(a => a.day === day && confirmed(a)
+      && !(hideSponsored && a.type === 'sponsor')
+      && (st.track === 'all' || a.room === 'ALL' || a.track === st.track)).sort(byStart);
+    const chips = [{ id: 'all', name: 'All tracks', color: null }, ...d.TRACKS];
+    const spk = (a) => a.speakers && a.speakers !== 'Sponsor session' ? a.speakers : '';
+    const dayName = (day) => day === 0 ? 'WED 14' : 'THU 15';
+    const toggleSel = (id) => () => this.setState({ selId: st.selId === id ? null : id });
+    const selOut = (id) => st.selId === id ? 'outline:2px solid #e8590c;outline-offset:-2px;' : '';
+    // Concurrency layout: assign each overlapping talk a column within its overlap cluster
+    const lay = (items) => {
+      const talks = items.filter(a => a.room !== 'ALL'), out = [];
+      let cluster = [], clusterEnd = -1;
+      const flush = () => {
+        const colsEnd = [];
+        for (const s of cluster) {
+          let c = colsEnd.findIndex(e => e <= s.start);
+          if (c === -1) { c = colsEnd.length; colsEnd.push(0); }
+          colsEnd[c] = s.end;
+          out.push({ a: s, col: c, cluster });
+        }
+        for (const o of out) if (o.cluster === cluster) o.cols = colsEnd.length;
+      };
+      for (const s of talks) {
+        if (cluster.length && s.start >= clusterEnd) { flush(); cluster = []; clusterEnd = -1; }
+        cluster.push(s); clusterEnd = Math.max(clusterEnd, s.end);
+      }
+      if (cluster.length) flush();
+      return out;
+    };
+    // Time-grid geometry: minutes from 08:00, 1.3px/min
+    const PPM = 1.3, GUT = 56, RPAD = 10;
+    const titleStyle = 'font-size:11.5px;font-weight:600;line-height:1.25;letter-spacing:-0.01em;margin-top:1px;';
+    const svcTitleStyle = `font-family:${mono};font-size:10px;letter-spacing:0.08em;color:#8b857a;margin-top:1px;`;
+    const hourMarks = (maxEnd) => {
+      const out = [];
+      for (let m = 0; m <= maxEnd; m += 60) out.push({
+        lineStyle: `position:absolute;left:${GUT}px;right:0;top:${m * PPM}px;border-top:1px solid #f0ece4;`,
+        labelStyle: `position:absolute;left:0;top:${m * PPM - 6}px;width:${GUT - 10}px;text-align:right;font-family:${mono};font-size:9.5px;color:#b0a99c;`,
+        label: d.fmtTime(m + shift)
+      });
+      return out;
+    };
+    const geo = (a) => ({ top: a.start * PPM, h: (a.end - a.start) * PPM - 4 });
+    // fx0/fx1: fraction of content width this block occupies
+    const block = (a, fx0, fx1) => {
+      const { top, h } = geo(a);
+      const svc = a.room === 'ALL';
+      const tr = d.trackOf(a.track);
+      const left = `calc(${GUT + 3}px + (100% - ${GUT + RPAD + 3}px)*${fx0})`;
+      const width = `calc((100% - ${GUT + RPAD + 3}px)*${fx1 - fx0} - 5px)`;
+      return {
+        time: span(a), room: svc ? 'ALL ROOMS' : a.room,
+        title: svc ? a.title.toUpperCase() : a.title,
+        titleStyle: svc ? svcTitleStyle : titleStyle,
+        speakers: svc ? '' : spk(a),
+        click: svc ? undefined : toggleSel(a.id),
+        style: `position:absolute;top:${top}px;height:${h}px;left:${left};width:${width};overflow:hidden;` +
+          (svc ? 'background:#f0ece4;padding:5px 10px;' : `background:#fff;border:1px solid #ece7de;border-left:3px solid ${tr.color};padding:5px 8px;cursor:pointer;${selOut(a.id)}`)
+      };
+    };
+    const dayLayout = (day, fx0, fx1) => {
+      const items = vis(day), out = [];
+      for (const a of items.filter(x => x.room === 'ALL')) out.push(block(a, fx0, fx1));
+      for (const o of lay(items)) {
+        const w = (fx1 - fx0) / o.cols;
+        out.push(block(o.a, fx0 + w * o.col, fx0 + w * (o.col + 1)));
+      }
+      return out;
+    };
+    const dayMax = Math.max(480, ...vis(st.day).map(a => a.end));
+    const weekMax = Math.max(480, ...d.AGENDA.filter(confirmed).map(a => a.end));
+    // List view: search + sort (learnings from the agenda builder's list)
+    const fq = st.q.trim().toLowerCase();
+    const rows = [...vis(0), ...vis(1)].filter(a => !fq || (a.title + ' ' + (a.speakers || '')).toLowerCase().includes(fq));
+    const chrono = (a) => a.day * 10000 + a.start;
+    const sortFns = { day: (a) => a.day, time: chrono, title: (a) => a.title.toLowerCase(), track: (a) => (d.trackOf(a.track) || {}).name || '', room: (a) => a.room || '' };
+    const kf = sortFns[st.sortKey] || chrono;
+    rows.sort((a, b) => { const ka = kf(a), kb = kf(b); return ((ka > kb) - (ka < kb)) * st.sortDir || chrono(a) - chrono(b); });
+    // Session detail (click-to-inspect panel, mirrors the builder's selection card)
+    const selA = st.selId ? d.AGENDA.find(a => a.id === st.selId) : null;
+    const selSub = selA && selA.sub ? d.SUBMISSIONS.find(s => s.id === selA.sub) : null;
+    return {
+      ...base,
+      hasFilters: !!fq || st.track !== 'all',
+      trackChips: chips.map(t => ({
+        name: t.name,
+        style: `padding:5px 10px;border:1px solid ${st.track === t.id ? (t.color || '#1a1a2e') : '#ded8cd'};background:${st.track === t.id ? (t.color || '#1a1a2e') : '#fff'};color:${st.track === t.id ? '#fff' : '#555a63'};font-size:11.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;`,
+        onClick: () => this.setState({ track: t.id })
+      })),
+      listHead: [['day', 'DAY'], ['time', 'TIME'], ['title', 'SESSION'], ['track', 'TRACK'], ['room', 'ROOM']].map(([k, label]) => ({
+        label: label + (st.sortKey === k ? (st.sortDir === 1 ? ' ▲' : ' ▼') : ''),
+        click: () => this.setState(st.sortKey === k ? { sortDir: -st.sortDir } : { sortKey: k, sortDir: 1 }),
+        style: `background:none;border:none;padding:0;text-align:left;cursor:pointer;font-family:${mono};font-size:9.5px;letter-spacing:0.12em;color:${st.sortKey === k ? '#e8590c' : '#8b857a'};`
+      })),
+      listEmpty: rows.length === 0,
+      tableRows: rows.map(a => {
+        const svc = a.room === 'ALL';
+        const tr = d.trackOf(a.track);
+        return {
+          day: dayName(a.day), time: span(a), isTalk: !svc,
+          title: svc ? a.title.toUpperCase() : a.title,
+          titleStyle: svc ? `font-family:${mono};font-size:10.5px;letter-spacing:0.08em;color:#8b857a;` : 'font-size:13.5px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;',
+          speakers: svc ? '' : spk(a),
+          sponsored: !svc && a.type === 'sponsor',
+          trackName: tr.name, dot: `display:inline-block;width:8px;height:8px;background:${tr.color};flex-shrink:0;`,
+          room: svc ? 'ALL ROOMS' : a.room,
+          click: svc ? undefined : toggleSel(a.id),
+          style: `display:grid;grid-template-columns:96px 100px 1fr 160px 120px;gap:12px;padding:11px 16px;border-bottom:1px solid #f5f1ea;align-items:start;${svc ? 'background:#faf8f5;' : `cursor:pointer;${selOut(a.id)}`}`
+        };
+      }),
+      dayHours: hourMarks(dayMax),
+      dayGridStyle: `position:relative;height:${(dayMax + 25) * PPM}px;`,
+      dayBlocks: dayLayout(st.day, 0, 1),
+      weekHours: hourMarks(weekMax),
+      weekGridStyle: `position:relative;height:${(weekMax + 25) * PPM}px;`,
+      weekDivider: `position:absolute;top:0;bottom:0;left:calc(${GUT + 3}px + (100% - ${GUT + RPAD + 3}px)*0.5);border-left:1px solid #ece7de;`,
+      weekBlocks: [...dayLayout(0, 0, 0.49), ...dayLayout(1, 0.51, 1)],
+      trackCols: d.TRACKS.map(tr => {
+        const items = d.AGENDA.filter(a => a.day === st.day && confirmed(a) && !(hideSponsored && a.type === 'sponsor') && a.track === tr.id && a.room !== 'ALL').sort(byStart);
+        return {
+          name: tr.name.toUpperCase(),
+          headStyle: `font-family:${mono};font-size:10px;letter-spacing:0.12em;color:#1a1a2e;border-bottom:3px solid ${tr.color};padding-bottom:8px;margin-bottom:10px;`,
+          empty: items.length === 0,
+          items: items.map(a => ({
+            time: span(a), room: a.room, title: a.title, speakers: spk(a),
+            click: toggleSel(a.id),
+            style: `background:#fff;border:1px solid #ece7de;padding:11px 12px;cursor:pointer;${selOut(a.id)}`
+          }))
+        };
+      }),
+      roomHeads: d.ROOMS.map(r => r.toUpperCase()),
+      roomBlocks: vis(st.day).map(a => {
+        if (a.room === 'ALL') return block(a, 0, 1);
+        const i = d.ROOMS.indexOf(a.room), b = block(a, i * 0.25, (i + 1) * 0.25);
+        return { ...b, room: '' };
+      }),
+      sel: selA ? (() => {
+        const tr = d.trackOf(selA.track);
+        return {
+          title: selA.title,
+          meta: `${span(selA)} · ${selA.day === 0 ? 'WED OCT 14' : 'THU OCT 15'} · ${selA.room === 'ALL' ? 'ALL ROOMS' : selA.room.toUpperCase()}`,
+          trackName: tr.name,
+          trackStyle: `font-size:10px;font-family:${mono};color:#fff;background:${tr.color};padding:2px 7px;letter-spacing:0.04em;`,
+          sponsored: selA.type === 'sponsor',
+          abstract: selSub ? selSub.abstract : 'Session details coming soon.',
+          bios: selSub ? selSub.speakers.map(s => ({ name: s.name, bio: s.bio, initials: s.name.split(' ').map(w => w[0]).join(''),
+            href: 'Speaker Profile.dc.html?speaker=' + encodeURIComponent(s.name.toLowerCase().replace(/\s+/g, '-')) })) : []
+        };
+      })() : null
+    };
+  }
+}
+</script>
+</body>
+</html>

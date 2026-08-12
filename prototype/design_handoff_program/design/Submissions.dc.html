@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Submissions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">DevConf 2027</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">app.com/devconf-2027 · Oct 14–15 · Europe/Berlin</div>
+      </div>
+    </header>
+    <div style="padding:22px 28px;">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
+        <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Submissions</h1>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#686b74;">{{ countLabel }}</div>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button onClick="{{ fakeImport }}" style="padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;" style-hover="border-color:#b9bcc7;">Import CSV</button>
+          <button onClick="{{ fakeExport }}" style="padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;" style-hover="border-color:#b9bcc7;">Export CSV</button>
+        </div>
+      </div>
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border:1px solid #e2e3e8;padding:72px 32px;text-align:center;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:10px;">0 SUBMISSIONS</div>
+          <div style="font-size:19px;font-weight:600;margin-bottom:8px;">Your call for speakers is live. Nothing has landed yet.</div>
+          <div style="font-size:14px;color:#686b74;max-width:440px;margin:0 auto 20px;">Share your form link — submissions appear here in real time, with filters, bulk actions, and evaluation baked in.</div>
+          <div style="display:inline-flex;align-items:center;gap:0;border:1px solid #e2e3e8;background:#f8f8fa;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:9px 14px;color:#16171d;">app.com/devconf-2027/cfp</span>
+            <button onClick="{{ copyLink }}" style="padding:9px 14px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Copy link</button>
+          </div>
+          <div style="margin-top:16px;font-size:13px;"><a href="#" onClick="{{ fakeImport }}">Import from CSV instead</a></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ notEmpty }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+            <button onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}<span style="{{ c.countStyle }}">{{ c.count }}</span></button>
+          </sc-for>
+          <div style="flex:1;"></div>
+          <select onChange="{{ onForm }}" style="padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;">
+            <option value="all">All forms</option>
+            <sc-for list="{{ formOpts }}" as="f" hint-placeholder-count="2"><option value="{{ f.id }}">{{ f.name }}</option></sc-for>
+          </select>
+          <select onChange="{{ onTrack }}" style="padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;">
+            <option value="all">All tracks</option>
+            <sc-for list="{{ trackOpts }}" as="t" hint-placeholder-count="4"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+          </select>
+          <input onInput="{{ onSearch }}" placeholder="Search title or speaker…" style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;width:220px;outline-color:#4c5fd5;">
+        </div>
+        <sc-if value="{{ bulkOn }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:8px;background:#16171d;color:#fff;padding:10px 14px;margin-bottom:0;">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;">{{ selCount }} selected</span>
+            <div style="width:1px;height:18px;background:#3a3b44;margin:0 4px;"></div>
+            <button onClick="{{ bulkAccept }}" style="padding:6px 12px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Accept…</button>
+            <button onClick="{{ bulkWaitlist }}" style="padding:6px 12px;background:#9c36b5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Waitlist…</button>
+            <button onClick="{{ bulkDecline }}" style="padding:6px 12px;background:#c92a2a;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Decline…</button>
+            <button onClick="{{ fakeEmail }}" style="padding:6px 12px;background:transparent;color:#fff;border:1px solid #4a4b55;font-size:12.5px;cursor:pointer;">Send email</button>
+            <button onClick="{{ fakeExport }}" style="padding:6px 12px;background:transparent;color:#fff;border:1px solid #4a4b55;font-size:12.5px;cursor:pointer;">Export selection</button>
+            <button onClick="{{ clearSel }}" style="margin-left:auto;padding:6px 10px;background:transparent;color:#9a9da6;border:none;font-size:12.5px;cursor:pointer;">Clear</button>
+          </div>
+        </sc-if>
+        <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+          <div style="display:grid;grid-template-columns:36px 76px minmax(220px,1fr) 150px 130px 96px 110px 104px;gap:0;padding:9px 12px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;min-width:1000px;">
+            <input type="checkbox" onChange="{{ toggleAll }}" checked="{{ allChecked }}" style="accent-color:#4c5fd5;">
+            <div>ID</div><div>SESSION</div><div>TRACK</div><div>FORMAT</div>
+            <div onClick="{{ sortScore }}" style="cursor:pointer;">SCORE {{ scoreArrow }}</div>
+            <div>STATUS</div><div>SUBMITTED</div>
+          </div>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+            <div onClick="{{ r.open }}" style="{{ r.rowStyle }}" style-hover="background:#f8f8fb;">
+              <input type="checkbox" onClick="{{ r.stop }}" onChange="{{ r.toggle }}" checked="{{ r.checked }}" style="accent-color:#4c5fd5;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#9a9da6;">{{ r.num }}</div>
+              <div style="min-width:0;padding-right:14px;">
+                <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.title }}</div>
+                <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.speakerNames }} <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9c36b5;">{{ r.formTag }}</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span style="{{ r.dotStyle }}"></span>{{ r.trackName }}</div>
+              <div style="font-size:12.5px;color:#686b74;">{{ r.format }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;"><span style="font-weight:600;">{{ r.scoreText }}</span> <span style="color:#9a9da6;font-size:10.5px;">{{ r.evalText }}</span></div>
+              <div><span style="{{ r.badgeStyle }}">{{ r.statusLabel }}</span></div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ r.submitted }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+</div>
+<sc-if value="{{ drawer }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeDrawer }}" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:40;"></div>
+  <aside style="position:fixed;top:0;right:0;bottom:0;width:520px;max-width:92vw;background:#fff;z-index:41;box-shadow:-12px 0 40px rgba(22,23,29,0.14);animation:slidein 0.18s ease;overflow-y:auto;">
+    <div style="padding:20px 24px;border-bottom:1px solid #e2e3e8;position:sticky;top:0;background:#fff;z-index:2;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#9a9da6;">{{ drawer.num }}</span>
+        <span style="{{ drawer.badgeStyle }}">{{ drawer.statusLabel }}</span>
+        <button onClick="{{ closeDrawer }}" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;line-height:1.25;">{{ drawer.title }}</div>
+      <div style="display:flex;gap:8px;margin-top:14px;">
+        <button onClick="{{ drawer.accept }}" style="padding:7px 14px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Accept…</button>
+        <button onClick="{{ drawer.waitlist }}" style="padding:7px 14px;background:#fff;color:#9c36b5;border:1px solid #dcc3e4;font-size:12.5px;font-weight:600;cursor:pointer;">Waitlist…</button>
+        <button onClick="{{ drawer.decline }}" style="padding:7px 14px;background:#fff;color:#c92a2a;border:1px solid #ecc5c5;font-size:12.5px;font-weight:600;cursor:pointer;">Decline…</button>
+      </div>
+    </div>
+    <div style="padding:20px 24px;display:grid;gap:20px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div style="border:1px solid #e2e3e8;padding:10px 12px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">TRACK</div><div style="font-size:13px;font-weight:600;margin-top:3px;display:flex;align-items:center;gap:6px;"><span style="{{ drawer.dotStyle }}"></span>{{ drawer.trackName }}</div></div>
+        <div style="border:1px solid #e2e3e8;padding:10px 12px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">FORMAT</div><div style="font-size:13px;font-weight:600;margin-top:3px;">{{ drawer.format }}</div></div>
+        <div style="border:1px solid #e2e3e8;padding:10px 12px;"><div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">LEVEL</div><div style="font-size:13px;font-weight:600;margin-top:3px;">{{ drawer.level }}</div></div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">ABSTRACT</div>
+        <div style="font-size:14px;line-height:1.55;color:#33343c;">{{ drawer.abstract }}</div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">UPLOADS</div>
+        <div style="border:1px solid #e2e3e8;display:grid;">
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #f2f3f5;">
+            <div style="flex:none;width:34px;height:34px;background:#eef0f3;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#686b74;">PDF</div>
+            <div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">slide-outline-draft.pdf</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;">1.2 MB</div></div>
+            <a href="#" style="font-size:12px;font-weight:600;color:#4c5fd5;text-decoration:none;">Download</a>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #f2f3f5;">
+            <div style="flex:none;width:34px;height:34px;background:#eef0f3;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#686b74;">MP4</div>
+            <div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">demo-recording.mp4</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;">48 MB</div></div>
+            <a href="#" style="font-size:12px;font-weight:600;color:#4c5fd5;text-decoration:none;">Download</a>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;">
+            <div style="flex:none;width:34px;height:34px;background:#eef0f3;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#686b74;">JPG</div>
+            <div style="min-width:0;flex:1;"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">speaker-headshot.jpg</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;">640 KB</div></div>
+            <a href="#" style="font-size:12px;font-weight:600;color:#4c5fd5;text-decoration:none;">Download</a>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">SPEAKERS</div>
+        <sc-for list="{{ drawer.speakers }}" as="s" hint-placeholder-count="1">
+          <div style="display:flex;gap:12px;border:1px solid #e2e3e8;padding:12px;margin-bottom:8px;">
+            <div style="{{ s.avatarStyle }}">{{ s.initials }}</div>
+            <div><div style="font-size:13.5px;font-weight:600;">{{ s.name }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ s.email }}</div><div style="font-size:12.5px;color:#686b74;margin-top:3px;">{{ s.bio }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">EVALUATION · {{ drawer.evalText }}</div>
+        <div style="border:1px solid #e2e3e8;padding:14px;display:flex;gap:18px;align-items:center;">
+          <div style="font-size:28px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ drawer.scoreText }}</div>
+          <div style="flex:1;display:grid;gap:6px;">
+            <sc-for list="{{ drawer.criteria }}" as="c" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:86px 1fr 28px;gap:8px;align-items:center;font-size:12px;color:#686b74;">
+                <div>{{ c.name }}</div>
+                <div style="height:5px;background:#eef0f3;"><div style="{{ c.barStyle }}"></div></div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;">{{ c.val }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">INTERNAL COMMENTS · TEAM ONLY</div>
+        <sc-for list="{{ drawer.comments }}" as="c" hint-placeholder-count="1">
+          <div style="border-left:2px solid #e2e3e8;padding:2px 0 2px 12px;margin-bottom:10px;">
+            <div style="font-size:13px;color:#33343c;">{{ c.text }}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:2px;">{{ c.who }} · {{ c.when }}</div>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:8px;">
+          <input onInput="{{ onCommentInput }}" onKeyDown="{{ onCommentKey }}" value="{{ commentDraft }}" placeholder="Comment… use @ to mention teammates" style="flex:1;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;">
+          <button onClick="{{ addComment }}" style="padding:8px 14px;background:#16171d;color:#fff;border:none;font-size:12.5px;cursor:pointer;">Post</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">ACTIVITY LOG</div>
+        <sc-for list="{{ drawer.activity }}" as="a" hint-placeholder-count="3">
+          <div style="display:flex;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid #f2f3f5;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;min-width:74px;">{{ a.when }}</div>
+            <div style="color:#33343c;">{{ a.text }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </aside>
+</sc-if>
+<sc-if value="{{ modal }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(22,23,29,0.4);z-index:60;display:grid;place-items:center;padding:24px;">
+    <div style="background:#fff;width:620px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(22,23,29,0.22);">
+      <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+        <div style="font-size:17px;font-weight:700;">{{ modal.heading }}</div>
+        <button onClick="{{ closeModal }}" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;">✕</button>
+      </div>
+      <div style="padding:20px 24px;display:grid;gap:16px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">{{ modal.recipLabel }}</div>
+          <sc-for list="{{ modal.recipients }}" as="p" hint-placeholder-count="2">
+            <div style="border:1px solid #e2e3e8;padding:10px 12px;margin-bottom:6px;">
+              <div style="display:flex;gap:8px;align-items:baseline;">
+                <span style="font-size:13px;font-weight:600;">{{ p.name }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ p.email }}</span>
+                <span style="font-size:12px;color:#686b74;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">{{ p.title }}</span>
+              </div>
+              <sc-if value="{{ modal.isDecline }}" hint-placeholder-val="{{ false }}">
+                <input placeholder="Optional individual feedback for this speaker…" style="margin-top:8px;width:100%;padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;">
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">EMAIL · TEMPLATE “{{ modal.templateName }}” · EDITABLE PER SEND</div>
+          <input defaultValue="{{ modal.subject }}" style="width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;font-weight:600;margin-bottom:6px;outline-color:#4c5fd5;">
+          <textarea defaultValue="{{ modal.body }}" rows="{{ modal.rowCount }}" style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"></textarea>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:4px;">Variables resolve per recipient: {{ modal.varHint }}</div>
+        </div>
+        <sc-if value="{{ modal.isAccept }}" hint-placeholder-val="{{ false }}">
+          <label style="display:flex;gap:8px;align-items:center;font-size:13px;color:#33343c;"><input type="checkbox" checked="{{ true }}" style="accent-color:#4c5fd5;">Request confirmation — speakers must confirm before they appear on the public agenda</label>
+        </sc-if>
+        <div style="background:#f8f8fa;border:1px solid #e2e3e8;padding:10px 14px;font-size:12.5px;color:#686b74;">
+          {{ modal.summary }}
+        </div>
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+        <button onClick="{{ closeModal }}" style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+        <button onClick="{{ confirmModal }}" style="{{ modal.confirmStyle }}">{{ modal.confirmLabel }}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);">
+    <span style="color:#69db7c;">✓</span>{{ toast }}
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;blindReview&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Review&quot;}, &quot;density&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;comfortable&quot;, &quot;compact&quot;], &quot;default&quot;: &quot;comfortable&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Table&quot;}}">
+class Component extends DCLogic {
+  state = { data: null, q: '', status: 'all', track: 'all', form: 'all', sel: {}, drawerId: null, modal: null, toast: null, mode: 'sandbox', extraComments: {}, decided: {}, sortScore: false, commentDraft: '' };
+  componentDidMount() {
+    this.setState({ mode: localStorage.getItem('pgm_mode') || 'sandbox' });
+    import('./data.js').then(m => this.setState({ data: m }));
+  }
+  setMode(mode) { localStorage.setItem('pgm_mode', mode); this.setState({ mode }); }
+  flash(msg) {
+    clearTimeout(this._t);
+    this.setState({ toast: msg });
+    this._t = setTimeout(() => this.setState({ toast: null }), 2600);
+  }
+  renderVals() {
+    const d = this.state.data;
+    const st = this.state;
+    const mono = "'IBM Plex Mono',monospace";
+    const density = this.props.density ?? 'comfortable';
+    const blind = this.props.blindReview ?? false;
+    const pad = density === 'compact' ? '6px 12px' : '10px 12px';
+    const modeBtn = (on) => `padding:6px 12px;border:none;font-size:12px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${on ? '#fff' : '#686b74'};`;
+    const base = {
+      setSandbox: () => this.setMode('sandbox'), setEmpty: () => this.setMode('empty'),
+      sandboxBtnStyle: modeBtn(st.mode === 'sandbox'), emptyBtnStyle: modeBtn(st.mode === 'empty'),
+      copyLink: () => this.flash('Form link copied to clipboard'),
+      fakeImport: () => this.flash('CSV import: map columns to fields'),
+      fakeExport: () => this.flash('Export queued — CSV downloads in the real product'),
+      fakeEmail: () => this.flash('Group mailing composer opens here'),
+      closeDrawer: () => this.setState({ drawerId: null, commentDraft: '' }),
+      closeModal: () => this.setState({ modal: null }),
+      toast: st.toast, drawer: null, modal: null, rows: [], chips: [], trackOpts: [], formOpts: [], commentDraft: st.commentDraft
+    };
+    if (!d) return { ...base, isEmpty: false, notEmpty: false, countLabel: '…', bulkOn: false };
+    const isEmpty = st.mode === 'empty';
+    const subs = d.SUBMISSIONS.map(s => st.decided[s.id] ? { ...s, status: st.decided[s.id] } : s);
+    const counts = {};
+    subs.forEach(s => counts[s.status] = (counts[s.status] || 0) + 1);
+    let list = subs.filter(s =>
+      (st.status === 'all' || s.status === st.status) &&
+      (st.form === 'all' || (s.form || 'cfp') === st.form) &&
+      (st.track === 'all' || s.track === st.track) &&
+      (!st.q || (s.title + ' ' + s.speakers.map(x => x.name).join(' ')).toLowerCase().includes(st.q)));
+    if (st.sortScore) list = [...list].sort((a, b) => (b.avg || 0) - (a.avg || 0));
+    const selIds = Object.keys(st.sel).filter(k => st.sel[k]);
+    const badge = (s) => { const c = d.STATUS[s]; return `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:${c.fg};background:${c.bg};font-family:${mono};`; };
+    const mkRow = (s) => {
+      const tr = d.trackOf(s.track);
+      return {
+        num: s.id, title: s.title,
+        speakerNames: blind ? '············ (blind review)' : s.speakers.map(x => x.name).join(', '),
+        trackName: tr.name, dotStyle: `display:inline-block;width:8px;height:8px;background:${tr.color};`,
+        format: s.format.replace(/ \(.+\)/, ''), level: s.level,
+        formTag: (s.form || 'cfp') !== 'cfp' ? '· via ' + ((d.FORMS || []).find(f => f.id === s.form) || { name: s.form }).name : '',
+        scoreText: s.avg == null ? '—' : s.avg.toFixed(1), evalText: `${s.evalDone}/${s.evalTotal}`,
+        statusLabel: d.STATUS[s.status].label, badgeStyle: badge(s.status), submitted: s.submitted,
+        checked: !!st.sel[s.id],
+        rowStyle: `display:grid;grid-template-columns:36px 76px minmax(220px,1fr) 150px 130px 96px 110px 104px;min-width:1000px;padding:${pad};border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;background:${st.sel[s.id] ? '#eef0fb' : '#fff'};`,
+        open: () => this.setState({ drawerId: s.id }),
+        stop: (e) => e.stopPropagation(),
+        toggle: () => this.setState({ sel: { ...st.sel, [s.id]: !st.sel[s.id] } })
+      };
+    };
+    const chipDefs = [['all', 'All', subs.length], ...Object.keys(d.STATUS).map(k => [k, d.STATUS[k].label, counts[k] || 0])];
+    const chips = chipDefs.filter(c => c[2] > 0 || c[0] === 'all').map(([key, label, count]) => ({
+      label, count,
+      style: `display:inline-flex;gap:6px;align-items:center;padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid ${st.status === key ? '#4c5fd5' : '#e2e3e8'};background:${st.status === key ? '#eef0fb' : '#fff'};color:${st.status === key ? '#4c5fd5' : '#33343c'};font-weight:${st.status === key ? '600' : '400'};`,
+      countStyle: `font-family:${mono};font-size:10.5px;color:#9a9da6;`,
+      onClick: () => this.setState({ status: key })
+    }));
+    // drawer
+    let drawer = null;
+    const ds = subs.find(s => s.id === st.drawerId);
+    if (ds) {
+      const tr = d.trackOf(ds.track);
+      const crit = ['Relevance', 'Depth', 'Delivery'].map((name, i) => {
+        const val = ds.avg == null ? 0 : Math.max(1, Math.min(5, ds.avg + [0.2, -0.3, 0.1][i]));
+        return { name, val: ds.avg == null ? '—' : val.toFixed(1), barStyle: `height:5px;width:${val / 5 * 100}%;background:#4c5fd5;` };
+      });
+      const baseComments = ds.id === 'SUB-145' ? [{ who: 'Marta (you)', text: 'She was incredible at NullCon last year. Possible keynote?', when: 'Jul 28' }, { who: 'Deniz', text: '@Marta agreed — but keep her in the 2pm security block either way.', when: 'Jul 29' }] : [];
+      drawer = {
+        num: ds.id, title: ds.title, abstract: ds.abstract,
+        statusLabel: d.STATUS[ds.status].label, badgeStyle: badge(ds.status),
+        trackName: tr.name, dotStyle: `display:inline-block;width:8px;height:8px;background:${tr.color};`,
+        format: ds.format, level: ds.level,
+        scoreText: ds.avg == null ? '—' : ds.avg.toFixed(1), evalText: `${ds.evalDone} OF ${ds.evalTotal} EVALUATIONS IN`,
+        criteria: crit,
+        speakers: ds.speakers.map(s => ({ ...s, initials: s.name.split(' ').map(w => w[0]).join(''), avatarStyle: `width:38px;height:38px;background:#eef0fb;color:#4c5fd5;display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;` })),
+        comments: [...baseComments, ...(st.extraComments[ds.id] || [])],
+        activity: [
+          { when: ds.submitted.replace(', 2026', ''), text: `Submitted via “${(((d.FORMS || []).find(f => f.id === (ds.form || 'cfp'))) || { name: 'Main CFP' }).name}” by ${ds.speakers[0].name}` },
+          ...(ds.evalDone > 0 ? [{ when: 'Aug 1', text: `Assigned to evaluation plan “Main CFP Review” (category routing: ${tr.name})` }, { when: 'Aug 4', text: `${ds.evalDone} evaluation${ds.evalDone > 1 ? 's' : ''} completed` }] : []),
+          ...(ds.status === 'confirmed' ? [{ when: 'Aug 6', text: 'Accepted — decision email sent (template “Accept v1”, delivered)' }, { when: 'Aug 7', text: 'Speaker confirmed participation from portal · 4 tasks generated' }] : []),
+          ...(ds.status === 'accepted' ? [{ when: 'Aug 6', text: 'Accepted — decision email sent, awaiting speaker confirmation' }] : []),
+          ...(ds.status === 'declined' ? [{ when: 'Aug 6', text: 'Declined — decision email with individual feedback sent' }] : [])
+        ],
+        accept: () => this.openModal('accept', [ds.id]),
+        decline: () => this.openModal('decline', [ds.id]),
+        waitlist: () => this.openModal('waitlist', [ds.id])
+      };
+    }
+    // modal
+    let modal = null;
+    if (st.modal) {
+      const m = st.modal;
+      const recips = subs.filter(s => m.ids.includes(s.id)).map(s => ({ name: s.speakers[0].name, email: s.speakers[0].email, title: s.title }));
+      const verbs = {
+        accept: { heading: `Accept ${m.ids.length} submission${m.ids.length > 1 ? 's' : ''}`, templateName: 'Accept v1', subject: 'Your session is in — {{session_title}} at DevConf 2027', body: 'Hi {{speaker_name}},\n\nGreat news — “{{session_title}}” has been accepted for DevConf 2027 (Oct 14–15, Berlin).\n\nPlease confirm your participation within 7 days:\n{{confirmation_link}}\n\nOnce confirmed, you’ll get a short onboarding checklist in your speaker portal.\n\n— The DevConf program team', confirmBg: '#2b8a3e', status: 'accepted' },
+        decline: { heading: `Decline ${m.ids.length} submission${m.ids.length > 1 ? 's' : ''}`, templateName: 'Decline v1', subject: 'Your DevConf 2027 submission — {{session_title}}', body: 'Hi {{speaker_name}},\n\nThank you for submitting “{{session_title}}”. We had far more strong proposals than slots this year, and we won’t be able to include it.\n\n{{individual_feedback}}\n\nWe’d genuinely love to see you submit again next year.\n\n— The DevConf program team', confirmBg: '#c92a2a', status: 'declined' },
+        waitlist: { heading: `Waitlist ${m.ids.length} submission${m.ids.length > 1 ? 's' : ''}`, templateName: 'Waitlist v1', subject: 'Your DevConf 2027 submission — {{session_title}}', body: 'Hi {{speaker_name}},\n\n“{{session_title}}” is on our waitlist for DevConf 2027. Slots open up every year as schedules shift — we’ll notify you the moment one does.\n\nNo action needed from you right now.\n\n— The DevConf program team', confirmBg: '#9c36b5', status: 'waitlisted' }
+      }[m.type];
+      modal = {
+        heading: verbs.heading, templateName: verbs.templateName, subject: verbs.subject, body: verbs.body,
+        rowCount: verbs.body.split('\n').length + 1,
+        recipLabel: `RECIPIENTS · ${recips.length} — CHECK THIS LIST. THIS EMAIL CANNOT BE UNSENT.`,
+        recipients: recips, isDecline: m.type === 'decline', isAccept: m.type === 'accept',
+        varHint: '{{speaker_name}} {{session_title}} ' + (m.type === 'accept' ? '{{confirmation_link}}' : m.type === 'decline' ? '{{individual_feedback}}' : ''),
+        summary: m.type === 'accept'
+          ? `On send: status → Accepted · ${recips.length} email${recips.length > 1 ? 's' : ''} queued (background job) · confirmation loop opens · logged to activity.`
+          : m.type === 'decline'
+            ? `On send: status → Declined · ${recips.length} email${recips.length > 1 ? 's' : ''} queued · individual feedback merged per recipient · logged to activity.`
+            : `On send: status → Waitlisted · ${recips.length} email${recips.length > 1 ? 's' : ''} queued · promoting later re-runs the accept flow · logged to activity.`,
+        confirmStyle: `padding:9px 18px;background:${verbs.confirmBg};color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;`,
+        confirmLabel: `Send ${recips.length} email${recips.length > 1 ? 's' : ''} & update status`,
+        _status: verbs.status, _ids: m.ids
+      };
+    }
+    return {
+      ...base, isEmpty, notEmpty: !isEmpty,
+      countLabel: `${list.length} of ${subs.length} shown`,
+      footLabel: `${list.length} ROWS · FULL-TEXT SEARCH · SAVED VIEWS`,
+      chips, trackOpts: d.TRACKS, formOpts: d.FORMS || [],
+      onForm: (e) => this.setState({ form: e.target.value }),
+      onTrack: (e) => this.setState({ track: e.target.value }),
+      onSearch: (e) => this.setState({ q: e.target.value.toLowerCase() }),
+      rows: list.map(mkRow),
+      allChecked: list.length > 0 && list.every(s => st.sel[s.id]),
+      toggleAll: () => { const all = list.every(s => st.sel[s.id]); const sel = {}; if (!all) list.forEach(s => sel[s.id] = true); this.setState({ sel }); },
+      bulkOn: selIds.length > 0, selCount: selIds.length,
+      clearSel: () => this.setState({ sel: {} }),
+      bulkAccept: () => this.openModal('accept', selIds),
+      bulkDecline: () => this.openModal('decline', selIds),
+      bulkWaitlist: () => this.openModal('waitlist', selIds),
+      sortScore: () => this.setState({ sortScore: !st.sortScore }),
+      scoreArrow: st.sortScore ? '↓' : '',
+      drawer, modal,
+      confirmModal: () => {
+        const decided = { ...st.decided };
+        modal._ids.forEach(id => decided[id] = modal._status);
+        this.setState({ decided, modal: null, sel: {} });
+        this.flash(`${modal._ids.length} email${modal._ids.length > 1 ? 's' : ''} queued · statuses updated · activity logged`);
+      },
+      onCommentInput: (e) => this.setState({ commentDraft: e.target.value }),
+      onCommentKey: (e) => { if (e.key === 'Enter') this.addComment(); },
+      addComment: () => this.addComment()
+    };
+  }
+  openModal(type, ids) { this.setState({ modal: { type, ids }, drawerId: null }); }
+  addComment() {
+    const t = this.state.commentDraft.trim();
+    if (!t || !this.state.drawerId) return;
+    const ec = { ...this.state.extraComments };
+    ec[this.state.drawerId] = [...(ec[this.state.drawerId] || []), { who: 'You', text: t, when: 'Just now' }];
+    this.setState({ extraComments: ec, commentDraft: '' });
+  }
+}
+</script>
+</body>
+</html>

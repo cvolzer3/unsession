@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>DevConf 2027 — Speaker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="./image-slot.js"></script>
+<style>
+  html,body{margin:0;padding:0;background:#faf8f5;color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}
+  a{color:#e8590c;text-decoration:none;} a:hover{color:#c44a0a;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+</style>
+</helmet>
+<div style="background:#16171d;color:#9a9da6;padding:8px 16px;display:flex;gap:12px;align-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.08em;">
+  <span>SPEAKERS — DEVCONF 2027</span>
+  <select value="{{ slug }}" onChange="{{ slugCh }}" title="Preview another speaker" style="background:#26272e;color:#c9cbd2;border:1px solid #3a3b42;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:3px 6px;cursor:pointer;">
+    <sc-for list="{{ pickOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.slug }}">{{ o.name }}</option></sc-for>
+  </select>
+  
+</div>
+<div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div style="width:26px;height:26px;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;">DC</div>
+    <div style="font-weight:700;font-size:15px;">DevConf 2027</div>
+    <div style="margin-left:auto;"><a href="Agenda.dc.html" style="font-size:13px;">← Full agenda</a></div>
+  </div>
+  <sc-if value="{{ found }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;gap:30px;align-items:flex-start;margin-top:34px;flex-wrap:wrap;">
+      <div style="width:172px;height:172px;flex:none;">
+        <sc-if value="{{ found }}" hint-placeholder-val="{{ false }}">
+          <image-slot id="headshot-{{ slug }}" shape="rounded" radius="4" placeholder="headshot"></image-slot>
+        </sc-if>
+      </div>
+      <div style="flex:1;min-width:280px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#8b857a;">SPEAKER · DEVCONF 2027</div>
+        <h1 style="margin:8px 0 0;font-size:34px;letter-spacing:-0.02em;line-height:1.1;">{{ name }}</h1>
+        <div style="font-size:14.5px;color:#555a63;line-height:1.6;margin-top:12px;max-width:520px;">{{ bio }}</div>
+        <sc-if value="{{ emailOn }}" hint-placeholder-val="{{ false }}">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:12px;"><a href="mailto:{{ email }}">{{ email }}</a></div>
+        </sc-if>
+      </div>
+    </div>
+    <div style="margin-top:40px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#8b857a;border-bottom:1px solid #ece7de;padding-bottom:9px;">{{ sessionsHead }}</div>
+      <div style="display:grid;gap:10px;margin-top:14px;">
+        <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="1">
+          <div style="background:#fff;border:1px solid #ece7de;padding:16px 20px;display:grid;grid-template-columns:130px 1fr;gap:18px;">
+            <div style="font-family:'IBM Plex Mono',monospace;">
+              <div style="font-size:12px;font-weight:600;color:#1a1a2e;">{{ s.time }}</div>
+              <div style="font-size:10px;color:#8b857a;margin-top:3px;">{{ s.day }}</div>
+              <div style="font-size:10px;color:#8b857a;margin-top:2px;">{{ s.room }}</div>
+            </div>
+            <div>
+              <div style="font-size:16.5px;font-weight:600;letter-spacing:-0.01em;line-height:1.3;">{{ s.title }}</div>
+              <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:#555a63;margin-top:5px;flex-wrap:wrap;">
+                <span style="{{ s.dot }}"></span>{{ s.trackName }}
+                <sc-if value="{{ s.format }}" hint-placeholder-val="{{ true }}"><span style="color:#c9c3b8;">·</span>{{ s.format }}</sc-if>
+                <sc-if value="{{ s.with }}" hint-placeholder-val="{{ false }}"><span style="color:#c9c3b8;">·</span><span>with {{ s.with }}</span></sc-if>
+              </div>
+              <sc-if value="{{ s.abstract }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:13px;color:#555a63;line-height:1.55;margin-top:8px;">{{ s.abstract }}</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ noSessions }}" hint-placeholder-val="{{ false }}">
+          <div style="border:1px dashed #ded8cd;padding:22px;text-align:center;font-size:13px;color:#8b857a;">No public sessions yet — check back once the agenda is finalized.</div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ notFound }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:60px;text-align:center;">
+      <div style="font-size:20px;font-weight:600;">Speaker not found</div>
+      <div style="font-size:13px;color:#8b857a;margin-top:8px;">This profile doesn&rsquo;t exist or isn&rsquo;t public. <a href="Agenda.dc.html">Browse the agenda</a></div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1200,&quot;height&quot;:820},&quot;showAbstracts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Content&quot;},&quot;showEmail&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Content&quot;}}">
+class Component extends DCLogic {
+  state = { data: null, slug: null };
+  componentDidMount() {
+    import('./data.js').then(m => {
+      const p = new URLSearchParams(location.search).get('speaker');
+      this.setState({ data: m, slug: p || 'ines-kovač' });
+    });
+  }
+  slugify(n) { return n.toLowerCase().replace(/\s+/g, '-'); }
+  renderVals() {
+    const d = this.state.data, slug = this.state.slug;
+    const base = { found: false, notFound: false, slug: '', slugCh: () => {}, pickOpts: [], name: '', bio: '', email: '', emailOn: false, sessions: [], noSessions: false, sessionsHead: 'SESSIONS' };
+    if (!d) return base;
+    const showAbs = this.props.showAbstracts ?? true;
+    const showEmail = this.props.showEmail ?? false;
+    let person = null;
+    for (const s of d.SUBMISSIONS) { const p = s.speakers.find(x => this.slugify(x.name) === slug); if (p) { person = p; break; } }
+    const pickOpts = d.SPEAKER_TASKS.map(r => ({ slug: this.slugify(r.name), name: r.name }));
+    const nav = { slug, slugCh: e => { location.search = '?speaker=' + encodeURIComponent(e.target.value); }, pickOpts };
+    if (!person) return { ...base, ...nav, notFound: true };
+    const DAYS = ['WED · OCT 14', 'THU · OCT 15'];
+    const dot = t => `width:8px;height:8px;border-radius:50%;background:${d.trackOf(t).color};flex:none;`;
+    const sessions = [];
+    d.AGENDA.filter(a => a.type === 'talk' && a.status === 'confirmed' && a.speakers && a.speakers.split(', ').includes(person.name)).forEach(a => {
+      const sub = a.sub ? d.SUBMISSIONS.find(s => s.id === a.sub) : null;
+      sessions.push({ time: `${d.fmtTime(a.start)}–${d.fmtTime(a.end)}`, day: DAYS[a.day], room: a.room.toUpperCase(),
+        title: a.title, trackName: d.trackOf(a.track).name, dot: dot(a.track),
+        format: sub ? sub.format : '', with: a.speakers.split(', ').filter(n => n !== person.name).join(', '),
+        abstract: showAbs && sub ? sub.abstract : '' });
+    });
+    d.SUBMISSIONS.filter(s => s.status === 'confirmed' && s.speakers.some(p => p.name === person.name) && !d.AGENDA.some(a => a.sub === s.id && a.status === 'confirmed')).forEach(s => {
+      sessions.push({ time: 'TBA', day: 'TO BE ANNOUNCED', room: '', title: s.title, trackName: d.trackOf(s.track).name, dot: dot(s.track),
+        format: s.format, with: s.speakers.filter(p => p.name !== person.name).map(p => p.name).join(', '),
+        abstract: showAbs ? s.abstract : '' });
+    });
+    return { ...base, ...nav, found: true, name: person.name, bio: person.bio,
+      email: person.email, emailOn: showEmail,
+      sessions, noSessions: sessions.length === 0,
+      sessionsHead: sessions.length ? `SESSIONS · ${sessions.length}` : 'SESSIONS' };
+  }
+}
+</script>
+</body>
+</html>

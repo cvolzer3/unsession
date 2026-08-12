@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Sessions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">DevConf 2027</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">app.com/devconf-2027 · Oct 14–15 · Europe/Berlin</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:7px;"><span style="width:7px;height:7px;border-radius:50%;background:#2b8a3e;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#686b74;">CFP OPEN · CLOSES AUG 31</span></div>
+    </header>
+    <div style="padding:22px 28px;">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
+        <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Sessions</h1>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#686b74;">{{ countLabel }}</div>
+        <div style="margin-left:auto;">
+          <a href="Agenda Builder.dc.html" style="display:inline-block;padding:7px 14px;background:#4c5fd5;color:#fff;font-size:13px;font-weight:600;text-decoration:none;" style-hover="background:#3a4ab8;color:#fff;text-decoration:none;">Open Agenda Builder →</a>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+        <sc-for list="{{ chips }}" as="c" hint-placeholder-count="4">
+          <button onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}<span style="{{ c.countStyle }}">{{ c.count }}</span></button>
+        </sc-for>
+        <div style="flex:1;"></div>
+        <select onChange="{{ onTrack }}" style="padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;">
+          <option value="all">All tracks</option>
+          <sc-for list="{{ trackOpts }}" as="t" hint-placeholder-count="4"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+        </select>
+        <input onInput="{{ onSearch }}" placeholder="Search title or speaker…" style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;width:220px;outline-color:#4c5fd5;">
+      </div>
+      <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+        <div style="display:grid;grid-template-columns:70px minmax(240px,1fr) 130px 170px 92px 150px 160px;gap:0;padding:9px 12px;border-bottom:1px solid #e2e3e8;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;min-width:1020px;">
+          <div>ID</div><div>SESSION</div><div>TRACK</div><div>TYPE</div><div>SLOT</div><div>ROOM</div><div>STATUS</div>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+          <div onClick="{{ r.open }}" style="{{ r.rowStyle }}" style-hover="background:#f8f8fb;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#9a9da6;">{{ r.num }}</div>
+            <div style="min-width:0;padding-right:14px;">
+              <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.title }}</div>
+              <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.speakerNames }}</div>
+              <sc-if value="{{ showAbstract }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;">{{ r.abstract }}</div>
+              </sc-if>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;"><span style="{{ r.dotStyle }}"></span>{{ r.trackName }}</div>
+            <div style="padding-right:10px;">
+              <select onClick="{{ r.stop }}" onChange="{{ r.onType }}" value="{{ r.type }}" style="width:100%;padding:5px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;">
+                <sc-for list="{{ typeOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o }}">{{ o }}</option></sc-for>
+              </select>
+            </div>
+            <div style="padding-right:10px;">
+              <select onClick="{{ r.stop }}" onChange="{{ r.onDur }}" value="{{ r.dur }}" style="width:100%;padding:5px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;">
+                <sc-for list="{{ durOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o }}">{{ o }} min</option></sc-for>
+              </select>
+            </div>
+            <div style="padding-right:10px;">
+              <select onClick="{{ r.stop }}" onChange="{{ r.onRoom }}" value="{{ r.room }}" style="{{ r.roomStyle }}">
+                <option value="">— Assign</option>
+                <sc-for list="{{ roomOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for>
+              </select>
+            </div>
+            <div><span style="{{ r.badgeStyle }}">{{ r.badgeText }}</span></div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:36px;text-align:center;font-size:13.5px;color:#686b74;">No sessions match this filter.</div>
+        </sc-if>
+      </div>
+    </div>
+  </main>
+</div>
+<sc-if value="{{ editOn }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ close }}" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:40;"></div>
+  <div style="position:fixed;top:0;right:0;bottom:0;width:460px;background:#fff;z-index:50;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;">
+    <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#9a9da6;">{{ editNum }}</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+        <button onClick="{{ close }}" style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">×</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px;">
+      <sc-if value="{{ editSched }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#e7f1fb;border:1px solid #bcd8f0;padding:11px 12px 12px;display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:baseline;gap:12px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#1c7ed6;">ON AGENDA</div>
+            <a href="Agenda Builder.dc.html" style="margin-left:auto;font-size:12px;white-space:nowrap;">View Agenda ↗</a>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <div style="font-size:13px;font-weight:600;">{{ editSchedDate }}</div>
+            <div style="font-size:12.5px;color:#5c5f68;">{{ editSchedTime }}</div>
+          </div>
+        </div>
+      </sc-if>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">TITLE</div>
+        <input value="{{ draftTitle }}" onInput="{{ onDraftTitle }}" style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:14px;font-weight:600;outline-color:#4c5fd5;">
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">ABSTRACT</div>
+        <textarea rows="4" value="{{ draftAbstract }}" onInput="{{ onDraftAbstract }}" style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">TRACK</div>
+          <select value="{{ draftTrack }}" onChange="{{ onDraftTrack }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;">
+            <sc-for list="{{ trackOpts }}" as="t" hint-placeholder-count="4"><option value="{{ t.id }}">{{ t.name }}</option></sc-for>
+          </select>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">LEVEL</div>
+          <select value="{{ draftLevel }}" onChange="{{ onDraftLevel }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;">
+            <sc-for list="{{ levelOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for>
+          </select>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">TYPE</div>
+          <select value="{{ draftType }}" onChange="{{ onDraftType }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;">
+            <sc-for list="{{ typeOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o }}">{{ o }}</option></sc-for>
+          </select>
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SLOT DURATION</div>
+          <select value="{{ draftDur }}" onChange="{{ onDraftDur }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;">
+            <sc-for list="{{ durOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o }}">{{ o }} min</option></sc-for>
+          </select>
+        </div>
+        <div style="grid-column:1/-1;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">ROOM</div>
+          <select value="{{ draftRoom }}" onChange="{{ onDraftRoom }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;">
+            <option value="">— Unassigned</option>
+            <sc-for list="{{ roomOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o }}">{{ o }}</option></sc-for>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">SPEAKERS</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <sc-for list="{{ editSpeakers }}" as="p" hint-placeholder-count="1">
+            <div style="border:1px solid #eceded;padding:10px 12px;">
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style="font-size:13.5px;font-weight:600;">{{ p.name }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ p.email }}</div>
+              </div>
+              <div style="font-size:12.5px;color:#686b74;margin-top:2px;">{{ p.bio }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;align-items:center;gap:8px;">
+      <button onClick="{{ save }}" style="padding:9px 18px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">Save changes</button>
+      <button onClick="{{ close }}" style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 16px;z-index:60;animation:toastin 0.15s ease;white-space:nowrap;">{{ toastMsg }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;compactRows&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Table&quot;},&quot;showAbstract&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Table&quot;}}">
+class Component extends DCLogic {
+  state = { sessions: null, filter: 'all', track: 'all', q: '', editId: null, draft: null, toast: null };
+  async componentDidMount() {
+    this.d = await import('./data.js');
+    const DUR = this.DUR = { 'Talk (30 min)': 30, 'Deep Dive (45 min)': 45, 'Workshop (90 min)': 90, 'Lightning (10 min)': 10, 'Panel (45 min)': 45 };
+    const sessions = this.d.SUBMISSIONS.filter(s => s.status === 'accepted' || s.status === 'confirmed').map(s => {
+      const a = this.d.AGENDA.find(x => x.sub === s.id);
+      return { ...s, type: s.format, dur: DUR[s.format] || 30, room: a ? a.room : null, sched: a ? { day: a.day, start: a.start, end: a.end } : null };
+    });
+    this.setState({ sessions });
+  }
+  showToast(m) { clearTimeout(this._tt); this.setState({ toast: m }); this._tt = setTimeout(() => this.setState({ toast: null }), 2600); }
+  upd(id, patch, msg) { this.setState(st => ({ sessions: st.sessions.map(s => s.id === id ? { ...s, ...patch } : s) })); if (msg) this.showToast(msg); }
+  openEdit(id) {
+    const s = this.state.sessions.find(x => x.id === id);
+    this.setState({ editId: id, draft: { title: s.title, abstract: s.abstract, track: s.track, level: s.level, type: s.type, dur: s.dur, room: s.room || '' } });
+  }
+  renderVals() {
+    const S = this.state, d = this.d;
+    const sessions = S.sessions || [];
+    const mono = "font-family:'IBM Plex Mono',monospace;";
+    const statusOf = s => s.sched ? 'scheduled' : (s.room ? 'ready' : 'needs');
+    const counts = { all: sessions.length, needs: 0, ready: 0, scheduled: 0 };
+    sessions.forEach(s => counts[statusOf(s)]++);
+    const q = S.q.toLowerCase();
+    const list = sessions.filter(s =>
+      (S.filter === 'all' || statusOf(s) === S.filter) &&
+      (S.track === 'all' || s.track === S.track) &&
+      (!q || s.title.toLowerCase().includes(q) || s.speakers.some(p => p.name.toLowerCase().includes(q))));
+    const chips = [['all', 'All'], ['needs', 'Needs room'], ['ready', 'Ready'], ['scheduled', 'Scheduled']].map(([id, label]) => ({
+      label, count: counts[id], onClick: () => this.setState({ filter: id }),
+      style: `padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid ${S.filter === id ? '#4c5fd5' : '#e2e3e8'};background:${S.filter === id ? '#eef0fb' : '#fff'};color:${S.filter === id ? '#4c5fd5' : '#16171d'};font-weight:${S.filter === id ? '600' : '400'};`,
+      countStyle: mono + 'font-size:10.5px;color:#9a9da6;'
+    }));
+    const badgeOf = s => {
+      const st = statusOf(s);
+      return st === 'scheduled' ? { t: `Day ${s.sched.day + 1} · ${d.fmtTime(s.sched.start)} · scheduled`, fg: '#1c7ed6', bg: '#e7f1fb' }
+        : st === 'ready' ? { t: 'Ready for agenda', fg: '#2b8a3e', bg: '#e6f4ea' }
+        : { t: 'Needs room', fg: '#b08800', bg: '#fdf5dc' };
+    };
+    const rows = list.map(s => {
+      const tr = d.trackOf(s.track), b = badgeOf(s);
+      return {
+        num: s.id.replace('SUB-', '#'), title: s.title, abstract: s.abstract,
+        speakerNames: s.speakers.map(p => p.name).join(', '),
+        trackName: tr.name, dotStyle: `width:8px;height:8px;border-radius:50%;background:${tr.color};flex:none;`,
+        type: s.type, dur: s.dur, room: s.room || '',
+        roomStyle: `width:100%;padding:5px 6px;font-size:12px;background:#fff;color:#16171d;border:1px solid ${s.room ? '#e2e3e8' : '#e8c76a'};`,
+        badgeText: b.t, badgeStyle: mono + `font-size:11px;padding:3px 8px;color:${b.fg};background:${b.bg};white-space:nowrap;`,
+        open: () => this.openEdit(s.id),
+        stop: e => e.stopPropagation(),
+        onType: e => { e.stopPropagation(); const t = e.target.value; this.upd(s.id, { type: t, format: t, dur: this.DUR[t] || s.dur }, `${s.id} → ${t}`); },
+        onDur: e => { e.stopPropagation(); this.upd(s.id, { dur: +e.target.value }, null); },
+        onRoom: e => {
+          e.stopPropagation(); const r = e.target.value || null;
+          this.upd(s.id, { room: r }, r ? `${s.id} assigned to ${r}${s.sched ? ' — agenda updated' : ''}` : `${s.id} room unassigned`);
+        },
+        rowStyle: `display:grid;grid-template-columns:70px minmax(240px,1fr) 130px 170px 92px 150px 160px;gap:0;padding:${this.props.compactRows ? '6px' : '11px'} 12px;border-bottom:1px solid #f0f0f3;align-items:center;cursor:pointer;min-width:1020px;`
+      };
+    });
+    const es = S.editId ? sessions.find(x => x.id === S.editId) : null;
+    const eb = es ? badgeOf(es) : null;
+    const D = S.draft || {};
+    const df = k => e => this.setState(st => ({ draft: { ...st.draft, [k]: e.target.value } }));
+    return {
+      countLabel: sessions.length ? `${counts.all} sessions · ${counts.needs} need a room` : '',
+      chips, rows, noRows: !!(S.sessions && rows.length === 0),
+      trackOpts: d ? d.TRACKS : [], typeOpts: d ? d.FORMATS : [], levelOpts: d ? d.LEVELS : [], roomOpts: d ? d.ROOMS : [],
+      durOpts: [10, 30, 45, 60, 90],
+      showAbstract: !!this.props.showAbstract,
+      onTrack: e => this.setState({ track: e.target.value }),
+      onSearch: e => this.setState({ q: e.target.value }),
+      editOn: !!es,
+      editNum: es ? es.id : '', editScore: es && es.avg ? `avg ${es.avg} · ${es.evalDone}/${es.evalTotal} reviews` : '',
+      editBadgeText: eb ? eb.t : '', editBadgeStyle: eb ? mono + `font-size:11px;padding:3px 8px;color:${eb.fg};background:${eb.bg};` : '',
+      editSpeakers: es ? es.speakers : [],
+      editSched: !!(es && es.sched),
+      editSchedDate: es && es.sched ? `Day ${es.sched.day + 1} — ${new Date(d.EVENT.dates[es.sched.day] + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}` : '',
+      editSchedTime: es && es.sched ? `${d.fmtTime(es.sched.start)}${es.sched.end ? '–' + d.fmtTime(es.sched.end) : ''}${es.room ? ' · ' + es.room : ''}` : '',
+      draftTitle: D.title, draftAbstract: D.abstract, draftTrack: D.track, draftLevel: D.level, draftType: D.type, draftDur: D.dur, draftRoom: D.room,
+      onDraftTitle: df('title'), onDraftAbstract: df('abstract'), onDraftTrack: df('track'), onDraftLevel: df('level'),
+      onDraftDur: df('dur'), onDraftRoom: df('room'),
+      onDraftType: e => { const t = e.target.value; this.setState(st => ({ draft: { ...st.draft, type: t, dur: this.DUR[t] || st.draft.dur } })); },
+      close: () => this.setState({ editId: null, draft: null }),
+      save: () => {
+        const dd = this.state.draft, id = this.state.editId;
+        this.upd(id, { title: dd.title, abstract: dd.abstract, track: dd.track, level: dd.level, type: dd.type, format: dd.type, dur: +dd.dur, room: dd.room || null }, 'Saved — synced to agenda and public pages');
+        this.setState({ editId: null, draft: null });
+      },
+      toastOn: !!S.toast, toastMsg: S.toast || ''
+    };
+  }
+}
+</script>
+</body>
+</html>

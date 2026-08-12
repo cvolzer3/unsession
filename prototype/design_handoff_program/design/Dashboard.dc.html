@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:14px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">DevConf 2027</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">app.com/devconf-2027 · Oct 14–15 · Europe/Berlin</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:7px;"><span style="width:7px;height:7px;border-radius:50%;background:#2b8a3e;"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#686b74;">CFP OPEN · CLOSES AUG 31</span></div>
+    </header>
+    <div style="padding:22px 28px;max-width:1160px;">
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:18px;">
+        <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Good morning, Marta</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <a href="{{ k.href }}" style="display:block;background:#fff;border:1px solid #e2e3e8;padding:14px 16px;color:#16171d;text-decoration:none;" style-hover="border-color:#4c5fd5;text-decoration:none;color:#16171d;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">{{ k.label }}</div>
+            <div style="font-size:26px;font-weight:700;font-family:'IBM Plex Mono',monospace;margin-top:4px;">{{ k.val }}</div>
+            <div style="font-size:11.5px;color:#686b74;margin-top:2px;">{{ k.sub }}</div>
+          </a>
+        </sc-for>
+      </div>
+      <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;margin-bottom:14px;">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">SUBMISSION PIPELINE</div>
+          <div style="margin-left:auto;font-size:11.5px;"><a href="Submissions.dc.html">Open submissions →</a></div>
+        </div>
+        <div style="display:flex;height:14px;overflow:hidden;">
+          <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="5"><div style="{{ p.segStyle }}" title="{{ p.title }}"></div></sc-for>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:9px;">
+          <sc-for list="{{ pipeline }}" as="p" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#686b74;"><span style="{{ p.dotStyle }}"></span>{{ p.label }} <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#16171d;">{{ p.n }}</span></div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:12px;align-items:start;max-width:520px;">
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="padding:12px 16px;border-bottom:1px solid #eceded;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">UPCOMING DEADLINES</div>
+            <sc-for list="{{ deadlines }}" as="d" hint-placeholder-count="4">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid #f2f3f5;">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;white-space:nowrap;">{{ d.date }}</div>
+                <div style="font-size:13px;font-weight:500;">{{ d.what }}</div>
+                <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:{{ d.color }};white-space:nowrap;">{{ d.left }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;">REVIEW PROGRESS</div>
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div style="font-size:26px;font-weight:700;font-family:'IBM Plex Mono',monospace;">{{ reviewPct }}%</div>
+              <div style="font-size:11.5px;color:#686b74;">{{ reviewSub }}</div>
+            </div>
+            <div style="height:6px;background:#f0f1f4;margin-top:9px;"><div style="{{ reviewBarStyle }}"></div></div>
+            <div style="font-size:11.5px;margin-top:9px;"><a href="Evaluation.dc.html">Open evaluation →</a></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { d: null };
+  componentDidMount() { import('./data.js').then(d => this.setState({ d })); }
+  renderVals() {
+    const d = this.state.d;
+    const subs = d ? d.SUBMISSIONS : [];
+    const cnt = (s) => subs.filter(x => x.status === s).length;
+    const now = new Date();
+    const days = (iso) => Math.max(0, Math.round((new Date(iso) - now) / 86400000));
+    const inReview = cnt('in_review'), accepted = cnt('accepted') + cnt('confirmed'), confirmed = cnt('confirmed');
+    const newSubs = cnt('submitted');
+    const done = subs.reduce((a, s) => a + (s.evalDone || 0), 0);
+    const total = subs.reduce((a, s) => a + (s.evalTotal || 0), 0);
+    const reviewPct = total ? Math.round(done / total * 100) : 0;
+    const unscheduled = d ? d.UNSCHEDULED.length : 0;
+    const tasks = d ? d.SPEAKER_TASKS : [];
+    const overdue = tasks.reduce((a, r) => a + r.t.filter(x => x === 'o').length, 0);
+    const behind = tasks.filter(r => r.t.includes('o')).length;
+    const seg = (n, c) => `flex:${Math.max(n, 0.001)};background:${c};`;
+    const dot = (c) => `width:9px;height:9px;background:${c};flex:none;`;
+    const ST = d ? d.STATUS : {};
+    const pipeline = ['submitted', 'in_review', 'accepted', 'confirmed', 'waitlisted', 'declined'].map(k => ({
+      label: ST[k] ? ST[k].label : k, n: cnt(k), title: (ST[k] ? ST[k].label : k) + ': ' + cnt(k),
+      segStyle: seg(cnt(k), ST[k] ? ST[k].fg : '#ccc'), dotStyle: dot(ST[k] ? ST[k].fg : '#ccc')
+    }));
+    return {
+      today: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      daysToEvent: days('2027-10-14'),
+      kpis: [
+        { label: 'SUBMISSIONS', val: subs.length, sub: newSubs + ' new, unassigned', href: 'Submissions.dc.html' },
+        { label: 'IN REVIEW', val: inReview, sub: done + ' of ' + total + ' reviews in', href: 'Evaluation.dc.html' },
+        { label: 'ACCEPTED', val: accepted, sub: confirmed + ' confirmed by speaker', href: 'Sessions.dc.html' },
+        { label: 'UNSCHEDULED', val: unscheduled, sub: 'ready for the agenda', href: 'Agenda Builder.dc.html' }
+      ],
+      pipeline,
+      attention: [
+        { title: 'Ines Kovač is double-booked', sub: 'Day 1, 14:00 — Room 2 and Room 3 at once', cta: 'AGENDA', href: 'Agenda Builder.dc.html', dotStyle: dot('#e03131') },
+        { title: overdue + ' speaker tasks overdue', sub: behind + ' speakers behind on onboarding', cta: 'SPEAKERS', href: 'Speakers.dc.html', dotStyle: dot('#e03131') },
+        { title: newSubs + ' submissions have no reviews yet', sub: 'Assign them before the Aug 24 review deadline', cta: 'EVALUATION', href: 'Evaluation.dc.html', dotStyle: dot('#b08800') },
+        { title: unscheduled + ' accepted sessions not on the agenda', sub: 'Drag them onto Day 1 or Day 2', cta: 'AGENDA', href: 'Agenda Builder.dc.html', dotStyle: dot('#b08800') }
+      ],
+      deadlines: [
+        { date: 'Aug 24', what: 'Review deadline', left: days('2026-08-24') + 'd left', color: days('2026-08-24') < 15 ? '#c92a2a' : '#9a9da6' },
+        { date: 'Aug 31', what: 'Main CFP closes', left: days('2026-08-31') + 'd left', color: '#9a9da6' },
+        { date: 'Sep 15', what: 'Sponsor requests close', left: days('2026-09-15') + 'd left', color: '#9a9da6' },
+        { date: 'Oct 14', what: 'DevConf 2027 · Day 1', left: days('2027-10-14') + 'd left', color: '#9a9da6' }
+      ],
+      reviewPct, reviewSub: done + ' of ' + total + ' reviews submitted',
+      reviewBarStyle: `height:100%;width:${reviewPct}%;background:#4c5fd5;`
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Spec B1 — Forms builder + public submission
+
+Read `SPECS/B-shared.md` first. Prototype references (visual source of truth): `design/Forms.dc.html` (builder), `design/Submit.dc.html` (public form). Your files per B-shared ownership map.
+
+## Admin `/app/forms`
+
+Port `Forms.dc.html` in full:
+1. **Header**: form picker button (name + status badge + ▾) opening the dropdown of the event's forms (name, status badge, meta line: audience/submission count/closes); "＋ New form" button; meta line under the picker (public link `unsession.dev/{event}/{form}` when open, "not published" for drafts); "Copy share link" (real clipboard; draft → toast "Draft forms have no public link yet"); "Form settings" opens settings drawer.
+2. **New form → setup step** (`mode: setup`): name, status segmented (Draft/Open/Closed), opens/closes dates, toggles (allow drafts / secret late-submission link / welcome page with Markdown textarea), co-speaker cap, post-submit message, Cancel (deletes draft form) / "Continue to fields →". Core fields are auto-copied in (title TXT, abstract LONG w/ 150-word default, format SEL bound to Format taxonomy, speakers GRP cap from settings).
+3. **Build mode**: field list with drag handles (⠿), type chip, CORE tag, condition chip (`IF FORMAT IS WORKSHOP…` amber), tag line (required · public · hidden from evaluators). Drag to reorder (HTML5 DnD as in prototype, including the "condition cleared — source now later in the form" sanitize rule + toast). Palette of 12 field types: drag onto form or click to append. End drop zone.
+4. **Right rail — field settings**: label, options editor (add/edit/remove; for taxonomy-bound SEL show the binding note instead), per-type validation editors exactly as prototype (chars min/max, max words, number kind+range, date range, file preset/custom exts + size + count, must-be-checked, co-speaker cap), Required checkbox, per-field flags (public agenda / speaker-editable / evaluator-visible + "Hidden from evaluators" hint), conditional visibility (source select limited to EARLIER SEL/CHK fields, op is/is not/is answered, value select from source opts, "also required when shown"), "Archive field" (removes from current schema; archived fields remain on old versions — toast copy from prototype).
+5. **Preview mode**: renders the current schema with the PUBLIC renderer component (share code with public form!), DevConf-themed panel, conditions firing live with "← CONDITION FIRED" marker, welcome page with Start button when enabled, word counters. Preview answers are throwaway state.
+6. **Settings drawer**: same fields as setup step, editable any time; status change open/closed; late link shows generated URL `…/{form}?key=<lateLinkSecret>` once enabled.
+7. **Versioning**: persist schema edits to the CURRENT draft version until the form has ≥1 non-draft submission; after that, next edit creates version N+1 (copy-on-write). Submissions pin `form_version_id`. Surface tiny "v2 · previous versions keep their submissions' answers" mono note in builder header when version > 1.
+8. Persistence: debounce-save schema JSON via your API (`POST /app/api/forms/:id/schema`), settings via `POST /app/api/forms/:id/settings`. Server validates: condition sources must precede fields, SEL/MULTI need opts or taxonomy.
+
+## Public `/{event}/{form}` (`public-form.tsx`)
+
+Port `Submit.dc.html`:
+1. Sticky mini header with autosave dot (SAVING…/DRAFT SAVED) — real debounced autosave (800ms) of the whole answer set to `POST /p/api/draft`.
+2. **Auth-lite flow (D3)**: first visit anonymous. On first autosave/submit, require email: inline block "Where should we send your magic link + confirmation?" (email input). Creating draft: create/find user by email, create submission (status draft) owned by them, set a scoped cookie for this draft session, email a draft link (magic purpose `draft_link`) so they can resume elsewhere. If signed in already (cookie), skip.
+3. Renderer: single column, event-themed (PublicLayout), sections from HDR fields, all field types with correct native inputs/keyboards, live word counters, conditional show/hide with kept-hidden-values semantics (values stay in draft, stripped at submit server-side), co-speaker cards with add/remove up to cap, "I'm submitting on behalf of someone else" agent toggle (first speaker labeled THE ACTUAL SPEAKER), headshot upload slot per speaker (real upload; if R2 binding missing show dashed disabled state), CoC-style CHK fields with links, closes-date kicker. Late link: `?key=` matching `lateLinkSecret` bypasses closed status with an amber "late submission link" banner.
+4. Submit: server-side hard validation via `conditions.validateSubmission` (recompute visibility server-side); error summary top + inline + scroll-to-first-error on client; success → status submitted, `submitted_at`, seq assigned, confirmation email (template `confirm_submission`), form-admin notification emails when configured, activity log; render post-submit page (✓ block, share card, "Open speaker portal →" to `/{event}/portal`, "Submit another proposal").
+5. Form open/close windows enforced (opens_at/closes_at vs now, event tz); closed → friendly closed page with event branding.
+6. Drafts listed in portal are B5's concern; your job: draft resume URL `/{event}/{form}?draft=<submissionId>` (auth-checked) loads answers.
+
+Definition of done per B-shared. Curl-test: create form via API, fetch public form HTML, autosave draft, hard-validate reject, successful submit → row in submissions + emails row.

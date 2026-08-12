@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Agenda Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:16px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">Agenda builder</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;border:1px solid #e2e3e8;">
+          <sc-for list="{{ viewBtns }}" as="v" hint-placeholder-count="5">
+            <button onClick="{{ v.onClick }}" style="{{ v.style }}">{{ v.label }}</button>
+          </sc-for>
+        </div>
+        <button onClick="{{ publish }}" style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Publish changes</button>
+      </div>
+    </header>
+    <div style="display:grid;grid-template-columns:264px 1fr;gap:0;align-items:start;">
+      <aside style="border-right:1px solid #e2e3e8;background:#fff;min-height:calc(100vh - 69px);padding:16px;position:sticky;top:0;">
+        <div style="display:flex;align-items:baseline;margin-bottom:10px;">
+          <div style="font-size:14px;font-weight:700;">Unscheduled</div>
+          <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ binCount }}</div>
+        </div>
+        <div onDragOver="{{ allowDrop }}" onDrop="{{ dropToBin }}" style="display:grid;gap:8px;min-height:200px;">
+          <sc-for list="{{ bin }}" as="b" hint-placeholder-count="4">
+            <div draggable="{{ true }}" onDragStart="{{ b.drag }}" style="{{ b.style }}">
+              <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                <span style="{{ b.dot }}"></span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">{{ b.dur }} MIN</span>
+                <span style="{{ b.statusStyle }}">{{ b.status }}</span>
+              </div>
+              <div style="font-size:12.5px;font-weight:600;line-height:1.3;">{{ b.title }}</div>
+              <div style="font-size:11.5px;color:#686b74;margin-top:2px;">{{ b.speakers }}</div>
+              <sc-if value="{{ b.showSched }}" hint-placeholder-val="{{ false }}"><button onClick="{{ b.sched }}" style="margin-top:7px;width:100%;padding:5px 0;background:#eef0fb;border:1px solid #cdd4f0;color:#4c5fd5;font-size:11.5px;font-weight:600;cursor:pointer;">Schedule…</button></sc-if>
+            </div>
+          </sc-for>
+          <sc-if value="{{ binEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px dashed #d4d5db;padding:20px 14px;font-size:12.5px;color:#9a9da6;text-align:center;">Nothing waiting. Accepted sessions land here — or drag a scheduled card back.</div>
+          </sc-if>
+        </div>
+        <div style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;">ADD DIRECTLY</div>
+          <button onClick="{{ addService }}" style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;margin-bottom:6px;">+ Service block (break, lunch…)</button>
+          <button onClick="{{ addSponsor }}" style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;">+ Sponsor session</button>
+        </div>
+        <div style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;font-size:12px;color:#686b74;line-height:1.5;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:6px;">LEGEND</div>
+          <span style="display:inline-block;width:8px;height:8px;background:#2b8a3e;"></span> confirmed &nbsp; <span style="display:inline-block;width:8px;height:8px;background:#e6a817;"></span> pending speaker<br><span style="display:inline-block;width:8px;height:8px;background:#adb5bd;"></span> service · <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;">SP</span> sponsor
+        </div>
+      </aside>
+      <div style="padding:18px 24px;overflow-x:auto;">
+        <sc-if value="{{ showDayBar }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <div style="display:flex;border:1px solid #e2e3e8;background:#fff;">
+              <button onClick="{{ day0 }}" style="{{ day0Style }}">Day 1 · Wed, Oct 14</button>
+              <button onClick="{{ day1 }}" style="{{ day1Style }}">Day 2 · Thu, Oct 15</button>
+            </div>
+            <sc-if value="{{ isRooms }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">LAYOUT</span>
+                <div style="display:flex;border:1px solid #e2e3e8;background:#fff;">
+                  <button onClick="{{ toCols }}" style="{{ colsBtnStyle }}">Columns</button>
+                  <button onClick="{{ toLanes }}" style="{{ lanesBtnStyle }}">Lanes</button>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:56px 1fr;gap:0;">
+            <div style="position:relative;height:770px;">
+              <sc-for list="{{ hours }}" as="h" hint-placeholder-count="9">
+                <div style="{{ h.gutterStyle }}">{{ h.label }}</div>
+              </sc-for>
+            </div>
+            <div style="position:relative;">
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+                <sc-for list="{{ cols }}" as="col" hint-placeholder-count="4">
+                  <div style="min-width:0;">
+                    <div style="font-size:12.5px;font-weight:700;padding:0 2px 6px;display:flex;"><span>{{ col.name }}</span><span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">{{ col.count }}</span></div>
+                    <div onDragOver="{{ col.over }}" onDragLeave="{{ col.leave }}" onDrop="{{ col.drop }}" style="position:relative;height:741px;background:#fff;border:1px solid #e2e3e8;">
+                      <sc-for list="{{ hours }}" as="h" hint-placeholder-count="9"><div style="{{ h.lineStyle }}"></div></sc-for>
+                      <sc-if value="{{ col.ghost }}" hint-placeholder-val="{{ false }}"><div style="{{ col.ghost.style }}"><span style="{{ col.ghost.labelStyle }}">{{ col.ghost.time }}</span></div></sc-if>
+                      <sc-for list="{{ col.blocks }}" as="k" hint-placeholder-count="2">
+                        <div draggable="{{ true }}" onDragStart="{{ k.drag }}" onClick="{{ k.click }}" style="{{ k.style }}">
+                          <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;opacity:0.75;">{{ k.time }}</div>
+                          <div style="font-size:11.5px;font-weight:600;line-height:1.25;overflow:hidden;">{{ k.title }}</div>
+                          <div style="font-size:10.5px;opacity:0.75;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">{{ k.speakers }}</div>
+                          <span style="{{ k.dotStyle }}"></span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <sc-for list="{{ services }}" as="s" hint-placeholder-count="3">
+                <div style="{{ s.style }}"><span draggable="{{ true }}" onDragStart="{{ s.drag }}" onClick="{{ s.click }}" title="Drag to move · click to edit" style="{{ s.pillStyle }}">{{ s.title }} · {{ s.time }} ✎</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+          <div style="min-width:1180px;">
+            <div style="position:relative;height:26px;margin-left:120px;">
+              <sc-for list="{{ hoursB }}" as="h" hint-placeholder-count="9"><div style="{{ h.rulerStyle }}">{{ h.label }}</div></sc-for>
+            </div>
+            <div style="position:relative;">
+              <sc-for list="{{ lanes }}" as="lane" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:120px 1fr;border-bottom:1px solid #e9eaee;">
+                  <div style="padding:12px 10px;font-size:12.5px;font-weight:700;background:#fff;border-right:1px solid #e2e3e8;">{{ lane.name }}<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;font-weight:400;">{{ lane.count }}</div></div>
+                  <div onDragOver="{{ lane.over }}" onDragLeave="{{ lane.leave }}" onDrop="{{ lane.drop }}" style="position:relative;height:74px;background:#fff;">
+                    <sc-for list="{{ hoursB }}" as="h" hint-placeholder-count="9"><div style="{{ h.vlineStyle }}"></div></sc-for>
+                    <sc-if value="{{ lane.ghost }}" hint-placeholder-val="{{ false }}"><div style="{{ lane.ghost.style }}"><span style="{{ lane.ghost.labelStyle }}">{{ lane.ghost.time }}</span></div></sc-if>
+                    <sc-for list="{{ lane.blocks }}" as="k" hint-placeholder-count="2">
+                      <div draggable="{{ true }}" onDragStart="{{ k.drag }}" onClick="{{ k.click }}" style="{{ k.style }}">
+                        <div style="font-size:11px;font-weight:600;line-height:1.2;overflow:hidden;">{{ k.title }}</div>
+                        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;opacity:0.75;">{{ k.time }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+              <sc-for list="{{ servicesB }}" as="s" hint-placeholder-count="3">
+                <div style="{{ s.style }}"><span draggable="{{ true }}" onDragStart="{{ s.drag }}" onClick="{{ s.click }}" title="Drag to move · click to edit" style="{{ s.pillStyle }}">{{ s.title }}</span></div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+            <input placeholder="Search title or speaker…" value="{{ q }}" onChange="{{ setQ }}" style="flex:1;min-width:180px;max-width:280px;padding:7px 10px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;"></input>
+            <sc-for list="{{ filterSels }}" as="f" hint-placeholder-count="4">
+              <select value="{{ f.v }}" onChange="{{ f.set }}" style="{{ f.style }}">
+                <sc-for list="{{ f.opts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+              </select>
+            </sc-for>
+            <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}"><button onClick="{{ clearFilters }}" style="padding:7px 10px;background:none;border:none;color:#4c5fd5;font-size:12px;cursor:pointer;text-decoration:underline;">Clear filters</button></sc-if>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="display:grid;grid-template-columns:80px 96px 1fr 150px 110px 90px;gap:12px;padding:9px 14px;border-bottom:1px solid #e2e3e8;">
+              <sc-for list="{{ listHead }}" as="hc" hint-placeholder-count="6">
+                <button onClick="{{ hc.click }}" style="{{ hc.style }}">{{ hc.label }}</button>
+              </sc-for>
+            </div>
+            <sc-for list="{{ listRows }}" as="r" hint-placeholder-count="10">
+              <div onClick="{{ r.click }}" style="{{ r.style }}">
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;">{{ r.day }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">{{ r.time }}</span>
+                <span>
+                  <span style="{{ r.titleStyle }}">{{ r.title }}</span>
+                  <div style="font-size:11.5px;color:#686b74;margin-top:2px;">{{ r.speakers }}</div>
+                </span>
+                <span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#33343c;">
+                  <sc-if value="{{ r.isTalk }}" hint-placeholder-val="{{ true }}"><span style="{{ r.dot }}"></span>{{ r.trackName }}</sc-if>
+                </span>
+                <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">{{ r.room }}</span>
+                <span style="{{ r.statusStyle }}">{{ r.status }}</span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:28px 14px;text-align:center;font-size:12.5px;color:#9a9da6;">No sessions match these filters.</div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#9a9da6;">
+              <span>{{ pageInfo }}</span>
+              <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+                <button onClick="{{ prevPage }}" style="{{ prevStyle }}">← Prev</button>
+                <span>{{ pageLabel }}</span>
+                <button onClick="{{ nextPage }}" style="{{ nextStyle }}">Next →</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isDayView }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #e2e3e8;padding-top:8px;">
+            <div onDragOver="{{ pvDayOver }}" onDragLeave="{{ pvLeave }}" onDrop="{{ pvDayDrop }}" style="{{ pvDayGridStyle }}">
+              <sc-for list="{{ pvDayHours }}" as="h" hint-placeholder-count="8">
+                <div style="{{ h.lineStyle }}"></div>
+                <div style="{{ h.labelStyle }}">{{ h.label }}</div>
+              </sc-for>
+              <sc-if value="{{ pvDayGhost }}" hint-placeholder-val="{{ false }}"><div style="{{ pvDayGhost.style }}"><span style="{{ pvDayGhost.labelStyle }}">{{ pvDayGhost.time }}</span></div></sc-if>
+              <sc-for list="{{ pvDayBlocks }}" as="b" hint-placeholder-count="8">
+                <div draggable="{{ true }}" onDragStart="{{ b.drag }}" onClick="{{ b.click }}" style="{{ b.style }}">
+                  <div style="display:flex;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9a9da6;overflow:hidden;"><span style="white-space:nowrap;flex-shrink:0;">{{ b.time }}</span><span style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ b.room }}</span></div>
+                  <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+                  <div style="font-size:10px;color:#9a9da6;margin-top:1px;">{{ b.speakers }}</div>
+                  <span style="{{ b.dotStyle }}"></span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ isWeek }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="display:grid;grid-template-columns:56px 1fr 1fr;border-bottom:1px solid #e2e3e8;">
+              <div></div>
+              <div style="padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.1em;color:#33343c;background:#f5f5f7;border-left:1px solid #f0f1f4;">DAY 1 · WED, OCT 14</div>
+              <div style="padding:10px 12px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.1em;color:#33343c;background:#f5f5f7;border-left:1px solid #f0f1f4;">DAY 2 · THU, OCT 15</div>
+            </div>
+            <div onDragOver="{{ pvWeekOver }}" onDragLeave="{{ pvLeave }}" onDrop="{{ pvWeekDrop }}" style="{{ pvWeekGridStyle }}">
+              <sc-for list="{{ pvWeekHours }}" as="h" hint-placeholder-count="8">
+                <div style="{{ h.lineStyle }}"></div>
+                <div style="{{ h.labelStyle }}">{{ h.label }}</div>
+              </sc-for>
+              <div style="{{ pvWeekDivider }}"></div>
+              <sc-if value="{{ pvWeekGhost0 }}" hint-placeholder-val="{{ false }}"><div style="{{ pvWeekGhost0.style }}"><span style="{{ pvWeekGhost0.labelStyle }}">{{ pvWeekGhost0.time }}</span></div></sc-if>
+              <sc-if value="{{ pvWeekGhost1 }}" hint-placeholder-val="{{ false }}"><div style="{{ pvWeekGhost1.style }}"><span style="{{ pvWeekGhost1.labelStyle }}">{{ pvWeekGhost1.time }}</span></div></sc-if>
+              <sc-for list="{{ pvWeekBlocks }}" as="b" hint-placeholder-count="10">
+                <div draggable="{{ true }}" onDragStart="{{ b.drag }}" onClick="{{ b.click }}" style="{{ b.style }}">
+                  <div style="display:flex;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9a9da6;overflow:hidden;"><span style="white-space:nowrap;flex-shrink:0;">{{ b.time }}</span><span style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ b.room }}</span></div>
+                  <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+                  <div style="font-size:10px;color:#9a9da6;margin-top:1px;">{{ b.speakers }}</div>
+                  <span style="{{ b.dotStyle }}"></span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </main>
+</div>
+<sc-if value="{{ sel }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);z-index:50;">
+    <div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;">
+      <div><div style="font-size:14px;font-weight:700;line-height:1.3;">{{ sel.title }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:2px;">{{ sel.meta }}</div></div>
+      <button onClick="{{ closeSel }}" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:12px 16px;font-size:12.5px;color:#33343c;display:grid;gap:10px;">
+      <div>{{ sel.speakers }}</div>
+      <div style="border-top:1px solid #eceded;padding-top:10px;display:grid;gap:8px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.1em;color:#9a9da6;">MOVE</div>
+        <div style="display:flex;border:1px solid #e2e3e8;">
+          <button onClick="{{ sel.toDay0 }}" style="{{ sel.day0Style }}">Day 1 · Oct 14</button>
+          <button onClick="{{ sel.toDay1 }}" style="{{ sel.day1Style }}">Day 2 · Oct 15</button>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts
+            <select value="{{ sel.start }}" onChange="{{ sel.setStart }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+              <sc-for list="{{ sel.startOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+            </select>
+          </label>
+          <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Room
+            <select value="{{ sel.room }}" onChange="{{ sel.setRoom }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+              <sc-for list="{{ sel.roomOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button onClick="{{ sel.toBin }}" style="flex:1;padding:7px 0;background:#fde8e8;border:1px solid #f0c4c4;color:#8a2c2c;font-size:12px;cursor:pointer;">Remove</button>
+        <button onClick="{{ sel.quickEdit }}" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Quick edit</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ svc }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);z-index:60;">
+    <div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:center;gap:8px;">
+      <div style="font-size:14px;font-weight:700;">Service block</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">SPANS ALL ROOMS</div>
+      <button onClick="{{ svc.close }}" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:12px 16px;display:grid;gap:10px;">
+      <label style="display:grid;gap:4px;font-size:11px;color:#686b74;">Title
+        <input value="{{ svc.title }}" onChange="{{ svc.setTitle }}" style="padding:7px 9px;border:1px solid #d4d5db;font-size:13px;font-weight:600;"></input>
+      </label>
+      <div style="display:grid;gap:4px;font-size:11px;color:#686b74;">Day
+        <div style="display:flex;border:1px solid #e2e3e8;">
+          <button onClick="{{ svc.toDay0 }}" style="{{ svc.day0Style }}">Day 1 · Oct 14</button>
+          <button onClick="{{ svc.toDay1 }}" style="{{ svc.day1Style }}">Day 2 · Oct 15</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts
+          <select value="{{ svc.start }}" onChange="{{ svc.setStart }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+            <sc-for list="{{ svc.startOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+          </select>
+        </label>
+        <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Ends
+          <select value="{{ svc.end }}" onChange="{{ svc.setEnd }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+            <sc-for list="{{ svc.endOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+          </select>
+        </label>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button onClick="{{ svc.copy }}" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Copy to {{ svc.otherDay }}</button>
+        <button onClick="{{ svc.del }}" style="flex:1;padding:7px 0;background:#fff;border:1px solid #f0c4c4;color:#c92a2a;font-size:12px;cursor:pointer;">Delete</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ sched }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);z-index:70;">
+    <div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;">
+      <div><div style="font-size:14px;font-weight:700;line-height:1.3;">{{ sched.title }}</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-top:2px;">SCHEDULE · {{ sched.dur }} MIN</div></div>
+      <button onClick="{{ sched.close }}" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:12px 16px;display:grid;gap:10px;">
+      <div style="display:grid;gap:4px;font-size:11px;color:#686b74;">Day
+        <div style="display:flex;border:1px solid #e2e3e8;">
+          <button onClick="{{ sched.toDay0 }}" style="{{ sched.day0Style }}">Day 1 · Oct 14</button>
+          <button onClick="{{ sched.toDay1 }}" style="{{ sched.day1Style }}">Day 2 · Oct 15</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts
+          <select value="{{ sched.start }}" onChange="{{ sched.setStart }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+            <sc-for list="{{ sched.startOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+          </select>
+        </label>
+        <label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Room
+          <select value="{{ sched.room }}" onChange="{{ sched.setRoom }}" style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">
+            <sc-for list="{{ sched.roomOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+          </select>
+        </label>
+      </div>
+      <button onClick="{{ sched.place }}" style="padding:9px 0;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Place on agenda</button>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ warn }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#402b00;color:#ffe8b3;padding:14px 18px;z-index:80;animation:toastin 0.15s ease;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">
+    <div style="display:flex;gap:10px;align-items:flex-start;">
+      <span style="font-size:15px;">⚠</span>
+      <div style="flex:1;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">Placed with conflicts</div>
+        <sc-for list="{{ warn.msgs }}" as="m" hint-placeholder-count="1"><div style="font-size:12.5px;line-height:1.45;">{{ m }}</div></sc-for>
+      </div>
+      <button onClick="{{ undoDrop }}" style="padding:6px 12px;background:#ffe8b3;color:#402b00;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>
+      <button onClick="{{ dismissWarn }}" style="padding:6px 10px;background:transparent;color:#ffe8b3;border:1px solid #7a5c1a;font-size:12px;cursor:pointer;">Replace</button>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);">
+    <span style="color:#69db7c;">✓</span>{{ toast }}
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1600, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = { data: null, placed: [], bin: [], day: 0, view: 'rooms', layout: 'cols', dragId: null, selId: null, svcId: null, warn: null, toast: null, snapshot: null, hover: null, q: '', fDay: 'all', fTrack: 'all', fRoom: 'all', fStatus: 'all', sortKey: 'time', sortDir: 1, page: 0, schedId: null, schedDay: 0, schedStart: 270, schedRoom: null };
+  K = 1.3; KB = 1.75; DAYMIN = 30; DAYMAX = 600;
+  componentDidMount() {
+    import('./data.js').then(m => this.setState({
+      data: m,
+      placed: m.AGENDA.map(a => ({ ...a })),
+      bin: m.UNSCHEDULED.map(u => ({ ...u }))
+    }));
+  }
+  flash(msg) { clearTimeout(this._t); this.setState({ toast: msg }); this._t = setTimeout(() => this.setState({ toast: null }), 2600); }
+  conflicts(item, placed) {
+    const msgs = [];
+    const overlap = (a, b) => a.day === b.day && a.start < b.end && b.start < a.end;
+    if (item.end > this.DAYMAX) msgs.push(`Runs past the event day (ends ${this.state.data.fmtTime(item.end)}, day ends 18:00).`);
+    placed.forEach(o => {
+      if (o.id === item.id || o.room === 'ALL') return;
+      if (!overlap(item, o)) return;
+      if (o.room === item.room) msgs.push(`Room double-booked: “${o.title}” is already in ${o.room} at ${this.state.data.fmtTime(o.start)}.`);
+      const mine = (item.speakers || '').split(', ').filter(Boolean);
+      const theirs = (o.speakers || '').split(', ').filter(Boolean);
+      const both = mine.filter(s => theirs.includes(s) && s !== 'Sponsor session');
+      if (both.length) msgs.push(`${both.join(' and ')} would be in two places at once (also in “${o.title}”, ${o.room}).`);
+    });
+    return msgs;
+  }
+  place(id, room, minutes, day) {
+    const st = this.state;
+    if (day == null) day = st.day;
+    const snapshot = { placed: st.placed.map(x => ({ ...x })), bin: st.bin.map(x => ({ ...x })) };
+    let placed = st.placed, bin = st.bin, item;
+    const fromBin = bin.find(b => b.id === id);
+    if (fromBin) {
+      item = { id: 'A' + Date.now(), title: fromBin.title, type: 'talk', speakers: fromBin.speakers, track: fromBin.track, room, day, start: minutes, end: minutes + fromBin.dur, sub: fromBin.sub, status: fromBin.status === 'confirmed' ? 'confirmed' : 'pending' };
+      bin = bin.filter(b => b.id !== id);
+      placed = [...placed, item];
+    } else {
+      placed = placed.map(p => p.id === id ? { ...p, room: p.room === 'ALL' ? 'ALL' : room, day, start: minutes, end: minutes + (p.end - p.start) } : p);
+      item = placed.find(p => p.id === id);
+    }
+    const msgs = this.conflicts(item, placed);
+    this.setState({ placed, bin, snapshot, warn: msgs.length ? { msgs } : null, dragId: null, hover: null });
+    if (!msgs.length) this.flash(`Scheduled “${item.title}” — ${this.state.data.fmtTime(minutes)}, ${item.room === 'ALL' ? 'all rooms' : room}`);
+  }
+  snap(v) { return Math.max(this.DAYMIN, Math.min(this.DAYMAX - 15, Math.round(v / 15) * 15)); }
+  renderVals() {
+    const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
+    const tabBtn = (on) => `padding:7px 13px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${on ? '#fff' : '#686b74'};white-space:nowrap;`;
+    const base = {
+      day0: () => this.setState({ day: 0 }), day1: () => this.setState({ day: 1 }),
+      day0Style: tabBtn(st.day === 0), day1Style: tabBtn(st.day === 1),
+      viewBtns: [['list', 'List'], ['day', 'Day'], ['week', 'Week'], ['rooms', 'Rooms']].map(([id, label]) => ({ label, style: tabBtn(st.view === id), onClick: () => this.setState({ view: id }) })),
+      isA: st.view === 'rooms' && st.layout === 'cols', isB: st.view === 'rooms' && st.layout === 'lanes',
+      showDayBar: st.view === 'day' || st.view === 'rooms', isRooms: st.view === 'rooms',
+      toCols: () => this.setState({ layout: 'cols' }), toLanes: () => this.setState({ layout: 'lanes' }),
+      colsBtnStyle: tabBtn(st.layout === 'cols'), lanesBtnStyle: tabBtn(st.layout === 'lanes'),
+      q: st.q, setQ: (e) => this.setState({ q: e.target.value, page: 0 }),
+      isList: st.view === 'list', isDayView: st.view === 'day', isWeek: st.view === 'week',
+      allowDrop: (e) => e.preventDefault(),
+      publish: () => this.flash('Published — CDN cache revalidated, public agenda updated'),
+      addService: () => { if (!st.data) return; const id = 'S' + Date.now(); this.setState({ placed: [...st.placed, { id, title: 'New break', type: 'service', room: 'ALL', day: st.day, start: 270, end: 300 }], svcId: id, selId: null }); },
+      addSponsor: () => this.flash('Sponsor session editor opens here (skips the CFP pipeline)'),
+      dismissWarn: () => this.setState({ warn: null }),
+      undoDrop: () => this.setState({ placed: st.snapshot.placed, bin: st.snapshot.bin, warn: null }),
+      dropToBin: (e) => { e.preventDefault(); const id = st.dragId; const p = st.placed.find(x => x.id === id); if (!p) return; this.setState({ placed: st.placed.filter(x => x.id !== id), bin: [...st.bin, { id, title: p.title, speakers: p.speakers, track: p.track, dur: p.end - p.start, sub: p.sub, status: p.status }], selId: null }); this.flash(`“${p.title}” sent back to the bin`); },
+      toast: st.toast, warn: st.warn, sel: null, svc: null,
+      closeSel: () => this.setState({ selId: null }),
+      bin: [], cols: [], hours: [], services: [], lanes: [], hoursB: [], servicesB: [], binEmpty: false, binCount: '',
+      listRows: [], listHead: [], filterSels: [], sched: null, listEmpty: false, hasFilters: false, pageInfo: '', pageLabel: '',
+      pvDayGhost: null, pvWeekGhost0: null, pvWeekGhost1: null,
+      pvDayHours: [], pvDayBlocks: [], pvDayGridStyle: 'position:relative;height:200px;',
+      pvWeekHours: [], pvWeekBlocks: [], pvWeekGridStyle: 'position:relative;height:200px;', pvWeekDivider: 'display:none;'
+    };
+    if (!d) return base;
+    const K = this.K, KB = this.KB, D0 = this.DAYMIN;
+    const dayPlaced = st.placed.filter(p => p.day === st.day);
+    const statusDot = (s) => s === 'confirmed' ? '#2b8a3e' : '#e6a817';
+    const conflictIds = new Set();
+    st.placed.forEach(p => { if (p.room !== 'ALL' && this.conflicts(p, st.placed).length) conflictIds.add(p.id); });
+    const mkBlock = (p, horizontal) => {
+      const tr = d.trackOf(p.track);
+      const conflicted = conflictIds.has(p.id);
+      const bgMap = { sponsor: '#fff4e6', talk: '#fff' };
+      const border = conflicted ? '#d64545' : (p.type === 'sponsor' ? '#f0c078' : tr.color);
+      const common = `position:absolute;overflow:hidden;cursor:grab;background:${conflicted ? '#fdecec' : bgMap[p.type] || '#fff'};border:1px solid ${border};border-left:3px solid ${border};padding:4px 7px;`;
+      const geo = horizontal
+        ? `left:${(p.start - D0) * KB}px;width:${(p.end - p.start) * KB - 3}px;top:5px;bottom:5px;`
+        : `top:${(p.start - D0) * K}px;height:${(p.end - p.start) * K - 3}px;left:3px;right:3px;`;
+      return {
+        title: (p.type === 'sponsor' ? 'SP · ' : '') + p.title,
+        speakers: p.speakers || '', time: `${d.fmtTime(p.start)}–${d.fmtTime(p.end)}`,
+        style: common + geo + (st.selId === p.id ? 'outline:2px solid #4c5fd5;' : ''),
+        dotStyle: `position:absolute;top:5px;right:5px;width:7px;height:7px;background:${statusDot(p.status)};`,
+        drag: (e) => { e.dataTransfer.setData('text', p.id); this.setState({ dragId: p.id }); },
+        click: () => this.setState({ selId: p.id, svcId: null })
+      };
+    };
+    const hours = [];
+    for (let m = 60; m <= 600; m += 60) hours.push({
+      label: d.fmtTime(m),
+      gutterStyle: `position:absolute;top:${(m - D0) * K - 7}px;right:8px;font-family:${mono};font-size:10px;color:#9a9da6;`,
+      lineStyle: `position:absolute;top:${(m - D0) * K}px;left:0;right:0;border-top:1px solid #f0f1f4;pointer-events:none;`,
+      rulerStyle: `position:absolute;left:${(m - D0) * KB - 14}px;top:4px;font-family:${mono};font-size:10px;color:#9a9da6;`,
+      vlineStyle: `position:absolute;left:${(m - D0) * KB}px;top:0;bottom:0;border-left:1px solid #f0f1f4;pointer-events:none;`
+    });
+    const mkSvc = (p, vertical) => ({
+      title: p.title.toUpperCase(), time: `${d.fmtTime(p.start)}–${d.fmtTime(p.end)}`,
+      drag: (e) => { e.dataTransfer.setData('text', p.id); this.setState({ dragId: p.id }); },
+      click: () => this.setState({ svcId: p.id, selId: null }),
+      pillStyle: `pointer-events:auto;cursor:grab;font-family:${mono};font-size:${vertical ? 9 : 10}px;letter-spacing:0.08em;padding:${vertical ? '8px 3px' : '3px 9px'};background:#fff;border:1px solid #d4d7dc;color:#686b74;${vertical ? 'writing-mode:vertical-rl;' : ''}${st.svcId === p.id ? 'outline:2px solid #4c5fd5;' : ''}`
+    });
+    const services = dayPlaced.filter(p => p.room === 'ALL').map(p => ({
+      ...mkSvc(p, false),
+      style: `position:absolute;left:0;right:0;top:${(p.start - D0) * K + 24}px;height:${(p.end - p.start) * K - 3}px;background:rgba(173,181,189,0.16);border-top:1px solid #d4d7dc;border-bottom:1px solid #d4d7dc;display:flex;align-items:center;justify-content:center;color:#686b74;pointer-events:none;z-index:3;`
+    }));
+    const servicesB = dayPlaced.filter(p => p.room === 'ALL').map(p => ({
+      ...mkSvc(p, true),
+      style: `position:absolute;top:0;bottom:0;left:${120 + (p.start - D0) * KB}px;width:${(p.end - p.start) * KB}px;background:rgba(173,181,189,0.16);border-left:1px solid #d4d7dc;border-right:1px solid #d4d7dc;display:flex;align-items:center;justify-content:center;color:#868e96;pointer-events:none;z-index:3;`
+    }));
+    const dragDur = () => {
+      const b = st.bin.find(x => x.id === st.dragId);
+      if (b) return b.dur;
+      const p = st.placed.find(x => x.id === st.dragId);
+      return p ? p.end - p.start : 30;
+    };
+    const overCol = (room) => (e) => {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const s = this.snap((e.clientY - rect.top) / K + D0);
+      if (!st.hover || st.hover.room !== room || st.hover.start !== s) this.setState({ hover: { room, start: s } });
+    };
+    const overLane = (room) => (e) => {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      const s = this.snap((e.clientX - rect.left) / KB + D0);
+      if (!st.hover || st.hover.room !== room || st.hover.start !== s) this.setState({ hover: { room, start: s } });
+    };
+    const clearHover = (e) => {
+      if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+      if (st.hover) this.setState({ hover: null });
+    };
+    const mkGhost = (room, horizontal) => {
+      if (!st.hover || st.hover.room !== room) return null;
+      const dur = dragDur(), s = st.hover.start;
+      const geo = horizontal
+        ? `left:${(s - D0) * KB}px;width:${dur * KB - 3}px;top:5px;bottom:5px;`
+        : `top:${(s - D0) * K}px;height:${dur * K - 3}px;left:3px;right:3px;`;
+      return {
+        style: `position:absolute;${geo}background:rgba(76,95,213,0.10);border:1px dashed #4c5fd5;pointer-events:none;z-index:4;display:flex;align-items:flex-start;`,
+        labelStyle: `font-family:${mono};font-size:9px;font-weight:700;background:#4c5fd5;color:#fff;padding:1px 5px;`,
+        time: `${d.fmtTime(s)}–${d.fmtTime(s + dur)}`
+      };
+    };
+    const dropCol = (room) => (e) => {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      this.place(st.dragId || e.dataTransfer.getData('text'), room, this.snap((e.clientY - rect.top) / K + D0));
+    };
+    const dropLane = (room) => (e) => {
+      e.preventDefault();
+      const rect = e.currentTarget.getBoundingClientRect();
+      this.place(st.dragId || e.dataTransfer.getData('text'), room, this.snap((e.clientX - rect.left) / KB + D0));
+    };
+    // Read-only preview views (List / Day / Week) rendered from the working copy
+    const GUT = 56, RPAD = 10;
+    const byStart = (a, b) => a.start - b.start || a.end - b.end || (a.room === 'ALL' ? -1 : 1);
+    const pvDay = (day) => st.placed.filter(p => p.day === day).sort(byStart);
+    const layPrev = (items) => {
+      const talks = items.filter(a => a.room !== 'ALL'), out = [];
+      let cluster = [], clusterEnd = -1;
+      const flush = () => {
+        const colsEnd = [];
+        for (const s of cluster) {
+          let c = colsEnd.findIndex(e => e <= s.start);
+          if (c === -1) { c = colsEnd.length; colsEnd.push(0); }
+          colsEnd[c] = s.end;
+          out.push({ a: s, col: c, cluster });
+        }
+        for (const o of out) if (o.cluster === cluster) o.cols = colsEnd.length;
+      };
+      for (const s of talks) {
+        if (cluster.length && s.start >= clusterEnd) { flush(); cluster = []; clusterEnd = -1; }
+        cluster.push(s); clusterEnd = Math.max(clusterEnd, s.end);
+      }
+      if (cluster.length) flush();
+      return out;
+    };
+    const pvTitle = 'font-size:11.5px;font-weight:600;line-height:1.25;letter-spacing:-0.01em;margin-top:1px;';
+    const pvSvcTitle = `font-family:${mono};font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-top:1px;`;
+    const pvHourMarks = (maxEnd) => {
+      const out = [];
+      for (let m = 60; m <= maxEnd; m += 60) out.push({
+        lineStyle: `position:absolute;left:${GUT}px;right:0;top:${(m - D0) * K}px;border-top:1px solid #f0f1f4;`,
+        labelStyle: `position:absolute;left:0;top:${(m - D0) * K - 6}px;width:${GUT - 10}px;text-align:right;font-family:${mono};font-size:9.5px;color:#c2c4cb;`,
+        label: d.fmtTime(m)
+      });
+      return out;
+    };
+    const pvBlock = (p, fx0, fx1) => {
+      const svc = p.room === 'ALL';
+      const tr = d.trackOf(p.track);
+      const conflicted = conflictIds.has(p.id);
+      const top = (p.start - D0) * K, h = (p.end - p.start) * K - 4;
+      const left = `calc(${GUT + 3}px + (100% - ${GUT + RPAD + 3}px)*${fx0})`;
+      const width = `calc((100% - ${GUT + RPAD + 3}px)*${fx1 - fx0} - 5px)`;
+      const selOutline = st.selId === p.id || st.svcId === p.id ? 'outline:2px solid #4c5fd5;' : '';
+      return {
+        time: `${d.fmtTime(p.start)}–${d.fmtTime(p.end)}`, room: svc ? 'ALL ROOMS' : p.room,
+        title: svc ? p.title.toUpperCase() : (p.type === 'sponsor' ? 'SP · ' : '') + p.title,
+        titleStyle: svc ? pvSvcTitle : pvTitle,
+        speakers: svc ? '' : (p.speakers || ''),
+        dotStyle: svc ? 'display:none;' : `position:absolute;top:5px;right:5px;width:7px;height:7px;background:${statusDot(p.status)};`,
+        drag: (e) => { e.dataTransfer.setData('text', p.id); this.setState({ dragId: p.id }); },
+        click: () => this.setState(svc ? { svcId: p.id, selId: null } : { selId: p.id, svcId: null }),
+        style: `position:absolute;top:${top}px;height:${h}px;left:${left};width:${width};overflow:hidden;cursor:grab;${selOutline}` +
+          (svc ? 'background:#f0f1f4;padding:5px 10px;' : `background:${conflicted ? '#fdecec' : '#fff'};border:1px solid ${conflicted ? '#d64545' : '#e2e3e8'};border-left:3px solid ${conflicted ? '#d64545' : tr.color};padding:5px 8px;`)
+      };
+    };
+    const pvLayout = (day, fx0, fx1) => {
+      const items = pvDay(day), out = [];
+      for (const a of items.filter(x => x.room === 'ALL')) out.push(pvBlock(a, fx0, fx1));
+      for (const o of layPrev(items)) {
+        const w = (fx1 - fx0) / o.cols;
+        out.push(pvBlock(o.a, fx0 + w * o.col, fx0 + w * (o.col + 1)));
+      }
+      return out;
+    };
+    const pvDayMax = Math.max(600, ...pvDay(st.day).map(p => p.end));
+    const pvWeekMax = Math.max(600, ...st.placed.map(p => p.end));
+    const selP = st.placed.find(p => p.id === st.selId);
+    const schedB = st.bin.find(b => b.id === st.schedId);
+    const svcP = st.placed.find(p => p.id === st.svcId);
+    const updSvc = (patch) => this.setState({ placed: this.state.placed.map(p => p.id === st.svcId ? { ...p, ...patch } : p) });
+    const moveSel = (patch) => this.setState({ placed: this.state.placed.map(p => p.id === st.selId ? { ...p, ...patch } : p) });
+    const timeOpts = []; for (let m = this.DAYMIN; m <= this.DAYMAX; m += 15) timeOpts.push({ v: m, label: d.fmtTime(m) });
+    const svcDay = (dv) => this.setState({ day: dv, placed: st.placed.map(p => p.id === st.svcId ? { ...p, day: dv } : p) });
+    // List view: filter → sort → paginate
+    const statusOf = (p) => p.room === 'ALL' ? 'service' : conflictIds.has(p.id) ? 'conflict' : (p.status || p.type);
+    const fq = (st.q || '').trim().toLowerCase();
+    const rows = [...pvDay(0), ...pvDay(1)].filter(p =>
+      (st.fDay === 'all' || p.day === +st.fDay) &&
+      (st.fRoom === 'all' || p.room === st.fRoom) &&
+      (st.fTrack === 'all' || p.track === st.fTrack) &&
+      (st.fStatus === 'all' || statusOf(p) === st.fStatus) &&
+      (!fq || (p.title + ' ' + (p.speakers || '')).toLowerCase().includes(fq)));
+    const chrono = (p) => p.day * 10000 + p.start;
+    const sortFns = { day: (p) => p.day, time: chrono, title: (p) => p.title.toLowerCase(), track: (p) => (d.trackOf(p.track) || {}).name || '', room: (p) => p.room || '', status: statusOf };
+    const kf = sortFns[st.sortKey] || chrono;
+    rows.sort((a, b) => { const ka = kf(a), kb = kf(b); return ((ka > kb) - (ka < kb)) * st.sortDir || chrono(a) - chrono(b); });
+    const PAGE = 10, pages = Math.max(1, Math.ceil(rows.length / PAGE)), page = Math.min(st.page, pages - 1);
+    const pageRows = rows.slice(page * PAGE, (page + 1) * PAGE);
+    const selStyle = 'padding:7px 8px;border:1px solid #d4d5db;font-size:12px;background:#fff;color:#33343c;';
+    const hasFilters = !!fq || st.fDay !== 'all' || st.fTrack !== 'all' || st.fRoom !== 'all' || st.fStatus !== 'all';
+    // Day / Week views: drag-and-drop
+    const pvTimeAt = (e) => { const rect = e.currentTarget.getBoundingClientRect(); return this.snap((e.clientY - rect.top) / K + D0); };
+    const pvWeekDayAt = (e) => { const rect = e.currentTarget.getBoundingClientRect(); return (e.clientX - rect.left - GUT - 3) / (rect.width - GUT - RPAD - 3) < 0.5 ? 0 : 1; };
+    const pvOver = (e, key) => { e.preventDefault(); const s = pvTimeAt(e); if (!st.hover || st.hover.room !== key || st.hover.start !== s) this.setState({ hover: { room: key, start: s } }); };
+    const autoRoom = (s, dur, day) => d.ROOMS.find(r => !st.placed.some(p => p.day === day && p.room === r && p.start < s + dur && s < p.end)) || d.ROOMS[0];
+    const pvDrop = (e, day) => {
+      e.preventDefault();
+      const id = st.dragId || e.dataTransfer.getData('text');
+      const s = pvTimeAt(e);
+      const p = st.placed.find(x => x.id === id), b = st.bin.find(x => x.id === id);
+      if (!p && !b) return;
+      this.place(id, p ? p.room : autoRoom(s, b.dur, day), s, day);
+    };
+    const pvGhost = (key, fx0, fx1) => {
+      if (!st.hover || st.hover.room !== key) return null;
+      const dur = dragDur(), s = st.hover.start;
+      return {
+        style: `position:absolute;top:${(s - D0) * K}px;height:${dur * K - 4}px;left:calc(${GUT + 3}px + (100% - ${GUT + RPAD + 3}px)*${fx0});width:calc((100% - ${GUT + RPAD + 3}px)*${fx1 - fx0} - 5px);background:rgba(76,95,213,0.10);border:1px dashed #4c5fd5;pointer-events:none;z-index:4;display:flex;align-items:flex-start;`,
+        labelStyle: `font-family:${mono};font-size:9px;font-weight:700;background:#4c5fd5;color:#fff;padding:1px 5px;`,
+        time: `${d.fmtTime(s)}–${d.fmtTime(s + dur)}`
+      };
+    };
+    return {
+      ...base,
+      binCount: `${st.bin.length} SESSIONS`, binEmpty: st.bin.length === 0,
+      bin: st.bin.map(b => {
+        const tr = d.trackOf(b.track);
+        return {
+          title: b.title, speakers: b.speakers, dur: b.dur, status: b.status.toUpperCase(),
+          statusStyle: `margin-left:auto;font-family:${mono};font-size:9px;color:${b.status === 'confirmed' ? '#2b8a3e' : '#b08800'};`,
+          dot: `display:inline-block;width:8px;height:8px;background:${tr.color};`,
+          style: `border:1px solid #e2e3e8;border-left:3px solid ${tr.color};padding:9px 11px;background:#fff;cursor:grab;`,
+          drag: (e) => { e.dataTransfer.setData('text', b.id); this.setState({ dragId: b.id }); },
+          showSched: st.view === 'list',
+          sched: () => this.setState({ schedId: b.id, schedDay: st.day, schedStart: 270, schedRoom: d.ROOMS[0], selId: null, svcId: null })
+        };
+      }),
+      hours, hoursB: hours, services, servicesB,
+      listRows: pageRows.map(p => {
+        const svc = p.room === 'ALL';
+        const tr = d.trackOf(p.track);
+        const conflicted = conflictIds.has(p.id);
+        return {
+          day: p.day === 0 ? 'WED 14' : 'THU 15',
+          time: `${d.fmtTime(p.start)}–${d.fmtTime(p.end)}`, isTalk: !svc,
+          title: svc ? p.title.toUpperCase() : (p.type === 'sponsor' ? 'SP · ' : '') + p.title,
+          titleStyle: svc ? `font-family:${mono};font-size:10.5px;letter-spacing:0.08em;color:#9a9da6;` : 'font-size:13px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;',
+          speakers: svc ? '' : (p.speakers || ''),
+          trackName: tr.name, dot: `display:inline-block;width:8px;height:8px;background:${tr.color};flex-shrink:0;`,
+          room: svc ? 'ALL ROOMS' : p.room,
+          status: svc ? 'SERVICE' : conflicted ? 'CONFLICT' : (p.status || p.type).toUpperCase(),
+          statusStyle: `font-family:${mono};font-size:9.5px;color:${conflicted ? '#b03434' : svc ? '#9a9da6' : p.status === 'confirmed' ? '#2b8a3e' : '#b08800'};`,
+          click: () => this.setState(svc ? { svcId: p.id, selId: null } : { selId: p.id, svcId: null }),
+          style: `display:grid;grid-template-columns:80px 96px 1fr 150px 110px 90px;gap:12px;padding:10px 14px;border-bottom:1px solid #f0f1f4;align-items:${svc ? 'center' : 'start'};cursor:pointer;${svc ? 'background:#f8f8fa;' : conflicted ? 'background:#fdecec;' : ''}${st.selId === p.id || st.svcId === p.id ? 'outline:2px solid #4c5fd5;outline-offset:-2px;' : ''}`
+        };
+      }),
+      listHead: [['day', 'DAY'], ['time', 'TIME'], ['title', 'SESSION'], ['track', 'TRACK'], ['room', 'ROOM'], ['status', 'STATUS']].map(([k, label]) => ({
+        label: label + (st.sortKey === k ? (st.sortDir === 1 ? ' ▲' : ' ▼') : ''),
+        click: () => this.setState(st.sortKey === k ? { sortDir: -st.sortDir } : { sortKey: k, sortDir: 1, page: 0 }),
+        style: `background:none;border:none;padding:0;text-align:left;cursor:pointer;font-family:${mono};font-size:9.5px;letter-spacing:0.12em;color:${st.sortKey === k ? '#4c5fd5' : '#9a9da6'};`
+      })),
+      filterSels: [
+        { v: st.fDay, set: (e) => this.setState({ fDay: e.target.value, page: 0 }), opts: [{ v: 'all', label: 'All days' }, { v: '0', label: 'Day 1 · Oct 14' }, { v: '1', label: 'Day 2 · Oct 15' }], style: selStyle },
+        { v: st.fTrack, set: (e) => this.setState({ fTrack: e.target.value, page: 0 }), opts: [{ v: 'all', label: 'All tracks' }, ...d.TRACKS.map(t => ({ v: t.id, label: t.name }))], style: selStyle },
+        { v: st.fRoom, set: (e) => this.setState({ fRoom: e.target.value, page: 0 }), opts: [{ v: 'all', label: 'All rooms' }, ...d.ROOMS.map(r => ({ v: r, label: r }))], style: selStyle },
+        { v: st.fStatus, set: (e) => this.setState({ fStatus: e.target.value, page: 0 }), opts: [{ v: 'all', label: 'All statuses' }, { v: 'confirmed', label: 'Confirmed' }, { v: 'pending', label: 'Pending' }, { v: 'conflict', label: 'Conflicts' }, { v: 'service', label: 'Service blocks' }, { v: 'sponsor', label: 'Sponsor' }], style: selStyle }
+      ],
+      hasFilters,
+      clearFilters: () => this.setState({ q: '', fDay: 'all', fTrack: 'all', fRoom: 'all', fStatus: 'all', page: 0 }),
+      listEmpty: rows.length === 0,
+      pageInfo: rows.length ? `${page * PAGE + 1}–${Math.min(rows.length, (page + 1) * PAGE)} OF ${rows.length} ITEMS` : '0 ITEMS',
+      pageLabel: `PAGE ${page + 1} / ${pages}`,
+      prevPage: () => this.setState({ page: Math.max(0, page - 1) }),
+      nextPage: () => this.setState({ page: Math.min(pages - 1, page + 1) }),
+      prevStyle: `padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${page === 0 ? 'opacity:0.4;pointer-events:none;' : ''}`,
+      nextStyle: `padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${page >= pages - 1 ? 'opacity:0.4;pointer-events:none;' : ''}`,
+      pvDayOver: (e) => pvOver(e, 'pvday'),
+      pvDayDrop: (e) => pvDrop(e, st.day),
+      pvWeekOver: (e) => pvOver(e, 'pvw' + pvWeekDayAt(e)),
+      pvWeekDrop: (e) => pvDrop(e, pvWeekDayAt(e)),
+      pvLeave: clearHover,
+      pvDayGhost: pvGhost('pvday', 0, 1),
+      pvWeekGhost0: pvGhost('pvw0', 0, 0.49),
+      pvWeekGhost1: pvGhost('pvw1', 0.51, 1),
+      pvDayHours: pvHourMarks(pvDayMax),
+      pvDayGridStyle: `position:relative;height:${(pvDayMax - D0 + 25) * K}px;`,
+      pvDayBlocks: pvLayout(st.day, 0, 1),
+      pvWeekHours: pvHourMarks(pvWeekMax),
+      pvWeekGridStyle: `position:relative;height:${(pvWeekMax - D0 + 25) * K}px;`,
+      pvWeekDivider: `position:absolute;top:0;bottom:0;left:calc(${GUT + 3}px + (100% - ${GUT + RPAD + 3}px)*0.5);border-left:1px solid #e2e3e8;`,
+      pvWeekBlocks: [...pvLayout(0, 0, 0.49), ...pvLayout(1, 0.51, 1)],
+      cols: d.ROOMS.map(room => {
+        const blocks = dayPlaced.filter(p => p.room === room);
+        return { name: room, count: `${blocks.length}`, blocks: blocks.map(p => mkBlock(p, false)), drop: dropCol(room), over: overCol(room), leave: clearHover, ghost: mkGhost(room, false) };
+      }),
+      lanes: d.ROOMS.map(room => {
+        const blocks = dayPlaced.filter(p => p.room === room);
+        return { name: room, count: `${blocks.length} sessions`, blocks: blocks.map(p => mkBlock(p, true)), drop: dropLane(room), over: overLane(room), leave: clearHover, ghost: mkGhost(room, true) };
+      }),
+      sel: selP ? {
+        title: selP.title,
+        meta: `${d.fmtTime(selP.start)}–${d.fmtTime(selP.end)} · ${selP.room} · ${selP.status ? selP.status.toUpperCase() : selP.type.toUpperCase()}`,
+        speakers: selP.speakers || 'No speakers (service block)',
+        toDay0: () => moveSel({ day: 0 }), toDay1: () => moveSel({ day: 1 }),
+        day0Style: tabBtn(selP.day === 0) + 'flex:1;', day1Style: tabBtn(selP.day === 1) + 'flex:1;',
+        start: selP.start, startOpts: timeOpts.filter(o => o.v <= this.DAYMAX - (selP.end - selP.start)),
+        setStart: (e) => { const v = +e.target.value; moveSel({ start: v, end: v + (selP.end - selP.start) }); },
+        room: selP.room, roomOpts: d.ROOMS.map(r => ({ v: r, label: r })),
+        setRoom: (e) => moveSel({ room: e.target.value }),
+        toBin: () => {
+          this.setState({ placed: st.placed.filter(x => x.id !== selP.id), bin: [...st.bin, { id: selP.id, title: selP.title, speakers: selP.speakers, track: selP.track, dur: selP.end - selP.start, sub: selP.sub, status: selP.status || 'accepted' }], selId: null });
+          this.flash(`“${selP.title}” sent back to the bin`);
+        },
+        quickEdit: () => this.flash('In-place session card editor opens here (title, time, room, publish flag)')
+      } : null,
+      svc: svcP ? {
+        title: svcP.title,
+        setTitle: (e) => updSvc({ title: e.target.value }),
+        toDay0: () => svcDay(0), toDay1: () => svcDay(1),
+        day0Style: tabBtn(svcP.day === 0) + 'flex:1;', day1Style: tabBtn(svcP.day === 1) + 'flex:1;',
+        start: svcP.start, end: svcP.end,
+        startOpts: timeOpts.filter(o => o.v < this.DAYMAX),
+        endOpts: timeOpts.filter(o => o.v > svcP.start),
+        setStart: (e) => { const v = +e.target.value, dur = svcP.end - svcP.start; updSvc({ start: v, end: Math.min(this.DAYMAX, v + dur) }); },
+        setEnd: (e) => updSvc({ end: +e.target.value }),
+        otherDay: svcP.day === 0 ? 'Day 2' : 'Day 1',
+        copy: () => { this.setState({ placed: [...st.placed, { ...svcP, id: 'S' + Date.now(), day: svcP.day === 0 ? 1 : 0 }] }); this.flash(`“${svcP.title}” copied to ${svcP.day === 0 ? 'Day 2 · Oct 15' : 'Day 1 · Oct 14'}`); },
+        del: () => { this.setState({ placed: st.placed.filter(p => p.id !== svcP.id), svcId: null }); this.flash(`“${svcP.title}” removed`); },
+        close: () => this.setState({ svcId: null })
+      } : null,
+      sched: schedB ? {
+        title: schedB.title, dur: schedB.dur,
+        toDay0: () => this.setState({ schedDay: 0 }), toDay1: () => this.setState({ schedDay: 1 }),
+        day0Style: tabBtn(st.schedDay === 0) + 'flex:1;', day1Style: tabBtn(st.schedDay === 1) + 'flex:1;',
+        start: st.schedStart, setStart: (e) => this.setState({ schedStart: +e.target.value }),
+        startOpts: timeOpts.filter(o => o.v <= this.DAYMAX - schedB.dur),
+        room: st.schedRoom || d.ROOMS[0], setRoom: (e) => this.setState({ schedRoom: e.target.value }),
+        roomOpts: d.ROOMS.map(r => ({ v: r, label: r })),
+        place: () => { this.place(schedB.id, st.schedRoom || d.ROOMS[0], st.schedStart, st.schedDay); this.setState({ schedId: null }); },
+        close: () => this.setState({ schedId: null })
+      } : null
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>DevConf 2027 — Call for Speakers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#faf8f5;color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}
+  a{color:#e8590c;text-decoration:none;} a:hover{color:#c44a0a;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="position:sticky;top:0;background:#faf8f5;border-bottom:1px solid #ece7de;z-index:10;">
+  <div style="max-width:620px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px;">
+    <div style="width:26px;height:26px;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;">DC</div>
+    <div style="font-weight:700;font-size:14.5px;">DevConf 2027</div>
+    <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8b857a;display:flex;align-items:center;gap:6px;">
+      <span style="{{ saveDotStyle }}"></span>{{ saveLabel }}
+    </div>
+  </div>
+</div>
+<sc-if value="{{ notSubmitted }}" hint-placeholder-val="{{ true }}">
+  <div style="max-width:620px;margin:0 auto;padding:28px 20px 80px;">
+    <sc-if value="{{ isCfp }}" hint-placeholder-val="{{ true }}">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;">CALL FOR SPEAKERS · CLOSES AUG 31</div>
+      <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">Speak at DevConf 2027</h1>
+      <p style="margin:0 0 6px;font-size:15px;color:#555a63;line-height:1.55;">Oct 14–15 · Station Berlin + online. Talks, deep dives, workshops, lightning talks, panels.</p>
+      <p style="margin:0 0 26px;font-size:12.5px;color:#8b857a;">Signed in via magic link as <span style="font-family:'IBM Plex Mono',monospace;">you@example.com</span> — no password, ever. Your draft autosaves.</p>
+    </sc-if>
+    <sc-if value="{{ isSponsor }}" hint-placeholder-val="{{ false }}">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;">SPONSOR SESSION REQUEST · INVITE-ONLY · CLOSES SEP 15</div>
+      <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">Your sponsor session at DevConf 2027</h1>
+      <p style="margin:0 0 6px;font-size:15px;color:#555a63;line-height:1.55;">Oct 14–15 · Station Berlin + online. Platinum and Gold sponsors get one session slot on the main agenda.</p>
+      <p style="margin:0 0 26px;font-size:12.5px;color:#8b857a;">Invite link for <span style="font-family:'IBM Plex Mono',monospace;">rachel@vercelcloud.com</span> · Sponsor cohort. Your draft autosaves.</p>
+    </sc-if>
+    <sc-if value="{{ errorSummary }}" hint-placeholder-val="{{ false }}">
+      <div style="border:1px solid #e03131;background:#fff;padding:14px 16px;margin-bottom:20px;">
+        <div style="font-weight:700;font-size:13.5px;color:#c92a2a;margin-bottom:6px;">Fix {{ errorCount }} before submitting:</div>
+        <sc-for list="{{ errorList }}" as="e" hint-placeholder-count="2"><div style="font-size:13px;color:#c92a2a;">· {{ e }}</div></sc-for>
+      </div>
+    </sc-if>
+    <div style="display:grid;gap:22px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;border-bottom:1px solid #ece7de;padding-bottom:6px;">01 · YOUR SESSION</div>
+      <sc-if value="{{ isSponsor }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Company <span style="color:#e03131;">*</span></div>
+            <input value="Vercel Cloud" style="width:100%;padding:11px 12px;border:1px solid #ded8cd;font-size:14px;background:#fff;outline-color:#e8590c;">
+          </div>
+          <div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Sponsorship tier</div>
+            <input value="Platinum — prefilled from invite" disabled="{{ true }}" style="width:100%;padding:11px 12px;border:1px solid #ded8cd;font-size:14px;background:#f5f2ec;color:#8b857a;">
+          </div>
+        </div>
+      </sc-if>
+      <div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Session title <span style="color:#e03131;">*</span></div>
+        <input onInput="{{ onTitle }}" value="{{ vTitle }}" placeholder="Make it concrete — attendees choose by title" style="{{ titleStyle }}">
+        <sc-if value="{{ eTitle }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:4px;">{{ eTitle }}</div></sc-if>
+      </div>
+      <div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Abstract <span style="color:#e03131;">*</span></div>
+        <textarea onInput="{{ onAbstract }}" value="{{ vAbstract }}" rows="5" placeholder="What will the audience walk away with?" style="{{ abstractStyle }}"></textarea>
+        <div style="display:flex;margin-top:4px;">
+          <sc-if value="{{ eAbstract }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;">{{ eAbstract }}</div></sc-if>
+          <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:{{ wordColor }};">{{ wordCount }} / 150 words</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Format <span style="color:#e03131;">*</span></div>
+          <select onChange="{{ onFormat }}" value="{{ vFormat }}" style="{{ formatStyle }}">
+            <option value="">Choose…</option>
+            <sc-for list="{{ formats }}" as="f" hint-placeholder-count="5"><option value="{{ f }}">{{ f }}</option></sc-for>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Track</div>
+          <select style="width:100%;padding:11px 12px;border:1px solid #ded8cd;font-size:14px;background:#fff;">
+            <option value="">Choose…</option>
+            <sc-for list="{{ tracks }}" as="t" hint-placeholder-count="5"><option value="{{ t }}">{{ t }}</option></sc-for>
+          </select>
+        </div>
+      </div>
+      <sc-if value="{{ showAV }}" hint-placeholder-val="{{ false }}">
+        <div style="border-left:3px solid #e8590c;padding-left:14px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Workshop AV &amp; room needs <span style="color:#e03131;">*</span></div>
+          <div style="font-size:12px;color:#8b857a;margin-bottom:6px;">Appeared because you chose Workshop — required for workshops.</div>
+          <textarea onInput="{{ onAV }}" value="{{ vAV }}" rows="2" placeholder="Power strips, second screen, network access…" style="{{ avStyle }}"></textarea>
+          <sc-if value="{{ eAV }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:4px;">{{ eAV }}</div></sc-if>
+        </div>
+      </sc-if>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;border-bottom:1px solid #ece7de;padding-bottom:6px;margin-top:6px;">02 · SPEAKERS</div>
+      <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;color:#555a63;">
+        <input type="checkbox" checked="{{ agentMode }}" onChange="{{ onAgent }}" style="accent-color:#e8590c;margin-top:2px;">
+        <span>I’m submitting on behalf of someone else — I manage this submission, the speaker gets speaker-facing emails.</span>
+      </label>
+      <sc-for list="{{ speakers }}" as="s" hint-placeholder-count="1">
+        <div style="border:1px solid #ded8cd;background:#fff;padding:16px;display:grid;gap:12px;">
+          <div style="display:flex;align-items:center;"><div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.1em;color:#8b857a;">{{ s.label }}</div>
+            <sc-if value="{{ s.removable }}" hint-placeholder-val="{{ false }}"><button onClick="{{ s.remove }}" style="margin-left:auto;background:none;border:none;color:#8b857a;font-size:12.5px;cursor:pointer;">Remove</button></sc-if>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div><input onInput="{{ s.onName }}" value="{{ s.name }}" placeholder="Full name *" style="{{ s.nameStyle }}"></div>
+            <div><input onInput="{{ s.onEmail }}" value="{{ s.email }}" placeholder="Email *" type="email" style="{{ s.emailStyle }}"></div>
+          </div>
+          <textarea onInput="{{ s.onBio }}" value="{{ s.bio }}" rows="2" placeholder="Short bio (shown on the public agenda)" style="width:100%;padding:10px 12px;border:1px solid #ded8cd;font-size:13.5px;resize:vertical;font-family:inherit;"></textarea>
+          <div style="border:1px dashed #ded8cd;padding:12px;text-align:center;font-size:12.5px;color:#8b857a;background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,#faf8f5 8px,#faf8f5 16px);">
+            <span style="font-family:'IBM Plex Mono',monospace;">headshot</span> — tap to upload from camera roll · JPG/PNG · 10 MB
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ canAddSpeaker }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ addSpeaker }}" style="padding:11px 0;background:#fff;border:1px dashed #c9c2b4;font-size:13.5px;color:#555a63;cursor:pointer;">+ Add co-speaker ({{ speakerCap }})</button>
+      </sc-if>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;border-bottom:1px solid #ece7de;padding-bottom:6px;margin-top:6px;">03 · CONSENT</div>
+      <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;">
+        <input type="checkbox" checked="{{ vCoc }}" onChange="{{ onCoc }}" style="accent-color:#e8590c;margin-top:2px;">
+        <span>I have read and agree to the <a href="#coc">DevConf code of conduct</a>. <span style="color:#e03131;">*</span></span>
+      </label>
+      <sc-if value="{{ eCoc }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:-14px;">{{ eCoc }}</div></sc-if>
+      <button onClick="{{ submit }}" style="padding:15px 0;background:#e8590c;color:#fff;border:none;font-size:15.5px;font-weight:700;cursor:pointer;letter-spacing:0.01em;" style-hover="background:#c44a0a;">Submit session →</button>
+      <div style="font-size:12px;color:#8b857a;text-align:center;">Drafts validate softly — submitting runs the real checks. You can edit until the CFP closes.</div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ submitted }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:620px;margin:0 auto;padding:56px 20px;text-align:center;">
+    <div style="width:56px;height:56px;background:#e8590c;color:#fff;display:grid;place-items:center;font-size:26px;margin:0 auto 18px;">✓</div>
+    <h1 style="margin:0 0 10px;font-size:26px;letter-spacing:-0.02em;">It’s in. Nice work.</h1>
+    <p style="font-size:15px;color:#555a63;line-height:1.6;max-width:440px;margin:0 auto 26px;">“{{ submittedTitle }}” is with the DevConf program team. You’ll get a confirmation email now, and a decision by <b>Sep 15</b>. Track it any time in your speaker portal.</p>
+    <div style="border:1px solid #ded8cd;background:#fff;max-width:360px;margin:0 auto 20px;padding:22px;text-align:left;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;">I JUST SUBMITTED TO</div>
+      <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;">DevConf 2027</div>
+      <div style="font-size:12.5px;color:#8b857a;margin-top:4px;">Oct 14–15 · Berlin · devconf.example</div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button onClick="{{ share }}" style="padding:10px 18px;background:#1a1a2e;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Share the card</button>
+      <a href="Speaker Portal.dc.html" style="padding:10px 18px;border:1px solid #ded8cd;font-size:13px;font-weight:600;color:#1a1a2e;text-decoration:none;">Open speaker portal →</a>
+    </div>
+    <button onClick="{{ reset }}" style="margin-top:26px;background:none;border:none;color:#8b857a;font-size:12px;cursor:pointer;text-decoration:underline;">Submit another proposal</button>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;box-shadow:0 8px 24px rgba(26,26,46,0.3);">{{ toast }}</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 480, &quot;height&quot;: 900}, &quot;form&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;cfp&quot;, &quot;sponsor&quot;], &quot;default&quot;: &quot;cfp&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Form&quot;}}">
+class Component extends DCLogic {
+  state = {
+    title: '', abstract: '', format: '', av: '', coc: false, agent: false,
+    speakers: [{ name: '', email: '', bio: '' }],
+    errors: {}, tried: false, submitted: false, toast: null, saved: true
+  };
+  touch(delta) { this.setState({ ...delta, saved: false }); clearTimeout(this._sv); this._sv = setTimeout(() => this.setState({ saved: true }), 900); }
+  validate() {
+    const st = this.state, e = {};
+    if (!st.title.trim()) e.title = 'Title is required.';
+    const words = st.abstract.trim() ? st.abstract.trim().split(/\s+/).length : 0;
+    if (!words) e.abstract = 'Abstract is required.';
+    else if (words > 150) e.abstract = `Over the 150-word limit by ${words - 150}.`;
+    if (!st.format) e.format = 'Pick a format.';
+    if (st.format === 'Workshop (90 min)' && !st.av.trim()) e.av = 'Required for workshops (conditional rule).';
+    st.speakers.forEach((s, i) => {
+      if (!s.name.trim()) e['name' + i] = true;
+      if (!/.+@.+\..+/.test(s.email)) e['email' + i] = true;
+    });
+    if (!st.coc) e.coc = 'Must be checked to submit.';
+    return e;
+  }
+  renderVals() {
+    const st = this.state;
+    const isSponsor = (this.props.form ?? 'cfp') === 'sponsor';
+    const e = st.tried ? this.validate() : {};
+    const words = st.abstract.trim() ? st.abstract.trim().split(/\s+/).length : 0;
+    const inp = (bad) => `width:100%;padding:11px 12px;border:1px solid ${bad ? '#e03131' : '#ded8cd'};font-size:14px;background:#fff;outline-color:#e8590c;font-family:inherit;resize:vertical;`;
+    const errorList = [];
+    if (e.title) errorList.push('Session title — required');
+    if (e.abstract) errorList.push('Abstract — ' + e.abstract.toLowerCase());
+    if (e.format) errorList.push('Format — required');
+    if (e.av) errorList.push('Workshop AV needs — required when Format = Workshop');
+    st.speakers.forEach((s, i) => { if (e['name' + i] || e['email' + i]) errorList.push(`Speaker ${i + 1} — name and a valid email required`); });
+    if (e.coc) errorList.push('Code of conduct — must be checked');
+    return {
+      notSubmitted: !st.submitted, submitted: st.submitted, submittedTitle: st.title || 'Your session',
+      isCfp: !isSponsor, isSponsor,
+      saveLabel: st.saved ? 'DRAFT SAVED' : 'SAVING…',
+      saveDotStyle: `display:inline-block;width:7px;height:7px;background:${st.saved ? '#2b8a3e' : '#e6a817'};`,
+      formats: isSponsor ? ['Sponsor Session (30 min)', 'Sponsor Workshop (60 min)'] : ['Talk (30 min)', 'Deep Dive (45 min)', 'Workshop (90 min)', 'Lightning (10 min)', 'Panel (45 min)'],
+      tracks: ['AI & ML', 'Web Platform', 'Infrastructure', 'Security', 'Developer Experience'],
+      vTitle: st.title, onTitle: (ev) => this.touch({ title: ev.target.value }),
+      titleStyle: inp(e.title), eTitle: e.title || null,
+      vAbstract: st.abstract, onAbstract: (ev) => this.touch({ abstract: ev.target.value }),
+      abstractStyle: inp(e.abstract), eAbstract: e.abstract || null,
+      wordCount: words, wordColor: words > 150 ? '#c92a2a' : '#8b857a',
+      vFormat: st.format, onFormat: (ev) => this.touch({ format: ev.target.value }),
+      formatStyle: inp(e.format),
+      showAV: st.format === 'Workshop (90 min)',
+      vAV: st.av, onAV: (ev) => this.touch({ av: ev.target.value }), avStyle: inp(e.av), eAV: e.av || null,
+      agentMode: st.agent, onAgent: (ev) => this.touch({ agent: ev.target.checked }),
+      speakers: st.speakers.map((s, i) => ({
+        label: st.agent && i === 0 ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)' : `SPEAKER ${i + 1}${i === 0 ? ' · YOU' : ''}`,
+        name: s.name, email: s.email, bio: s.bio, removable: i > 0,
+        nameStyle: inp(e['name' + i]), emailStyle: inp(e['email' + i]),
+        onName: (ev) => this.patchSpeaker(i, { name: ev.target.value }),
+        onEmail: (ev) => this.patchSpeaker(i, { email: ev.target.value }),
+        onBio: (ev) => this.patchSpeaker(i, { bio: ev.target.value }),
+        remove: () => this.touch({ speakers: st.speakers.filter((_, j) => j !== i) })
+      })),
+      canAddSpeaker: st.speakers.length < 3, speakerCap: `${st.speakers.length}/3`,
+      vCoc: st.coc, onCoc: (ev) => this.touch({ coc: ev.target.checked }), eCoc: e.coc || null,
+      errorSummary: st.tried && errorList.length > 0, errorCount: `${errorList.length} thing${errorList.length > 1 ? 's' : ''}`, errorList,
+      submit: () => {
+        const errs = this.validate();
+        if (Object.keys(errs).length) { this.setState({ tried: true }); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+        this.setState({ submitted: true }); window.scrollTo({ top: 0 });
+      },
+      share: () => { this.setState({ toast: 'Share card copied — post it anywhere' }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: null }), 2400); },
+      reset: () => this.setState({ submitted: false, tried: false, title: '', abstract: '', format: '', av: '', coc: false, speakers: [{ name: '', email: '', bio: '' }] }),
+      toast: st.toast
+    };
+  }
+  patchSpeaker(i, delta) { this.touch({ speakers: this.state.speakers.map((s, j) => j === i ? { ...s, ...delta } : s) }); }
+}
+</script>
+</body>
+</html>

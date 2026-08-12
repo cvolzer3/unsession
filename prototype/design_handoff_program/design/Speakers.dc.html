@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>Program — Speakers &amp; Tasks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
+  a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
+  *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+  <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+      <div style="width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;">P</div>
+      <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Program</div>
+    </div>
+    <a href="Dashboard.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Dashboard</a>
+    <div style="padding:6px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">EVENT</div>
+    <a href="Event Setup.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Setup &amp; Theming</a>
+    <a href="Forms.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Forms</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PROGRAM</div>
+    <a href="Submissions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submissions</a>
+    <a href="Evaluation.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluation</a>
+    <a href="Sessions.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Sessions</a>
+    <a href="Speakers.dc.html" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;">Speakers &amp; Tasks</a>
+    <a href="Agenda Builder.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda</a>
+    <div style="padding:14px 20px 4px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">PUBLIC</div>
+    <a href="Submit.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Submission Form ↗</a>
+    <a href="Agenda.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Agenda Page ↗</a>
+    <a href="Speaker Portal.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Speaker Portal ↗</a>
+    <a href="Evaluator Workspace.dc.html" style="display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;">Evaluator Portal ↗</a>
+    <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+      <div style="display:flex;align-items:center;gap:9px;"><div style="width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;">MK</div><div style="min-width:0;"><div style="font-size:12.5px;font-weight:600;">Marta Keller</div><a href="Sign In.dc.html" style="font-size:11px;color:#9a9da6;text-decoration:none;">Sign out</a></div></div>
+    </div>
+  </nav>
+  <main style="min-width:0;">
+    <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
+      <div>
+        <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">Speaker onboarding</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button onClick="{{ zipHeads }}" style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">↓ All headshots (ZIP)</button>
+      </div>
+    </header>
+    <div style="padding:22px 28px;">
+      <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
+        <select value="{{ taskF }}" onChange="{{ taskFCh }}" style="{{ taskFStyle }}">
+          <option value="">Task: any</option>
+          <sc-for list="{{ taskFOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+        </select>
+        <select value="{{ stateF }}" onChange="{{ stateFCh }}" style="{{ stateFStyle }}">
+          <option value="">State: any</option>
+          <option value="c">Complete</option>
+          <option value="p">To do</option>
+          <option value="o">Overdue</option>
+          <option value="-">Not assigned</option>
+        </select>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input value="{{ query }}" onChange="{{ queryCh }}" placeholder="Search name or talk title…" style="width:220px;padding:6px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+        <div style="{{ gridHead }}">
+          <div>SPEAKER</div>
+          <sc-for list="{{ taskHeads }}" as="t" hint-placeholder-count="6">
+            <div onClick="{{ t.open }}" title="Edit template" style="text-align:center;line-height:1.3;cursor:pointer;" style-hover="color:#4c5fd5;">
+              <div>{{ t.label }}</div>
+              <sc-if value="{{ t.sub }}" hint-placeholder-val="{{ false }}"><div style="color:#c9cbd2;font-size:9px;margin-top:1px;">{{ t.sub }}</div></sc-if>
+            </div>
+          </sc-for>
+          <div style="text-align:right;">DONE</div>
+        </div>
+        <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+          <div style="{{ gridRow }}">
+            <div onClick="{{ r.open }}" style="padding-right:10px;cursor:pointer;" title="Open speaker profile">
+              <div style="font-size:13px;font-weight:600;" style-hover="color:#4c5fd5;text-decoration:underline;">{{ r.name }}</div>
+              <div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ r.session }}</div>
+            </div>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="6">
+              <div style="text-align:center;"><span title="{{ c.tip }}" style="{{ c.style }}">{{ c.glyph }}</span></div>
+            </sc-for>
+            <div style="text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;color:{{ r.fracColor }};font-weight:600;">{{ r.frac }}</div>
+          </div>
+        </sc-for>
+        <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:28px 14px;text-align:center;font-size:13px;color:#9a9da6;">No speakers match “{{ query }}” in this view.</div>
+        </sc-if>
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid #e2e3e8;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ pageInfo }}</div>
+          <div style="margin-left:auto;display:flex;gap:6px;">
+            <button onClick="{{ pgPrev }}" style="{{ pgPrevStyle }}">← Prev</button>
+            <button onClick="{{ pgNext }}" style="{{ pgNextStyle }}">Next →</button>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:18px;padding:12px 2px;font-size:12px;color:#686b74;align-items:center;">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#2b8a3e;vertical-align:-1px;"></span> complete</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#e2e3e8;vertical-align:-1px;"></span> to do</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#c92a2a;vertical-align:-1px;"></span> overdue</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#fafafb;border:1px solid #e2e3e8;vertical-align:-1px;"></span> not assigned</span>
+      </div>
+      <div style="margin-top:16px;background:#fff;border:1px solid #e2e3e8;padding:16px 20px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TASK TEMPLATES · {{ tplSummary }}</div>
+          <button onClick="{{ newTpl }}" style="margin-left:auto;padding:7px 13px;background:#4c5fd5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">＋ New template</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:8px;">
+          <sc-for list="{{ templates }}" as="t" hint-placeholder-count="6">
+            <div onClick="{{ t.open }}" style="{{ t.cardStyle }}" style-hover="border-color:#4c5fd5;">
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="{{ t.typeStyle }}">{{ t.type }}</span>
+                <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ t.name }}</span>
+                <sc-if value="{{ t.reqOn }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#b08800;flex:none;">REQ</span></sc-if>
+                <span style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#9a9da6;flex:none;">{{ t.target }}</span>
+              </div>
+              <div style="font-size:11.5px;color:#9a9da6;margin-top:4px;">{{ t.due }}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#4c5fd5;margin-top:3px;">{{ t.rule }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<sc-if value="{{ profOn }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ profClose }}" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></div>
+  <div style="position:fixed;top:0;right:0;bottom:0;width:440px;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;">
+    <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">SPEAKER</div>
+      <button onClick="{{ profClose }}" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">×</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:18px;">
+      <div>
+        <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;">{{ profName }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#4c5fd5;margin-top:2px;">{{ profEmail }}</div>
+        <div style="margin-top:7px;"><a href="Speaker Profile.dc.html?speaker={{ profSlug }}" style="font-size:12px;">View public profile ↗</a></div>
+        <div style="font-size:13px;color:#686b74;margin-top:6px;line-height:1.5;">{{ profBio }}</div>
+      </div>
+      <sc-if value="{{ profHasSub }}" hint-placeholder-val="{{ false }}">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">SUBMISSION · SESSION</div>
+          <div style="border:1px solid #eceded;padding:12px 14px;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:baseline;gap:8px;">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#9a9da6;">{{ profSubId }}</div>
+              <span style="{{ profBadgeStyle }}">{{ profBadgeText }}</span>
+              <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#686b74;">{{ profScore }}</div>
+            </div>
+            <div style="font-size:14px;font-weight:600;line-height:1.35;">{{ profTitle }}</div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#686b74;"><span style="{{ profDotStyle }}"></span>{{ profTrack }}<span style="color:#c9cbd2;">·</span>{{ profMeta }}</div>
+            <div><a href="Sessions.dc.html" style="font-size:12px;">Open in Sessions ↗</a></div>
+          </div>
+        </div>
+      </sc-if>
+      <div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TASKS</div>
+          <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:{{ profFracColor }};font-weight:600;">{{ profFrac }}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;">
+          <sc-for list="{{ profTasks }}" as="t" hint-placeholder-count="6">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f2f3f5;">
+              <span style="{{ t.style }}">{{ t.glyph }}</span>
+              <div style="font-size:13px;">{{ t.name }}</div>
+              <sc-if value="{{ t.tag }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:8.5px;color:#9a9da6;background:#f4f4f6;padding:2px 5px;flex:none;">{{ t.tag }}</span></sc-if>
+              <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:{{ t.stateColor }};flex:none;">{{ t.state }}</div>
+              <sc-if value="{{ t.nudgeOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ t.nudge }}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;" style-hover="border-color:#4c5fd5;color:#4c5fd5;">Nudge</button>
+              </sc-if>
+              <sc-if value="{{ t.removeOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ t.remove }}" title="Remove this task (logged)" style="padding:4px 8px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#9a9da6;cursor:pointer;flex:none;" style-hover="border-color:#c92a2a;color:#c92a2a;">×</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;gap:8px;">
+      <button onClick="{{ profEmailBtn }}" style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">Email speaker</button>
+      <button onClick="{{ profClose }}" style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Close</button>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ edOn }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ edClose }}" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></div>
+  <div style="position:fixed;top:0;right:0;bottom:0;width:480px;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;">
+    <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">{{ edTitle }}</div>
+      <button onClick="{{ edClose }}" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">×</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:28px;">
+      <div style="display:grid;gap:12px;">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">NAME</div>
+          <input value="{{ edName }}" onChange="{{ edNameCh }}" placeholder="e.g. Extended bio" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
+        </div>
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">DESCRIPTION</div>
+          <textarea rows="3" value="{{ edDesc }}" onChange="{{ edDescCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;resize:vertical;"></textarea>
+        </div>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">TYPE</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+          <sc-for list="{{ edTypeBtns }}" as="b" hint-placeholder-count="4"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+        </div>
+        <sc-if value="{{ edIsCheck }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:10px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">EXTERNAL LINK · OPTIONAL</div>
+            <input value="{{ edLink }}" onChange="{{ edLinkCh }}" placeholder="{{ linkPh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12px;background:#fff;font-family:'IBM Plex Mono',monospace;">
+          </div>
+        </sc-if>
+        <sc-if value="{{ edIsFile }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:10px;display:grid;gap:10px;">
+            <div style="display:grid;grid-template-columns:1.4fr 1fr 0.8fr;gap:8px;">
+              <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">ALLOWED TYPES</div><input value="{{ edExt }}" onChange="{{ edExtCh }}" placeholder="pdf, key" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"></div>
+              <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SIZE CAP</div><select value="{{ edCap }}" onChange="{{ edCapCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"><option>25 MB</option><option>100 MB</option><option>250 MB</option></select></div>
+              <div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">MAX FILES</div><input type="number" min="1" value="{{ edMaxN }}" onChange="{{ edMaxNCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"></div>
+            </div>
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SAMPLE / TEMPLATE FILE</div>
+              <sc-if value="{{ edSampleOn }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #e2e3e8;padding:7px 10px;">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;">{{ edSample }}</span>
+                  <button onClick="{{ edSampleRm }}" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:14px;padding:0;">×</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ edSampleOff }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ edSampleAdd }}" style="padding:7px 12px;background:#fff;border:1px dashed #c9cbd2;font-size:12px;color:#686b74;cursor:pointer;">＋ Attach a sample file (“use this slide template”)</button>
+              </sc-if>
+            </div>
+            <div onClick="{{ edRevT }}" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+              <span style="{{ edRevBox }}">{{ edRevGlyph }}</span>
+              <div><div style="font-size:13px;font-weight:600;">Requires review</div><div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">Uploads are marked as pending review. Approvals or requests for changes will email the speaker.</div></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ edIsForm }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:10px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">MINI-FORM</div>
+            <select value="{{ edForm }}" onChange="{{ edFormCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
+              <option>AV requirements (mini-form)</option><option>Travel details (mini-form)</option><option>Session details confirmation (mini-form)</option><option>＋ New mini-form…</option>
+            </select>
+            <div style="font-size:11px;color:#9a9da6;margin-top:4px;">Reuses the form engine — fields, validation, conditional logic.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ edIsProfile }}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top:10px;background:#f4f4f6;padding:10px 12px;font-size:12px;color:#686b74;line-height:1.5;">Auto-completes when the required profile fields are filled.</div>
+        </sc-if>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">TARGET</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <sc-for list="{{ edTargetBtns }}" as="b" hint-placeholder-count="2">
+            <button onClick="{{ b.onClick }}" style="{{ b.style }}">
+              <div style="font-weight:600;font-size:12.5px;">{{ b.label }}</div>
+              <div style="font-size:10.5px;color:#9a9da6;margin-top:2px;line-height:1.35;">{{ b.sub }}</div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:grid;gap:4px;">
+        <sc-for list="{{ edFlags }}" as="fl" hint-placeholder-count="2">
+          <div onClick="{{ fl.toggle }}" style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:5px 0;">
+            <span style="{{ fl.boxStyle }}">{{ fl.glyph }}</span>
+            <div><div style="font-size:13px;font-weight:600;">{{ fl.label }}</div><div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">{{ fl.sub }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">ASSIGNMENT</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+          <sc-for list="{{ edTrigBtns }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.onClick }}" style="{{ b.style }}">{{ b.label }}</button></sc-for>
+        </div>
+        <sc-if value="{{ edClausesOn }}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top:10px;display:grid;gap:6px;">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">ONLY WHEN · OPTIONAL</div>
+            <sc-for list="{{ edClauses }}" as="c" hint-placeholder-count="1">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <select value="{{ c.field }}" onChange="{{ c.fieldCh }}" style="width:126px;flex:none;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+                  <option>Track</option><option>Format</option><option>Level</option><option>Form answer</option>
+                </select>
+                <sc-if value="{{ c.isSel }}" hint-placeholder-val="{{ true }}">
+                  <select value="{{ c.value }}" onChange="{{ c.valCh }}" style="flex:1;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+                    <sc-for list="{{ c.opts }}" as="o" hint-placeholder-count="3"><option value="{{ o }}">{{ o }}</option></sc-for>
+                  </select>
+                </sc-if>
+                <sc-if value="{{ c.isText }}" hint-placeholder-val="{{ false }}">
+                  <input value="{{ c.value }}" onChange="{{ c.valCh }}" placeholder="e.g. Travel support = Yes" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+                </sc-if>
+                <button onClick="{{ c.remove }}" style="background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;padding:2px;flex:none;">×</button>
+              </div>
+            </sc-for>
+            <button onClick="{{ addClause }}" style="justify-self:start;padding:6px 11px;background:#fff;border:1px dashed #c9cbd2;font-size:12px;color:#686b74;cursor:pointer;">＋ Add clause</button>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ edHasDue }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">DUE</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select value="{{ edDueMode }}" onChange="{{ edDueModeCh }}" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
+              <option value="after">Days after assignment</option>
+              <option value="before">Days before event start</option>
+              <option value="abs">Absolute date</option>
+            </select>
+            <sc-if value="{{ edDueIsN }}" hint-placeholder-val="{{ true }}"><input type="number" min="0" value="{{ edDueN }}" onChange="{{ edDueNCh }}" style="width:76px;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"></sc-if>
+            <sc-if value="{{ edDueIsAbs }}" hint-placeholder-val="{{ false }}"><input type="date" value="{{ edDueDate }}" onChange="{{ edDueDateCh }}" style="width:150px;padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"></sc-if>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+            <select value="{{ edGrace }}" onChange="{{ edGraceCh }}" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
+              <option value="none">Past due: stays completable (default)</option>
+              <option value="lock">Past due: lock after grace period</option>
+            </select>
+            <sc-if value="{{ edGraceOn }}" hint-placeholder-val="{{ false }}"><input type="number" min="0" value="{{ edGraceN }}" onChange="{{ edGraceNCh }}" style="width:64px;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"><span style="font-size:12px;color:#9a9da6;">days</span></sc-if>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ edHasDue }}" hint-placeholder-val="{{ true }}">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">DEADLINE REMINDERS</div>
+          <div onClick="{{ edRemT }}" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
+            <span style="{{ edRemBox }}">{{ edRemGlyph }}</span>
+            <div><div style="font-size:13px;font-weight:600;">Email speakers before the due date</div><div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">Sends only while the task is open — reminders stop the moment it&rsquo;s completed. Every send lands in the email log.</div></div>
+          </div>
+          <sc-if value="{{ edRemOn }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top:12px;margin-left:30px;display:grid;gap:14px;">
+              <div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SCHEDULE</div>
+                <select value="" onChange="{{ edRemAdd }}" style="width:220px;padding:7px 8px;border:1px solid #e2e3e8;font-size:12px;background:#fff;color:#686b74;cursor:pointer;">
+                  <option value="">＋ Add reminder…</option>
+                  <sc-for list="{{ edRemAddOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.v }}">{{ o.label }}</option></sc-for>
+                </select>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;">
+                  <sc-for list="{{ edRemDays }}" as="r" hint-placeholder-count="2">
+                    <span style="display:inline-flex;align-items:center;gap:7px;border:1px solid #e2e3e8;background:#fff;padding:5px 9px;font-size:12px;">{{ r.label }}<button onClick="{{ r.remove }}" title="Remove this reminder" style="background:none;border:none;color:#9a9da6;font-size:13px;cursor:pointer;padding:0;line-height:1;" style-hover="color:#c92a2a;">×</button></span>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ edRemNone }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px;color:#b08800;margin-top:6px;">No reminders scheduled — add at least one, or turn reminders off.</div></sc-if>
+              </div>
+              <div>
+                <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+                  <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">REMINDER EMAIL</div>
+                  <sc-if value="{{ edRemIsCustom }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:#4c5fd5;">CUSTOMIZED</span><button onClick="{{ edRemReset }}" style="background:none;border:none;color:#4c5fd5;font-size:11.5px;cursor:pointer;text-decoration:underline;padding:0;">Reset to default</button></sc-if>
+                  <button onClick="{{ emlOpen }}" style="margin-left:auto;background:none;border:none;padding:0;color:#4c5fd5;font-size:11.5px;cursor:pointer;text-decoration:underline;" style-hover="color:#3548b8;">Open editor ↗</button>
+                </div>
+                <input value="{{ edRemSubj }}" onChange="{{ edRemSubjCh }}" title="Subject line" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;border-bottom:none;font-size:12.5px;font-weight:600;background:#fff;">
+                <textarea rows="9" value="{{ edRemBody }}" onChange="{{ edRemBodyCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;resize:vertical;line-height:1.5;display:block;"></textarea>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+    </div>
+    <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+      <button onClick="{{ edSave }}" style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">{{ edSaveLbl }}</button>
+      <button onClick="{{ edClose }}" style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+      <sc-if value="{{ edExisting }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ edArchive }}" style="margin-left:auto;background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;">{{ edArchiveLbl }}</button>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ scOn }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;">
+    <div style="background:#fff;width:460px;max-width:100%;padding:24px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Apply changes to open instances?</div>
+      <div style="font-size:13px;color:#686b74;line-height:1.55;margin-bottom:14px;">“{{ scName }}” has {{ scOpen }} open instances. Speakers may have already acted on the old wording — nothing updates silently.</div>
+      <div style="display:grid;gap:8px;margin-bottom:16px;">
+        <sc-for list="{{ scOpts }}" as="o" hint-placeholder-count="2">
+          <div onClick="{{ o.pick }}" style="{{ o.style }}">
+            <div style="font-size:13px;font-weight:600;">{{ o.label }}</div>
+            <div style="font-size:11.5px;color:#9a9da6;margin-top:2px;line-height:1.4;">{{ o.sub }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="margin-right:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;">LOGGED IN ACTIVITY</div>
+        <button onClick="{{ scClose }}" style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+        <button onClick="{{ scApply }}" style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Apply</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ bulkOn }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;">
+    <div style="background:#fff;width:480px;max-width:100%;padding:24px;">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Assign a template to the current view</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#9a9da6;margin-bottom:14px;">VIEW: {{ bulkView }}</div>
+      <select value="{{ bulkTplSel }}" onChange="{{ bulkTplCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;margin-bottom:12px;">
+        <sc-for list="{{ bulkOpts }}" as="o" hint-placeholder-count="4"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+      </select>
+      <div style="background:#f4f4f6;padding:11px 13px;font-size:12.5px;color:#33343c;margin-bottom:16px;line-height:1.5;">{{ bulkPreview }}</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button onClick="{{ bulkClose }}" style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+        <button onClick="{{ bulkDo }}" style="{{ bulkBtnStyle }}">{{ bulkBtn }}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ emlOn }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:95;display:grid;place-items:center;padding:20px;">
+    <div style="background:#fff;width:620px;max-width:100%;height:560px;max-height:88vh;display:flex;flex-direction:column;">
+      <div style="padding:14px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:14px;">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">{{ emlTitle }}</div>
+        <div style="margin-left:auto;display:flex;">
+          <button onClick="{{ emlTabEdit }}" style="{{ emlTabEditStyle }}">Edit</button>
+          <button onClick="{{ emlTabPrev }}" style="{{ emlTabPrevStyle }}">Preview</button>
+        </div>
+        <button onClick="{{ emlClose }}" style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">×</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:18px 20px;">
+        <sc-if value="{{ emlIsEdit }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;gap:14px;">
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">SUBJECT</div>
+              <input value="{{ emlSubj }}" onChange="{{ emlSubjCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;font-weight:600;background:#fff;">
+            </div>
+            <div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">BODY</div>
+              <textarea rows="12" value="{{ emlBody }}" onChange="{{ emlBodyCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;resize:vertical;line-height:1.5;display:block;"></textarea>
+              <div style="font-size:11px;color:#9a9da6;margin-top:5px;line-height:1.45;">{{ emlVarsHint }}</div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ emlIsPrev }}" hint-placeholder-val="{{ false }}">
+          <div style="border:1px solid #e2e3e8;">
+            <div style="padding:10px 14px;border-bottom:1px solid #eceded;display:grid;gap:4px;font-size:12px;color:#686b74;">
+              <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">FROM</span>DevConf 2027 Program · program@devconf.org</div>
+              <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">TO</span>Priya Raghavan · priya@meridianlabs.dev</div>
+              <div style="display:flex;gap:8px;"><span style="font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:#9a9da6;width:44px;flex:none;padding-top:2px;">SUBJ</span><span style="font-weight:600;color:#16171d;">{{ emlPrevSubj }}</span></div>
+            </div>
+            <div style="padding:16px 14px;font-size:13px;line-height:1.6;white-space:pre-line;color:#16171d;">{{ emlPrevBody }}</div>
+          </div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#9a9da6;margin-top:8px;">VARIABLES FILLED WITH SAMPLE DATA FROM ONE REAL ASSIGNMENT</div>
+        </sc-if>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+        <button onClick="{{ emlTest }}" style="padding:8px 14px;background:#fdf6e0;border:1px solid #e8d79a;color:#7a5c0a;font-size:12.5px;cursor:pointer;" style-hover="background:#faeec5;border-color:#d8c078;">Send test to me</button>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button onClick="{{ emlClose }}" style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Cancel</button>
+          <button onClick="{{ emlSave }}" style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;" style-hover="background:#3a4ab8;">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+<sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:100;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);max-width:640px;">
+    <span style="color:#69db7c;">✓</span>{{ toast }}
+  </div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 900}}">
+class Component extends DCLogic {
+  state = {
+    data: null, filter: 'all', taskF: '', stateF: '', query: '', page: 0, toast: null, selected: null,
+    templates: null, grid: null, oneOffs: {},
+    editor: null, saveConfirm: null, scChoice: 'future',
+    bulk: false, bulkTpl: '',
+    asgPick: '', ooName: '', ooType: 'Checkbox', ooDue: '', emailDlg: null
+  };
+  REM_SUBJ = 'Reminder: “{{task_name}}” is due {{due_date}}';
+  REM_BODY = 'Hi {{speaker_name}},\n\nA quick reminder that “{{task_name}}” for {{event_name}} is due {{due_date}} — {{days_left}} to go.\n\nEverything you need is in your speaker portal:\n{{portal_link}}\n\nAlready done? Reminders stop automatically once a task is complete, so you can ignore this.\n\n— The {{event_name}} program team';
+  componentDidMount() {
+    import('./data.js').then(m => {
+      const T = o => ({ desc: '', link: '', ext: '', cap: '100 MB', maxN: 1, sample: '', review: false,
+        form: 'AV requirements (mini-form)', dueMode: 'before', dueN: 14, dueDate: '2027-09-14', grace: 'none', graceN: 3,
+        lock: false, required: false, target: 'speaker', trigger: 'confirmation', clauses: [],
+        remOn: true, remDays: [7, 2], remSubj: this.REM_SUBJ, remBody: this.REM_BODY, archived: false, ...o });
+      const seed = [
+        T({ id: 't1', name: 'Confirm participation', type: 'checkbox', required: true, trigger: 'acceptance', dueMode: 'after', dueN: 7,
+            desc: 'Confirm you can make it — this puts {{session_title}} on the public agenda and unlocks your checklist.' }),
+        T({ id: 't2', name: 'Complete profile', type: 'profile', required: true, dueN: 30,
+            desc: 'Name, bio and headshot appear on the public agenda exactly as entered.' }),
+        T({ id: 't3', name: 'Upload headshot', type: 'file', required: true, ext: 'jpg, png', cap: '25 MB', dueN: 30,
+            desc: 'A recent photo of {{speaker_name}} for the agenda page. Square crop preferred.' }),
+        T({ id: 't4', name: 'Upload slides', type: 'file', target: 'session', required: true, ext: 'pdf, key', cap: '100 MB',
+            sample: 'DevConf-2027-slide-template.key', review: true, grace: 'lock', graceN: 2, dueN: 3, lock: false, remDays: [14, 7, 3, 1],
+            desc: 'One deck per session — any co-speaker can upload for {{session_title}}.' }),
+        T({ id: 't5', name: 'AV requirements', type: 'form', target: 'session', form: 'AV requirements (mini-form)',
+            desc: 'Stage setup for {{session_title}} — mics, demos, machine or ours.' }),
+        T({ id: 't6', name: 'Travel details', type: 'form', form: 'Travel details (mini-form)',
+            clauses: [{ field: 'Form answer', value: 'Travel support = Yes' }],
+            desc: 'Flights and hotel — assigned because you requested travel support.' })
+      ];
+      const grid = m.SPEAKER_TASKS.map(r => ({ name: r.name, session: r.session, track: r.track,
+        cells: Object.fromEntries(seed.map((t, i) => [t.id, r.t[i]])) }));
+      this.setState({ data: m, templates: seed, grid });
+    });
+  }
+  flash(msg) { clearTimeout(this._t); this.setState({ toast: msg }); this._t = setTimeout(() => this.setState({ toast: null }), 3200); }
+  ed(patch) { this.setState({ editor: { ...this.state.editor, ...patch } }); }
+  edClause(i, patch) { this.ed({ clauses: this.state.editor.clauses.map((c, j) => j === i ? { ...c, ...patch } : c) }); }
+  openCount(id) { return this.state.grid.reduce((n, r) => n + ((r.cells[id] === 'p' || r.cells[id] === 'o') ? 1 : 0), 0); }
+  filteredRows() { const st = this.state; let rows = st.grid;
+    if (st.filter === 'behind') rows = rows.filter(r => Object.values(r.cells).includes('o'));
+    else if (st.filter !== 'all') rows = rows.filter(r => r.track === st.filter);
+    if (st.taskF) rows = rows.filter(r => st.stateF ? (r.cells[st.taskF] || '-') === st.stateF : (r.cells[st.taskF] || '-') !== '-');
+    else if (st.stateF) rows = rows.filter(r => Object.values(r.cells).includes(st.stateF));
+    const q = st.query.trim().toLowerCase();
+    if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.session.toLowerCase().includes(q));
+    return rows; }
+  setCell(name, tplId, val) { this.setState({ grid: this.state.grid.map(r => r.name === name ? { ...r, cells: { ...r.cells, [tplId]: val } } : r) }); }
+  commitTpl(tpl, isNew, mode, openN) {
+    const templates = isNew ? [...this.state.templates, tpl] : this.state.templates.map(x => x.id === tpl.id ? tpl : x);
+    let grid = this.state.grid;
+    if (isNew) grid = grid.map(r => ({ ...r, cells: { ...r.cells, [tpl.id]: '-' } }));
+    this.setState({ templates, grid, editor: null, saveConfirm: null });
+    this.flash(isNew
+      ? (tpl.trigger === 'manual' ? `“${tpl.name}” created — assign it from a speaker profile or “Assign to view”`
+        : `“${tpl.name}” created — assigns on ${tpl.trigger} from now on. Not retroactive: use “Assign to view” for existing speakers`)
+      : mode === 'open' ? `Saved — ${openN} open instances updated, completed ones untouched · logged`
+      : 'Saved — future assignments only; open instances keep what speakers saw · logged');
+  }
+  renderVals() {
+    const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
+    const base = {
+      zipSlides: () => this.flash('ZIP queued: 6 decks, organized by day/room — straight to the AV booth'),
+      zipHeads: () => this.flash('ZIP queued: 9 headshots at original resolution'),
+      toast: st.toast, rows: [], filters: [], taskHeads: [], templates: [], summary: '', tplSummary: '…',
+      gridHead: '', gridRow: '', newTpl: () => {}, bulkOpenBtn: () => {},
+      taskF: '', taskFCh: () => {}, taskFOpts: [], taskFStyle: '', stateF: '', stateFCh: () => {}, stateFStyle: '',
+      query: st.query, queryCh: () => {}, noResults: false, pageInfo: '', pgPrev: () => {}, pgNext: () => {}, pgPrevStyle: '', pgNextStyle: '',
+      profOn: false, edOn: false, bulkOn: false, scOn: false, emlOn: false
+    };
+    if (!d || !st.grid) return base;
+    const TYPELBL = { checkbox: 'CHECK', file: 'FILE', form: 'FORM', profile: 'AUTO' };
+    const OPTMAP = { Track: d.TRACKS.map(x => x.name), Format: d.FORMATS, Level: d.LEVELS };
+    const active = st.templates.filter(t => !t.archived);
+    const dueDesc = t => t.type === 'profile' ? 'auto-completes when required fields are filled'
+      : (t.dueMode === 'after' ? `due ${t.dueN} days after assignment` : t.dueMode === 'before' ? `due ${t.dueN} days before event` : `due ${t.dueDate}`)
+        + (t.grace === 'lock' ? ` · locks ${t.graceN}d past due` : '')
+        + (t.type === 'file' ? ` · ${t.ext || 'any file'}, ${t.cap}` : '')
+        + (t.review ? ' · review' : '') + (t.lock ? ' · locks on complete' : '')
+        + (t.remOn && t.remDays.length ? ' · reminds ' + [...t.remDays].sort((a, b) => b - a).map(nn => nn === 0 ? 'day-of' : nn + 'd before').join(', ') : ' · no reminders');
+    const ruleDesc = t => t.archived ? 'archived — no new assignments'
+      : t.trigger === 'manual' ? 'manual assignment only'
+      : `on ${t.trigger}` + (t.clauses.length ? ' · when ' + t.clauses.map(c => `${c.field === 'Form answer' ? '' : c.field + ' = '}${c.value}`).join(' & ') : '');
+    const blankTpl = () => ({ id: 't' + Date.now(), name: '', desc: '', type: 'checkbox', target: 'speaker', required: false, lock: false,
+      link: '', ext: '', cap: '100 MB', maxN: 1, sample: '', review: false, form: 'AV requirements (mini-form)',
+      dueMode: 'before', dueN: 14, dueDate: '2027-09-14', grace: 'none', graceN: 3,
+      trigger: 'confirmation', clauses: [], remOn: true, remDays: [7, 2], remSubj: this.REM_SUBJ, remBody: this.REM_BODY, archived: false, isNew: true });
+    const openEd = t => this.setState({ editor: t ? { ...t, clauses: t.clauses.map(c => ({ ...c })), isNew: false } : blankTpl(), selected: null, bulk: false });
+    const cellStyle = { c: 'background:#2b8a3e;color:#fff;', p: 'background:#e2e3e8;color:#9a9da6;', o: 'background:#c92a2a;color:#fff;', '-': 'background:#fafafb;border:1px solid #eceded;color:#c9cbd2;' };
+    const glyphM = { c: '✓', p: '·', o: '!', '-': '' };
+    const tips = { c: 'Complete', p: 'To do', o: 'Overdue', '-': 'Not assigned' };
+    const boxOf = s => `display:inline-grid;place-items:center;width:22px;height:22px;font-size:12px;flex:none;${cellStyle[s]}font-family:${mono};`;
+    const behind = st.grid.filter(r => Object.values(r.cells).includes('o')).length;
+    const chip = (key, label) => ({ label,
+      style: `padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid ${st.filter === key ? '#4c5fd5' : '#e2e3e8'};background:${st.filter === key ? '#eef0fb' : '#fff'};color:${st.filter === key ? '#4c5fd5' : '#33343c'};font-weight:${st.filter === key ? '600' : '400'};`,
+      onClick: () => this.setState({ filter: key, page: 0 }) });
+    const filtRows = this.filteredRows();
+    const PAGE = 8;
+    const pages = Math.max(1, Math.ceil(filtRows.length / PAGE));
+    const page = Math.min(st.page, pages - 1);
+    const pageRows = filtRows.slice(page * PAGE, page * PAGE + PAGE);
+    const pgBtn = on => `padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;${on ? 'color:#33343c;cursor:pointer;' : 'color:#c9cbd2;cursor:default;'}`;
+    const n = active.length;
+    const cols = `220px repeat(${n},minmax(92px,1fr)) 72px`;
+    const minW = 320 + 92 * n + 72;
+    const viewLabel = (st.filter === 'all' ? 'All confirmed' : st.filter === 'behind' ? 'Behind' : (d.TRACKS.find(t => t.id === st.filter) || { name: st.filter }).name)
+      + (st.taskF ? ` · ${(active.find(t => t.id === st.taskF) || { name: '?' }).name}` : '')
+      + (st.stateF ? ` · ${tips[st.stateF]}` : '');
+    const ordered = [...active, ...st.templates.filter(t => t.archived)];
+
+    let prof = {};
+    const sel = st.selected ? st.grid.find(r => r.name === st.selected) : null;
+    if (sel) {
+      const sub = d.SUBMISSIONS.find(s => s.speakers.some(p => p.name === sel.name));
+      const person = sub ? sub.speakers.find(p => p.name === sel.name) : null;
+      const meta = sub ? d.STATUS[sub.status] : null;
+      const tr = sub ? d.trackOf(sub.track) : null;
+      const first = sel.name.split(' ')[0];
+      const items = active.filter(t => (sel.cells[t.id] || '-') !== '-').sort((a, b) => (b.required ? 1 : 0) - (a.required ? 1 : 0));
+      const oo = st.oneOffs[sel.name] || [];
+      const done = items.filter(t => sel.cells[t.id] === 'c').length;
+      const total = items.length + oo.length;
+      const stateLabel = { c: 'DONE', p: 'TO DO', o: 'OVERDUE' }, stateColor = { c: '#2b8a3e', p: '#9a9da6', o: '#c92a2a' };
+      const hasO = items.some(t => sel.cells[t.id] === 'o');
+      prof = {
+        profOn: true, profName: sel.name,
+        profSlug: encodeURIComponent(sel.name.toLowerCase().replace(/\s+/g, '-')),
+        profEmail: person ? person.email : '', profBio: person ? person.bio : '',
+        profHasSub: !!sub,
+        profSubId: sub ? sub.id : '', profTitle: sub ? sub.title : '',
+        profBadgeText: meta ? meta.label : '',
+        profBadgeStyle: meta ? `font-family:${mono};font-size:10.5px;padding:2px 7px;color:${meta.fg};background:${meta.bg};` : '',
+        profScore: sub && sub.avg ? `avg ${sub.avg} · ${sub.evalDone}/${sub.evalTotal} reviews` : '',
+        profTrack: tr ? tr.name : '',
+        profDotStyle: tr ? `width:8px;height:8px;border-radius:50%;background:${tr.color};flex:none;` : '',
+        profMeta: sub ? `${sub.format} · ${sub.level}` : '',
+        profFrac: `${done}/${total} complete`, profFracColor: done === total ? '#2b8a3e' : hasO ? '#c92a2a' : '#686b74',
+        profEmailBtn: () => this.flash(`Email draft opened to ${person ? person.email : sel.name}`),
+        profClose: () => this.setState({ selected: null, asgPick: '', ooName: '', ooDue: '' }),
+        profTasks: [
+          ...items.map(t => { const s = sel.cells[t.id]; return {
+            name: t.name, tag: t.target === 'session' ? 'SESSION' : '',
+            glyph: glyphM[s], style: boxOf(s), state: stateLabel[s], stateColor: stateColor[s],
+            nudgeOn: s !== 'c', nudge: () => this.flash(`Nudge sent to ${sel.name}: “${t.name}”`),
+            removeOn: s !== 'c', remove: () => { this.setCell(sel.name, t.id, '-'); this.flash(`“${t.name}” removed from ${first} · logged with actor`); }
+          }; }),
+          ...oo.map(o => ({
+            name: o.name, tag: 'ONE-OFF', glyph: '·', style: boxOf('p'), state: 'TO DO', stateColor: '#9a9da6',
+            nudgeOn: true, nudge: () => this.flash(`Nudge sent to ${sel.name}: “${o.name}”`),
+            removeOn: true, remove: () => { this.setState({ oneOffs: { ...st.oneOffs, [sel.name]: oo.filter(x => x.id !== o.id) } }); this.flash(`One-off “${o.name}” removed · logged with actor`); }
+          }))
+        ],
+        asgPick: st.asgPick, asgPickCh: e => this.setState({ asgPick: e.target.value }),
+        asgOpts: active.filter(t => (sel.cells[t.id] || '-') === '-').map(t => ({ id: t.id, label: `${t.name} · ${TYPELBL[t.type]}${t.target === 'session' ? ' · session' : ''}` })),
+        asgIsOneoff: st.asgPick === 'oneoff',
+        ooName: st.ooName, ooNameCh: e => this.setState({ ooName: e.target.value }),
+        ooType: st.ooType, ooTypeCh: e => this.setState({ ooType: e.target.value }),
+        ooDue: st.ooDue, ooDueCh: e => this.setState({ ooDue: e.target.value }),
+        asgBtn: `Assign to ${first}`,
+        asgDo: () => {
+          if (st.asgPick === 'oneoff') {
+            const name = st.ooName.trim(); if (!name) { this.flash('Name the one-off task first'); return; }
+            this.setState({ oneOffs: { ...st.oneOffs, [sel.name]: [...oo, { id: 'oo' + Date.now(), name, type: st.ooType, due: st.ooDue.trim() }] }, asgPick: '', ooName: '', ooDue: '' });
+            this.flash(`One-off task assigned — ${first} sees it in the portal now · logged`);
+          } else {
+            const t = active.find(x => x.id === st.asgPick); if (!t) return;
+            this.setCell(sel.name, t.id, 'p'); this.setState({ asgPick: '' });
+            this.flash(`“${t.name}” assigned to ${first} — ${dueDesc(t)} · logged`);
+          }
+        }
+      };
+    }
+
+    let edv = {};
+    if (st.editor) {
+      const e = st.editor;
+      const openN = e.isNew ? 0 : this.openCount(e.id);
+      const seg = on => `padding:8px 6px;font-size:12px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#33343c'};font-weight:${on ? '600' : '400'};`;
+      const card = on => `padding:9px 10px;text-align:left;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${on ? '#eef0fb' : '#fff'};color:#16171d;`;
+      const box = on => `display:inline-grid;place-items:center;width:20px;height:20px;border:1.5px solid ${on ? '#4c5fd5' : '#c9cbd2'};background:${on ? '#4c5fd5' : '#fff'};color:#fff;font-size:12px;flex:none;margin-top:1px;`;
+      edv = {
+        edOn: true, edClose: () => this.setState({ editor: null }),
+        edTitle: e.isNew ? 'NEW TASK TEMPLATE' : 'EDIT TEMPLATE', edOpenN: openN ? `${openN} OPEN INSTANCES` : false,
+        edName: e.name, edNameCh: ev => this.ed({ name: ev.target.value }),
+        edDesc: e.desc, edDescCh: ev => this.ed({ desc: ev.target.value }),
+        varsHint: 'Personalize with {{speaker_name}}, {{session_title}}, {{session_slot}} or any form field by reference. Uses the same variables as email templates.',
+        linkPh: 'https://av-portal.example.com/?talk={{session_id}}',
+        edTypeBtns: [['checkbox', 'Checkbox'], ['file', 'File request'], ['form', 'Form'], ['profile', 'Profile']].map(([k, l]) => ({ label: l, style: seg(e.type === k), onClick: () => this.ed({ type: k }) })),
+        edIsCheck: e.type === 'checkbox', edIsFile: e.type === 'file', edIsForm: e.type === 'form', edIsProfile: e.type === 'profile',
+        edLink: e.link, edLinkCh: ev => this.ed({ link: ev.target.value }),
+        edExt: e.ext, edExtCh: ev => this.ed({ ext: ev.target.value }),
+        edCap: e.cap, edCapCh: ev => this.ed({ cap: ev.target.value }),
+        edMaxN: e.maxN, edMaxNCh: ev => this.ed({ maxN: +ev.target.value || 1 }),
+        edSampleOn: !!e.sample, edSampleOff: !e.sample, edSample: e.sample,
+        edSampleRm: () => this.ed({ sample: '' }),
+        edSampleAdd: () => { this.ed({ sample: 'sample-file.pdf' }); this.flash('Sample attached — speakers see it next to the uploader'); },
+        edRevBox: box(e.review), edRevGlyph: e.review ? '✓' : '', edRevT: () => this.ed({ review: !e.review }),
+        edForm: e.form, edFormCh: ev => this.ed({ form: ev.target.value }),
+        edTargetBtns: [['speaker', 'Speaker', 'One instance per speaker — profile, travel, bio.'], ['session', 'Session', 'One per session — any co-speaker completes it, once.']].map(([k, l, s]) => ({ label: l, sub: s, style: card(e.target === k), onClick: () => this.ed({ target: k }) })),
+        edHasDue: e.type !== 'profile',
+        edDueMode: e.dueMode, edDueModeCh: ev => this.ed({ dueMode: ev.target.value }),
+        edDueIsN: e.dueMode !== 'abs', edDueIsAbs: e.dueMode === 'abs',
+        edDueN: e.dueN, edDueNCh: ev => this.ed({ dueN: +ev.target.value || 0 }),
+        edDueDate: e.dueDate, edDueDateCh: ev => this.ed({ dueDate: ev.target.value }),
+        edGrace: e.grace, edGraceCh: ev => this.ed({ grace: ev.target.value }),
+        edGraceOn: e.grace === 'lock', edGraceN: e.graceN, edGraceNCh: ev => this.ed({ graceN: +ev.target.value || 0 }),
+        edFlags: [
+          { label: 'Required', sub: '', on: e.required, key: 'required' },
+          { label: 'Lock on complete', sub: 'Once completed (or approved), the speaker can no longer change this field. Often used for legal docs or final print assets.', on: e.lock, key: 'lock' }
+        ].map(f => ({ label: f.label, sub: f.sub, glyph: f.on ? '✓' : '', boxStyle: box(f.on), toggle: () => this.ed({ [f.key]: !f.on }) })),
+        edTrigBtns: [['confirmation', 'On confirmation'], ['acceptance', 'On acceptance'], ['manual', 'Manual only']].map(([k, l]) => ({ label: l, style: seg(e.trigger === k), onClick: () => this.ed({ trigger: k }) })),
+        edClausesOn: e.trigger !== 'manual',
+        edClauses: e.clauses.map((c, i) => ({
+          field: c.field, value: c.value,
+          isText: c.field === 'Form answer', isSel: c.field !== 'Form answer',
+          opts: OPTMAP[c.field] || [],
+          fieldCh: ev => { const f = ev.target.value; const opts = OPTMAP[f]; this.edClause(i, { field: f, value: opts ? opts[0] : '' }); },
+          valCh: ev => this.edClause(i, { value: ev.target.value }),
+          remove: () => this.ed({ clauses: e.clauses.filter((x, j) => j !== i) })
+        })),
+        addClause: () => this.ed({ clauses: [...e.clauses, { field: 'Track', value: OPTMAP.Track[0] }] }),
+        edRemOn: e.remOn, edRemBox: box(e.remOn), edRemGlyph: e.remOn ? '✓' : '',
+        edRemT: () => this.ed({ remOn: !e.remOn }),
+        edRemDays: [...e.remDays].sort((a, b) => b - a).map(nn => ({
+          label: nn === 0 ? 'On the due date' : `${nn} day${nn > 1 ? 's' : ''} before due`,
+          remove: () => this.ed({ remDays: e.remDays.filter(x => x !== nn) })
+        })),
+        edRemAdd: ev => { const v = ev.target.value; if (v !== '' && !e.remDays.includes(+v)) this.ed({ remDays: [...e.remDays, +v].sort((a, b) => b - a) }); },
+        edRemAddOpts: [30, 14, 10, 7, 5, 3, 2, 1, 0].filter(nn => !e.remDays.includes(nn)).map(nn => ({ v: nn, label: nn === 0 ? 'On the due date' : `${nn} days before due` })),
+        edRemNone: e.remDays.length === 0,
+        edRemSubj: e.remSubj, edRemSubjCh: ev => this.ed({ remSubj: ev.target.value }),
+        edRemBody: e.remBody, edRemBodyCh: ev => this.ed({ remBody: ev.target.value }),
+        emlOpen: () => this.setState({ emailDlg: { subj: e.remSubj, body: e.remBody, tab: 'edit' } }),
+        edRemIsCustom: e.remSubj !== this.REM_SUBJ || e.remBody !== this.REM_BODY,
+        edRemReset: () => this.ed({ remSubj: this.REM_SUBJ, remBody: this.REM_BODY }),
+        edExisting: !e.isNew, edSaveLbl: e.isNew ? 'Create template' : 'Save template',
+        edArchiveLbl: e.archived ? 'Restore template' : 'Archive template',
+        edArchive: () => {
+          const on = this.openCount(e.id);
+          this.setState({ templates: st.templates.map(x => x.id === e.id ? { ...x, archived: !e.archived } : x), editor: null });
+          this.flash(e.archived ? `“${e.name}” restored — assigns again per its rule` : `“${e.name}” archived — no new assignments; ${on} open instances and history intact`);
+        },
+        edSave: () => {
+          if (!e.name.trim()) { this.flash('Name the template first'); return; }
+          const tpl = { ...e }; delete tpl.isNew;
+          if (!e.isNew && this.openCount(e.id) > 0) { this.setState({ saveConfirm: { tpl, open: this.openCount(e.id) }, scChoice: 'future' }); return; }
+          this.commitTpl(tpl, !!e.isNew, null, 0);
+        }
+      };
+    }
+
+    let emlv = {};
+    if (st.emailDlg && st.editor) {
+      const dlg = st.emailDlg, e = st.editor;
+      const SAMPLE = { speaker_name: 'Priya Raghavan', task_name: e.name || 'Upload slides', event_name: 'DevConf 2027',
+        due_date: 'Sep 14, 2027', days_left: '7 days', portal_link: 'app.com/devconf-2027/portal/priya-r',
+        session_title: 'Edge caching patterns that survive real traffic', session_slot: 'Wed 11:20 · Main Hall' };
+      const fill = s => s.replace(/\{\{\s*(\w+)\s*\}\}/g, (m0, k) => SAMPLE[k] !== undefined ? SAMPLE[k] : m0);
+      const tab = on => `padding:6px 16px;font-size:12px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#33343c'};font-weight:${on ? '600' : '400'};margin-left:-1px;position:relative;z-index:${on ? 1 : 0};`;
+      emlv = {
+        emlOn: true, emlTitle: `REMINDER EMAIL · ${(e.name || 'NEW TEMPLATE').toUpperCase()}`,
+        emlClose: () => this.setState({ emailDlg: null }),
+        emlIsEdit: dlg.tab === 'edit', emlIsPrev: dlg.tab === 'preview',
+        emlTabEdit: () => this.setState({ emailDlg: { ...dlg, tab: 'edit' } }),
+        emlTabPrev: () => this.setState({ emailDlg: { ...dlg, tab: 'preview' } }),
+        emlTabEditStyle: tab(dlg.tab === 'edit'), emlTabPrevStyle: tab(dlg.tab === 'preview'),
+        emlSubj: dlg.subj, emlSubjCh: ev => this.setState({ emailDlg: { ...dlg, subj: ev.target.value } }),
+        emlBody: dlg.body, emlBodyCh: ev => this.setState({ emailDlg: { ...dlg, body: ev.target.value } }),
+        emlVarsHint: 'Variables: {{speaker_name}}, {{task_name}}, {{event_name}}, {{due_date}}, {{days_left}}, {{portal_link}}, {{session_title}}',
+        emlPrevSubj: fill(dlg.subj), emlPrevBody: fill(dlg.body),
+        emlTest: () => this.flash('Test sent to alex@devconf.org (you) — variables filled with sample data, [TEST] prefixed to the subject'),
+        emlSave: () => { this.setState({ editor: { ...e, remSubj: dlg.subj, remBody: dlg.body }, emailDlg: null }); this.flash('Reminder email updated — takes effect when you save the template'); }
+      };
+    }
+
+    let scv = {};
+    if (st.saveConfirm) {
+      const sc = st.saveConfirm;
+      scv = {
+        scOn: true, scName: sc.tpl.name, scOpen: sc.open,
+        scOpts: [
+          ['future', 'Future assignments only', `New instances get the new definition; the ${sc.open} open ones keep what speakers saw.`],
+          ['open', `Also update ${sc.open} open instances`, 'Open instances get the new wording now. Completed instances never change.']
+        ].map(([k, l, s]) => ({ label: l, sub: s, pick: () => this.setState({ scChoice: k }),
+          style: `border:1px solid ${st.scChoice === k ? '#4c5fd5' : '#e2e3e8'};background:${st.scChoice === k ? '#eef0fb' : '#fff'};padding:11px 13px;cursor:pointer;` })),
+        scApply: () => this.commitTpl(sc.tpl, false, st.scChoice, sc.open),
+        scClose: () => this.setState({ saveConfirm: null })
+      };
+    }
+
+    let blkv = {};
+    if (st.bulk) {
+      const tpl = active.find(t => t.id === st.bulkTpl) || active[0];
+      const createRows = tpl ? filtRows.filter(r => (r.cells[tpl.id] || '-') === '-') : [];
+      const skipped = filtRows.length - createRows.length;
+      blkv = {
+        bulkOn: true, bulkView: `${viewLabel.toUpperCase()} — ${filtRows.length} SPEAKERS`,
+        bulkOpts: active.map(t => ({ id: t.id, label: `${t.name} · ${TYPELBL[t.type]}${t.target === 'session' ? ' · session' : ''}` })),
+        bulkTplSel: tpl ? tpl.id : '', bulkTplCh: ev => this.setState({ bulkTpl: ev.target.value }),
+        bulkPreview: !tpl ? 'No active templates.'
+          : createRows.length ? `This will create ${createRows.length} “${tpl.name}” tasks${skipped ? ` · ${skipped} in this view already have it and are skipped` : ''}. Speakers see them in their portals immediately; assignment email follows the digest schedule.`
+          : 'Everyone in this view already has this task — nothing to create.',
+        bulkBtn: `Create ${createRows.length} tasks`,
+        bulkBtnStyle: `padding:9px 16px;border:none;font-size:13px;font-weight:600;${createRows.length ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'}`,
+        bulkDo: () => {
+          if (!tpl || !createRows.length) return;
+          const names = new Set(createRows.map(r => r.name));
+          this.setState({ grid: st.grid.map(r => names.has(r.name) ? { ...r, cells: { ...r.cells, [tpl.id]: 'p' } } : r), bulk: false });
+          this.flash(`${createRows.length} “${tpl.name}” tasks created · logged`);
+        },
+        bulkClose: () => this.setState({ bulk: false })
+      };
+    }
+
+    return {
+      ...base, ...prof, ...edv, ...emlv, ...scv, ...blkv,
+      summary: `${filtRows.length} SPEAKERS · ${filtRows.reduce((s, r) => s + Object.values(r.cells).filter(x => x === 'o').length, 0)} OVERDUE TASKS`,
+      filters: [chip('all', 'All confirmed'), chip('behind', `Behind (${behind})`), ...d.TRACKS.map(t => chip(t.id, t.name))],
+      taskF: st.taskF, taskFCh: e => this.setState({ taskF: e.target.value, page: 0 }),
+      stateF: st.stateF, stateFCh: e => this.setState({ stateF: e.target.value, page: 0 }),
+      taskFOpts: active.map(t => ({ id: t.id, label: t.name })),
+      taskFStyle: (on => `padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#33343c'};font-weight:${on ? '600' : '400'};`)(!!st.taskF),
+      stateFStyle: (on => `padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#33343c'};font-weight:${on ? '600' : '400'};`)(!!st.stateF),
+      bulkOpenBtn: () => this.setState({ bulk: true, selected: null, editor: null, bulkTpl: st.bulkTpl || (active[0] ? active[0].id : '') }),
+      taskHeads: active.map(t => ({ label: t.name.toUpperCase(), sub: t.target === 'session' ? 'SESSION' : '', open: () => openEd(t) })),
+      gridHead: `display:grid;grid-template-columns:${cols};padding:10px 14px;border-bottom:1px solid #e2e3e8;font-family:${mono};font-size:10px;letter-spacing:0.06em;color:#9a9da6;align-items:end;min-width:${minW}px;`,
+      gridRow: `display:grid;grid-template-columns:${cols};padding:9px 14px;border-bottom:1px solid #f2f3f5;align-items:center;min-width:${minW}px;`,
+      query: st.query, queryCh: e => this.setState({ query: e.target.value, page: 0 }),
+      noResults: filtRows.length === 0,
+      pageInfo: `${filtRows.length ? page * PAGE + 1 : 0}–${page * PAGE + pageRows.length} OF ${filtRows.length}`,
+      pgPrev: () => { if (page > 0) this.setState({ page: page - 1 }); },
+      pgNext: () => { if (page < pages - 1) this.setState({ page: page + 1 }); },
+      pgPrevStyle: pgBtn(page > 0), pgNextStyle: pgBtn(page < pages - 1),
+      rows: pageRows.map(r => {
+        const vals = active.map(t => r.cells[t.id] || '-');
+        const assigned = vals.filter(v => v !== '-');
+        const done = assigned.filter(v => v === 'c').length;
+        return {
+          name: r.name, session: r.session,
+          open: () => this.setState({ selected: r.name, editor: null, bulk: false, asgPick: '', ooName: '', ooDue: '' }),
+          frac: `${done}/${assigned.length}`,
+          fracColor: done === assigned.length ? '#2b8a3e' : assigned.includes('o') ? '#c92a2a' : '#686b74',
+          cells: active.map(t => { const s = r.cells[t.id] || '-'; return {
+            glyph: glyphM[s], tip: `${t.name}: ${tips[s]}`,
+            style: `display:inline-grid;place-items:center;width:26px;height:26px;font-size:13px;${cellStyle[s]}font-family:${mono};`
+          }; })
+        };
+      }),
+      tplSummary: `${active.length} ACTIVE${st.templates.length - active.length ? ` · ${st.templates.length - active.length} ARCHIVED` : ''}`,
+      newTpl: () => openEd(null),
+      templates: ordered.map(t => ({
+        open: () => openEd(t),
+        cardStyle: `border:1px solid #eceded;padding:10px 12px;cursor:pointer;${t.archived ? 'opacity:0.55;' : ''}`,
+        type: TYPELBL[t.type], typeStyle: `font-family:${mono};font-size:9px;background:#eef0fb;color:#4c5fd5;padding:2px 6px;font-weight:600;flex:none;`,
+        name: t.name, reqOn: t.required,
+        target: (t.target === 'session' ? 'SESSION' : 'SPEAKER') + (t.archived ? ' · ARCHIVED' : ''),
+        due: dueDesc(t), rule: ruleDesc(t)
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
