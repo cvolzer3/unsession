@@ -9,6 +9,7 @@ import type { Ctx } from '../types';
 import { AdminLayout, MONO, fmtDate, firstName } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, one } from '../lib/db';
+import { loadEvalContext, reviewerQueue } from '../lib/evals';
 
 const app = new Hono<Ctx>();
 
@@ -133,25 +134,13 @@ async function myReviewQueue(db: D1Database, eventId: string, userId: string) {
   );
   if (!plans.length) return null;
 
-  const optName = await trackOptionNames(db, eventId);
-  let done = 0;
-  let remaining = 0;
-  for (const plan of plans) {
-    const { clause, params } = planScope(eventId, plan.rules_json, optName);
-    const row = await one<{ subs: number; mine: number }>(
-      db,
-      `SELECT (SELECT COUNT(*) FROM submissions s WHERE ${clause}) AS subs,
-              (SELECT COUNT(*) FROM evaluations ev JOIN submissions s ON s.id = ev.submission_id
-                WHERE ev.plan_id = ? AND ev.reviewer_id = ? AND ${clause}) AS mine`,
-      ...params,
-      plan.id,
-      userId,
-      ...params
-    );
-    done += row?.mine ?? 0;
-    remaining += Math.max(0, (row?.subs ?? 0) - (row?.mine ?? 0));
-  }
-  return { done, remaining };
+  // Same assignment math as the My Evaluations queue — plan-scope counting
+  // ignores per-reviewer assignment/caps and reads "7 to go" while the queue
+  // itself says done.
+  const ctx = await loadEvalContext(db, eventId);
+  const queue = reviewerQueue(ctx.plans, ctx.submissions, ctx.evaluations, userId);
+  const done = queue.filter((i) => i.done).length;
+  return { done, remaining: queue.length - done };
 }
 
 type AttentionItem = { title: string; sub: string; cta: string; href: string; dot: string; subMono?: boolean };

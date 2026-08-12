@@ -217,12 +217,13 @@ token, creates the user if needed, opens a session, then redirects to
 mirrors the same math client-side. If you need a new derived token, add it in
 both places.
 
-## 12. Not yet available
+## 12. Availability notes
 
-- **R2 / file uploads** — no bucket bound. Upload affordances render disabled
-  with the tooltip "File storage not yet enabled". Do not add a binding.
-- **Email sending** — see §9.
+- **R2 / file uploads** — live (`FILES` binding, bucket `unsession-files`).
+- **Email sending** — live since 2026-08-12 (Workers Paid + Email Service,
+  `EMAIL` binding, `EMAIL_ENABLED=1`). Sandbox orgs are force-simulated in
+  `src/lib/email.ts`; the abstraction rules in §9 still apply.
 - **Google OAuth** — the button appears only when `GOOGLE_CLIENT_ID` and
-  `GOOGLE_CLIENT_SECRET` secrets exist.
-- **Cron work** — `src/lib/jobs.ts` runs every 15 minutes and is a no-op shell.
-  Reminder scheduling lands in Phase C; add functions there, not inline.
+  `GOOGLE_CLIENT_SECRET` secrets exist (still unset).
+- **Cron work** — `src/lib/jobs.ts` runs every 15 minutes (reminder engine).
+  Add scheduled functions there, not inline.
