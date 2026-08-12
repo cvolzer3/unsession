@@ -497,7 +497,7 @@ function boot(DATA) {
     const n = rows.length;
 
     $('#decision-heading').textContent = `${VERB[kind]} ${n} submission${plural(n)}`;
-    $('#decision-recip-label').textContent = `RECIPIENTS · ${n} — QUEUED FOR REVIEW`;
+    $('#decision-recip-label').textContent = `RECIPIENTS · ${n}`;
     $('#decision-recipients').innerHTML = rows
       .map((r) => {
         const sp = r.speakers[0] || { name: 'No speaker on file', email: '—' };
