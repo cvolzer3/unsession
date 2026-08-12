@@ -16,7 +16,7 @@ import { AdminLayout, MONO, STATUS_COLORS } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
-import { requireOrgRole, findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
+import { requireOrgRole, requestMagicLink } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { sendEmail } from '../lib/email';
 import {
@@ -42,7 +42,6 @@ import {
   starAvgOf,
   submissionScore,
   syncPlanMembership,
-  toCsv,
   type Automation,
   type Criterion,
   type EvalContext,
@@ -397,12 +396,6 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
             Clear ×
           </a>
         ) : null}
-        <a
-          href="/app/api/evaluation/stats.csv"
-          style="margin-left:auto;padding:7px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;color:#33343c;text-decoration:none;"
-        >
-          Stats CSV
-        </a>
       </form>
       <div style={CARD}>
         <div
@@ -890,10 +883,6 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               <select id="add-reviewer" style="width:260px;padding:8px 10px;border:1px dashed #c9cbd2;background:#fafafc;font-size:12.5px;color:#686b74;">
                 <option value="">+ Add reviewer…</option>
               </select>
-              <input id="invite-email" type="email" placeholder="…or invite by email" style={`width:220px;${INPUT}`} />
-              <button type="button" id="invite-btn" style="padding:8px 14px;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:12.5px;font-weight:600;cursor:pointer;">
-                Invite
-              </button>
             </div>
             <div id="rev-rows" style="display:grid;gap:6px;"></div>
             <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
@@ -1609,80 +1598,6 @@ function RemindersModal(opts: { reminders: RemindersData }) {
 
 /* ------------------------------------------------------------------- APIs */
 
-app.get('/app/api/evaluation/stats.csv', async (c) => {
-  const event = c.var.event;
-  if (!event) return c.text('No event', 400);
-  const ctx = await loadEvalContext(c.env.DB, event.id);
-  const people = await all<{ id: string; name: string | null; email: string }>(
-    c.env.DB,
-    `SELECT DISTINCT u.id, u.name, u.email FROM users u
-      WHERE u.id IN (SELECT r.user_id FROM eval_plan_reviewers r JOIN eval_plans p ON p.id = r.plan_id WHERE p.event_id = ?)
-         OR u.id IN (SELECT e.reviewer_id FROM evaluations e JOIN eval_plans p2 ON p2.id = e.plan_id WHERE p2.event_id = ?)`,
-    event.id,
-    event.id
-  );
-  const nameById = new Map(people.map((p) => [p.id, p.name || p.email]));
-  const critNames = [...new Set(ctx.plans.flatMap((p) => p.criteria.map((cr) => cr.name)))];
-
-  const header = [
-    'id',
-    'title',
-    'track',
-    'status',
-    'plans',
-    ...critNames.map((n) => `avg_${n.toLowerCase().replace(/\s+/g, '_')}`),
-    'reviewer_cumulative',
-    'avg_star',
-    'evaluations_in',
-    'remaining',
-  ];
-  const rows: (string | number | null)[][] = [header];
-
-  ctx.submissions.forEach((s) => {
-    const inPlans = ctx.plans.filter((p) => planSubmissions(p, ctx.submissions, ctx.evaluations).some((x) => x.id === s.id));
-    if (!inPlans.length) return;
-    const sc = submissionScore(s, ctx.plans, ctx.submissions, ctx.evaluations);
-    const critVals = critNames.map((n) => {
-      const vals: number[] = [];
-      inPlans.forEach((p) => {
-        ctx.evaluations
-          .filter((e) => e.planId === p.id && e.submissionId === s.id && !e.abstained)
-          .forEach((e) => {
-            const v = Number(e.scores[n]);
-            if (Number.isFinite(v) && v > 0) vals.push(v);
-          });
-      });
-      return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2) : '';
-    });
-    const revCum = inPlans
-      .flatMap((p) =>
-        ctx.evaluations
-          .filter((e) => e.planId === p.id && e.submissionId === s.id)
-          .map((e) => `${nameById.get(e.reviewerId) ?? e.reviewerId}=${e.abstained ? 'abstained' : cumulativeOf(p, e)}`)
-      )
-      .join('; ');
-    rows.push([
-      s.displayId,
-      s.title,
-      s.trackName,
-      statusLabel(s.status),
-      inPlans.map((p) => p.name).join('; '),
-      ...critVals,
-      revCum,
-      sc.avg != null ? sc.avg.toFixed(2) : '',
-      sc.n,
-      sc.remaining,
-    ]);
-  });
-
-  return new Response(toCsv(rows), {
-    headers: {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="${event.slug}-evaluation-stats.csv"`,
-    },
-  });
-});
-
 type PlanBody = {
   id?: string | null;
   name?: string;
@@ -1832,17 +1747,6 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
     planId,
     links,
     redirect: `/app/evaluation?tab=plans&plan=${planId}&ok=${encodeURIComponent(toast)}`,
-  });
-});
-
-app.post('/app/api/evaluation/reviewer-lookup', requireOrgRole('admin'), async (c) => {
-  const body = await c.req.json<{ email?: string; name?: string }>();
-  const email = (body.email ?? '').trim();
-  if (!email || !email.includes('@')) return c.json({ ok: false, error: 'Enter a valid email address' }, 400);
-  const user = await findOrCreateUserByEmail(c.env.DB, email, (body.name ?? '').trim() || null);
-  return c.json({
-    ok: true,
-    person: { id: user.id, name: user.name || user.email.split('@')[0], email: user.email },
   });
 });
 

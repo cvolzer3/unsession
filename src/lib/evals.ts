@@ -715,19 +715,6 @@ export function mergeTags(str: string, vars: Record<string, string>): string {
   });
 }
 
-export function toCsv(rows: (string | number | null | undefined)[][]): string {
-  return rows
-    .map((r) =>
-      r
-        .map((cell) => {
-          const s = cell === null || cell === undefined ? '' : String(cell);
-          return `"${s.replace(/"/g, '""')}"`;
-        })
-        .join(',')
-    )
-    .join('\r\n');
-}
-
 export function initialsOfName(name: string): string {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '??';

@@ -216,28 +216,6 @@ function planEditor() {
     renderPreview();
   });
 
-  $('invite-btn').addEventListener('click', async () => {
-    const input = $('invite-email');
-    const email = input.value.trim();
-    if (!email) return toast('Enter an email address to invite', false);
-    try {
-      const res = await api('/app/api/evaluation/reviewer-lookup', { email });
-      if (draft.reviewers.some((r) => r.userId === res.person.id)) {
-        toast('That reviewer is already on the plan', false);
-      } else {
-        draft.reviewers.push({ userId: res.person.id, role: 'member', name: res.person.name, email: res.person.email });
-        if (!DATA.people.some((p) => p.id === res.person.id)) DATA.people.push(res.person);
-        toast(`${res.person.email} added — they are emailed a sign-in link when you save`);
-      }
-      input.value = '';
-      renderReviewers();
-      renderAddOptions();
-      renderPreview();
-    } catch (err) {
-      toast(err.message, false);
-    }
-  });
-
   $('add-crit').addEventListener('click', () => {
     draft.criteria.push({ name: '', hint: '', scale: 5 });
     renderCriteria();
