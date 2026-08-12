@@ -88,10 +88,12 @@ function boot(D) {
         });
         // The builder's PAGE 1 card follows the toggle without a reload; the
         // enabled state persists when the drawer's own Save posts the form.
+        // With no welcome page there's nothing in its place — the form itself
+        // becomes page 1, so the field list's page number follows too.
         const card = document.getElementById('fb-welcome-card');
-        const off = document.getElementById('fb-welcome-off');
+        const page = document.getElementById('fb-form-page');
         if (card) card.hidden = !box.checked;
-        if (off) off.hidden = box.checked;
+        if (page) page.textContent = `PAGE ${box.checked ? 2 : 1} · FORM`;
       }
     });
   });

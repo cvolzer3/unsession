@@ -168,7 +168,7 @@ const TOGGLES: { key: string; label: string; hint: string }[] = [
   {
     key: 'sessionIntake',
     label: 'Submissions become sessions',
-    hint: 'Session intake: every submission is auto-accepted and lands as a sponsor session — no evaluation, no decision email',
+    hint: 'Session intake: every submission is auto-accepted and lands as a sponsor session',
   },
 ];
 
@@ -201,18 +201,17 @@ function SettingsFields({
       <div>
         <div style={FIELD_LABEL}>Internal name</div>
         <input name="name" value={form.name} style={inputStyle} />
-        <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Admin-only — lists, picker, activity log</div>
       </div>
       <div style={`display:grid;grid-template-columns:1fr 1fr;gap:${gap};`}>
         <div>
           <div style={FIELD_LABEL}>Public name</div>
           <input name="externalName" value={settings.externalName} placeholder={form.name} style={inputStyle} />
-          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Shown to submitters · empty = internal name</div>
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Shown to submitters</div>
         </div>
         <div>
           <div style={FIELD_LABEL}>Page heading</div>
           <input name="pageHeading" value={settings.pageHeading} placeholder={defaultHeading} style={inputStyle} />
-          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">The public page’s H1 · empty = default</div>
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">The public page’s H1</div>
         </div>
       </div>
       <div>
@@ -339,12 +338,13 @@ function SettingsFields({
 /* ------------------------------------------------------------------ new-form chooser (B4 presets) */
 
 const PRESET_OPTIONS: { preset: FormPreset; desc: string }[] = [
-  { preset: 'cfp', desc: 'Title, abstract, format and speakers — the standard call for proposals.' },
-  { preset: 'contact', desc: 'Name, email and a message — collect people’s info, no session fields.' },
+  { preset: 'cfp', desc: 'Title, abstract, format and speakers.' },
+  { preset: 'contact', desc: 'Name, email and a message.' },
   {
     preset: 'session',
-    desc: 'For sponsors: submissions are auto-accepted and land as sponsor sessions — no evaluation.',
+    desc: 'For sponsors: submissions are auto-accepted and land as sponsor sessions.',
   },
+  { preset: 'empty', desc: 'No fields — build it from the palette.' },
 ];
 
 function NewFormChooser() {
@@ -477,25 +477,10 @@ app.get('/app/forms', async (c) => {
 
   const headerActions =
     mode === 'setup' ? null : (
-      <>
-        {mode === 'build' ? (
-          <>
-            <span id="fb-save-state" style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
-            <button
-              type="button"
-              id="fb-save-btn"
-              disabled
-              style="padding:8px 16px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;"
-            >
-              Save changes
-            </button>
-          </>
-        ) : null}
-        <div style="display:flex;border:1px solid #e2e3e8;">
-          {segButton('Build', 'build')}
-          {segButton('Preview', 'preview')}
-        </div>
-      </>
+      <div style="display:flex;border:1px solid #e2e3e8;">
+        {segButton('Build', 'build')}
+        {segButton('Preview', 'preview')}
+      </div>
     );
 
   return c.html(
@@ -549,11 +534,6 @@ app.get('/app/forms', async (c) => {
             >
               Form settings
             </button>
-            {active.status === 'open' ? (
-              <a href={`/${event.slug}/${active.slug}`} target="_blank" rel="noreferrer" style="font-size:12px;">
-                Open public form ↗
-              </a>
-            ) : null}
           </div>
           <div
             id="form-picker"
@@ -582,6 +562,21 @@ app.get('/app/forms', async (c) => {
             })}
           </div>
         </div>
+        {mode === 'build' ? (
+          // Save sits flush right on the picker row, level with the 38px
+          // picker/new-form buttons rather than the metadata line below them.
+          <div style="margin-left:auto;display:flex;align-items:center;gap:12px;height:38px;">
+            <span id="fb-save-state" style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
+            <button
+              type="button"
+              id="fb-save-btn"
+              disabled
+              style="padding:0 16px;height:38px;box-sizing:border-box;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;"
+            >
+              Save changes
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* ------------------------------------------------------ setup step */}
@@ -589,10 +584,7 @@ app.get('/app/forms', async (c) => {
         <div style="padding:36px 28px;display:flex;justify-content:center;">
           <div style="width:100%;max-width:640px;">
             <div style={`${MICRO}margin-bottom:6px;`}>NEW FORM · STEP 1 OF 2 · SETTINGS</div>
-            <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:4px;">Set up your form</div>
-            <div style="font-size:13px;color:#686b74;margin-bottom:26px;">
-              Core fields are already copied in — you’ll arrange fields in the next step.
-            </div>
+            <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:26px;">Set up your form</div>
             <form method="post" action={`/app/forms/${active.id}/settings`} style="display:grid;gap:20px;">
               <input type="hidden" name="next" value="build" />
               <SettingsFields
@@ -629,8 +621,8 @@ app.get('/app/forms', async (c) => {
       {mode === 'build' ? (
         <div style="display:grid;grid-template-columns:1fr 360px;gap:0;flex:1 0 auto;">
           <div style="padding:22px 28px;max-width:760px;">
-            {/* PAGE 1 · WELCOME — both states render so the settings toggle can flip
-                them live (form-builder.js), and the mental model stays stable. */}
+            {/* PAGE 1 · WELCOME — always rendered, just hidden while the page is
+                off, so the settings toggle can flip it live (form-builder.js). */}
             <div
               id="fb-welcome-card"
               hidden={!settings.welcomeEnabled}
@@ -647,18 +639,11 @@ app.get('/app/forms', async (c) => {
                 {looksRich(settings.welcomeMd) ? settings.welcomeMd : markdownToRich(settings.welcomeMd)}
               </textarea>
             </div>
-            <div
-              id="fb-welcome-off"
-              hidden={settings.welcomeEnabled}
-              style="border:1px dashed #d8d9de;padding:10px 14px;margin-bottom:18px;display:flex;align-items:baseline;gap:10px;"
-            >
-              <span style={MICRO}>PAGE 1 · WELCOME — OFF</span>
-              <span style="font-size:11px;color:#b4b6be;">Turn it on under Form settings</span>
-            </div>
-            {/* PAGE 2 · FORM — the field list */}
+            {/* The field list — page 2 behind an enabled welcome, otherwise the
+                form IS page 1 and the welcome card renders nothing at all. */}
             <div style="border:1px solid #e2e3e8;background:#fff;">
               <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
-                <span style={MICRO}>PAGE 2 · FORM</span>
+                <span id="fb-form-page" style={MICRO}>{`PAGE ${settings.welcomeEnabled ? 2 : 1} · FORM`}</span>
                 <span style="font-size:11px;color:#9a9da6;">Drag to reorder · click a field to configure</span>
               </div>
               <div style="padding:14px;background:#fafafb;">
@@ -840,7 +825,7 @@ app.post('/app/forms/new', guard, async (c) => {
       fields = first.schema.fields.filter((f) => f.core);
     }
   }
-  if (!fields.length) {
+  if (preset !== 'empty' && !fields.length) {
     const formatTax = await one<{ id: string }>(
       db,
       `SELECT id FROM taxonomies WHERE event_id = ? AND name = 'Format' LIMIT 1`,
@@ -980,9 +965,11 @@ app.post('/app/forms/:id/settings', guard, async (c) => {
   const next = String(body.next ?? 'build');
   const presetNames = new Set<string>(['Untitled form', ...Object.values(PRESET_NAMES)]);
   const isNew = next === 'build' && presetNames.has(loaded.form.name);
-  const message = isNew
-    ? 'Form created — core fields copied in. Drag field types to add more'
-    : 'Form settings saved';
+  const message = !isNew
+    ? 'Form settings saved'
+    : loaded.schema.fields.length
+      ? 'Form created — core fields copied in. Drag field types to add more'
+      : 'Form created — drag field types onto the form to start';
   return c.redirect(
     `/app/forms?form=${loaded.form.id}&mode=${next === 'preview' ? 'preview' : 'build'}&ok=${encodeURIComponent(message)}`
   );

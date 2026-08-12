@@ -743,16 +743,17 @@ export function defaultSettings(): FormSettings {
 
 /* ------------------------------------------------------------------ presets (B4) */
 
-export type FormPreset = 'cfp' | 'contact' | 'session';
+export type FormPreset = 'cfp' | 'contact' | 'session' | 'empty';
 
 export function parsePreset(v: unknown): FormPreset {
-  return v === 'contact' || v === 'session' ? v : 'cfp';
+  return v === 'contact' || v === 'session' || v === 'empty' ? v : 'cfp';
 }
 
 export const PRESET_NAMES: Record<FormPreset, string> = {
   cfp: 'Call for proposals',
   contact: 'Contact form',
   session: 'Session intake',
+  empty: 'Empty form',
 };
 
 function headerField(id: string, label: string, help: string): FormField {
@@ -863,6 +864,8 @@ export function sessionIntakeFields(coSpeakerCap: number, formatTaxonomyId?: str
 }
 
 export function presetFields(preset: FormPreset, coSpeakerCap: number, formatTaxonomyId?: string | null): FormField[] {
+  /* 'empty' starts with nothing — every field is dragged in from the palette. */
+  if (preset === 'empty') return [];
   if (preset === 'contact') return contactFields();
   if (preset === 'session') return sessionIntakeFields(coSpeakerCap, formatTaxonomyId);
   return cfpFields(coSpeakerCap, formatTaxonomyId);
