@@ -113,52 +113,6 @@ export function wrapHtml(text: string, opts: { subject: string; theme?: Theme; e
 </body></html>`;
 }
 
-/** MIME message — Email Service's send binding takes a raw RFC-5322 message. */
-function buildMime(opts: {
-  from: string;
-  fromName: string;
-  to: string;
-  toName?: string | null;
-  subject: string;
-  text: string;
-  html: string;
-}): string {
-  const boundary = `unsession-${crypto.randomUUID()}`;
-  const toHeader = opts.toName ? `${mimeWord(opts.toName)} <${opts.to}>` : opts.to;
-  return [
-    `From: ${mimeWord(opts.fromName)} <${opts.from}>`,
-    `To: ${toHeader}`,
-    `Subject: ${mimeWord(opts.subject)}`,
-    `Message-ID: <${crypto.randomUUID()}@unsession.dev>`,
-    `MIME-Version: 1.0`,
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="utf-8"',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    opts.text,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset="utf-8"',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    opts.html,
-    '',
-    `--${boundary}--`,
-    '',
-  ].join('\r\n');
-}
-
-function mimeWord(s: string): string {
-  // eslint-disable-next-line no-control-regex
-  if (/^[\x20-\x7e]*$/.test(s)) return s;
-  const bytes = new TextEncoder().encode(s);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return `=?UTF-8?B?${btoa(bin)}?=`;
-}
-
 export async function sendEmail(env: Bindings, input: SendEmailInput): Promise<SendEmailResult> {
   const id = newId('eml');
   const created = now();
@@ -215,19 +169,19 @@ export async function sendEmail(env: Bindings, input: SendEmailInput): Promise<S
 
   // Rich-lite bodies (DECISIONS R3) render as sanitized HTML; the text/plain
   // part is derived. Plain bodies keep the byte-for-byte legacy path.
+  // Email Service's send binding takes structured fields ({subject, html,
+  // text}), not raw MIME — a raw message fails with "text or html must have
+  // content in order for an email to be sent".
   const html = wrapHtml(input.text, { subject: input.subject, theme, eventName });
-  const raw = buildMime({
-    from: env.EMAIL_FROM,
-    fromName: EMAIL_FROM_NAME,
-    to: input.to,
-    toName: input.toName,
-    subject: input.subject,
-    text: looksRich(input.text) ? richToText(input.text) : input.text,
-    html,
-  });
 
   try {
-    await env.EMAIL!.send({ from: env.EMAIL_FROM, to: input.to, raw });
+    await env.EMAIL!.send({
+      to: input.to,
+      from: { email: env.EMAIL_FROM, name: EMAIL_FROM_NAME },
+      subject: input.subject,
+      html,
+      text: looksRich(input.text) ? richToText(input.text) : input.text,
+    });
     await run(env.DB, `UPDATE emails SET status = 'sent', sent_at = ? WHERE id = ?`, now(), id);
     return { id, status: 'sent' };
   } catch (err) {
