@@ -69,8 +69,11 @@ const PAGE_CSS = `
   @keyframes drawerin{from{transform:translateX(32px);opacity:0}to{transform:none;opacity:1}}
   /* Width sits midway between the old fixed 420px and half the viewport, so it
      tracks the window instead of feeling cramped on wide screens. */
-  .us-drawer{position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;transition:width 0.16s ease;}
-  .us-drawer[data-expanded]{width:100vw;}
+  .us-drawer{--band-x:22px;position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;transition:width 0.16s ease;}
+  /* Full screen widens the shell, not the fields: the bands grow their side
+     padding so the content stays a readable column while the header and
+     footer rules still run edge to edge. */
+  .us-drawer[data-expanded]{width:100vw;--band-x:max(22px,calc((100vw - 880px) / 2));}
   .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
   .us-icon-btn:hover{color:#16171d;}
   .us-drawer .ic-min{display:none;}
@@ -650,7 +653,7 @@ app.get('/app/forms', async (c) => {
             style="display:flex;flex-direction:column;height:100%;min-height:0;"
           >
             <input type="hidden" name="next" value={mode} />
-            <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #eceded;">
+            <div style="display:flex;align-items:center;gap:10px;padding:18px var(--band-x);border-bottom:1px solid #eceded;">
               <div style="min-width:0;">
                 <div style="font-weight:700;font-size:15px;">Form settings</div>
                 <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
@@ -690,7 +693,7 @@ app.get('/app/forms', async (c) => {
                 </button>
               </div>
             </div>
-            <div style="flex:1;overflow-y:auto;padding:20px 22px;display:grid;gap:18px;align-content:start;">
+            <div style="flex:1;overflow-y:auto;padding:20px var(--band-x);display:grid;gap:18px;align-content:start;">
               <SettingsFields
                 form={active}
                 settings={settings}
@@ -700,7 +703,7 @@ app.get('/app/forms', async (c) => {
                 defaultHeading={`Speak at ${event.name}`}
               />
             </div>
-            <div style="padding:14px 22px;border-top:1px solid #eceded;display:flex;justify-content:flex-end;gap:8px;">
+            <div style="padding:14px var(--band-x);border-top:1px solid #eceded;display:flex;justify-content:flex-end;gap:8px;">
               {(counts.get(active.id) ?? 0) === 0 ? (
                 <button
                   type="submit"
