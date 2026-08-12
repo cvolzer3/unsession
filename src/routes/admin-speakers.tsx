@@ -923,7 +923,7 @@ app.get('/app/speakers', async (c) => {
             </button>
           ) : null}
           <div style="margin-left:auto;display:flex;gap:6px;">
-            <button id="assign-open" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+            <button id="assign-open" style="padding:7px 12px;font-size:12.5px;cursor:pointer;border:none;background:#4c5fd5;color:#fff;font-weight:600;">
               Assign task
             </button>
             <a href="/app/speakers.csv" style="padding:6px 11px;font-size:12.5px;border:1px solid #e2e3e8;background:#fff;color:#33343c;text-decoration:none;">
