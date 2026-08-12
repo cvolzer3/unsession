@@ -510,8 +510,8 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
     templateIds.push(id);
     stmts.push([
       `INSERT INTO task_templates (id, event_id, name, description, type, target, settings_json, required,
-         lock_on_complete, due_json, grace_json, trigger, clauses_json, reminders_json, archived, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?)`,
+         lock_on_complete, due_json, grace_json, trigger, clauses_json, reminders_json, archived, builtin_key, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`,
       [
         id,
         eventId,
@@ -527,6 +527,7 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
         t.trigger,
         JSON.stringify(t.clauses),
         JSON.stringify(t.reminders),
+        t.name === 'Confirm participation' ? 'confirm_participation' : null,
         stamp,
       ],
     ]);

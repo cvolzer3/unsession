@@ -16,7 +16,7 @@ import type { Context } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
-import { ADMIN_BASE_CSS, GOOGLE_FONTS, MONO, Toast, initials } from '../views/layout';
+import { ADMIN_BASE_CSS, GOOGLE_FONTS, MONO, SandboxCookieFallback, Toast, initials } from '../views/layout';
 import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { loadPublicEvent } from '../lib/public';
 import { now, run } from '../lib/db';
@@ -92,6 +92,7 @@ const Shell: FC<
         </main>
       </div>
       <Toast message={props.toast} />
+      <SandboxCookieFallback />
       <script type="module" src="/js/ui.js"></script>
       {(props.scripts ?? []).map((s) => (
         <script type="module" src={s}></script>

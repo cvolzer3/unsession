@@ -148,6 +148,18 @@ var b=el.querySelector('button[data-persona="'+d.p+'"]');if(b)b.style.background
 el.hidden=false;
 })();</script>`;
 
+/**
+ * Cookie-driven sandbox chip for shells without a `sandbox` prop — PublicLayout
+ * pages and standalone shells like the evaluator workspace. Renders hidden;
+ * the inline script reveals it only on the sandbox event's own pages.
+ */
+export const SandboxCookieFallback: FC = () => (
+  <>
+    <SandboxSwitcher sandbox={{ orgId: '', personaLabel: '…', personaKey: null }} hidden />
+    {raw(SANDBOX_COOKIE_SCRIPT)}
+  </>
+);
+
 /* ------------------------------------------------------------------ admin */
 
 export type NavItem = { label: string; href: string; external?: boolean };
@@ -386,14 +398,7 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
         </div>
         {props.children}
         <Toast message={props.toast} />
-        {props.sandbox ? (
-          <SandboxSwitcher sandbox={props.sandbox} />
-        ) : (
-          <>
-            <SandboxSwitcher sandbox={{ orgId: '', personaLabel: '…', personaKey: null }} hidden />
-            {raw(SANDBOX_COOKIE_SCRIPT)}
-          </>
-        )}
+        {props.sandbox ? <SandboxSwitcher sandbox={props.sandbox} /> : <SandboxCookieFallback />}
         <script type="module" src="/js/ui.js"></script>
         {(props.scripts ?? []).map((s) => (
           <script type="module" src={s}></script>
