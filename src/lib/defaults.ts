@@ -6,6 +6,9 @@
  * for `{{variables}}`.
  */
 
+/** Public repo, linked from the landing page and the self-hosting hints in the app. */
+export const GITHUB_URL = 'https://github.com/cvolzer3/unsession';
+
 export const DEFAULT_TAXONOMIES: {
   name: string;
   hasColor: boolean;

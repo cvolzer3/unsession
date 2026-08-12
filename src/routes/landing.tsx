@@ -4,10 +4,11 @@ import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { GOOGLE_FONTS } from '../views/layout';
 import { seedSandbox } from '../lib/seed';
+import { GITHUB_URL } from '../lib/defaults';
 
 const app = new Hono<Ctx>();
 
-const GITHUB = 'https://github.com/cvolzer3/unsession';
+const GITHUB = GITHUB_URL;
 
 /* ------------------------------------------------------------------- css */
 

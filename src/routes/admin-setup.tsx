@@ -10,7 +10,7 @@ import { adminProps } from '../views/chrome';
 import { all, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
 import { FONT_PAIRINGS, initialsOf, normalizeHex, paletteFor, parseTheme, tint } from '../lib/theme';
-import { EVENT_MODES, TIMEZONES } from '../lib/defaults';
+import { EVENT_MODES, GITHUB_URL, TIMEZONES } from '../lib/defaults';
 import { slugTaken } from '../lib/events';
 import { slugify } from '../lib/slugify';
 import { logActivity } from '../lib/activity';
@@ -87,7 +87,36 @@ app.get('/app/setup', async (c) => {
                   <input id="event-name" name="name" value={event.name} style={INPUT} />
                 </div>
                 <div>
-                  <div style={FIELD_LABEL}>Slug</div>
+                  <div style={`${FIELD_LABEL}display:flex;align-items:center;gap:6px;`}>
+                    <span>Slug</span>
+                    {/* position:relative on the wrapper, not the field row — the popover anchors to the icon */}
+                    <span style="position:relative;display:inline-flex;">
+                      <button
+                        type="button"
+                        data-toggle="#slug-info"
+                        aria-label="About the slug"
+                        style={`width:14px;height:14px;padding:0;background:#fff;border:1px solid #c9cbd3;color:#686b74;font-family:${MONO};font-size:9px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;`}
+                      >
+                        i
+                      </button>
+                      <div
+                        id="slug-info"
+                        hidden
+                        style="position:absolute;top:calc(100% + 6px);left:-8px;width:270px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);padding:12px 14px;z-index:60;font-size:12px;line-height:1.55;color:#686b74;font-weight:400;"
+                      >
+                        Unsession is open source. Self-host it and your event links live on your own domain instead of
+                        this one.
+                        <a
+                          href={GITHUB_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          style="display:block;margin-top:8px;color:#4c5fd5;font-size:12px;"
+                        >
+                          View on GitHub ↗
+                        </a>
+                      </div>
+                    </span>
+                  </div>
                   <div style="display:flex;border:1px solid #e2e3e8;">
                     <span style={`padding:8px 0 8px 10px;font-family:${MONO};font-size:12px;color:#9a9da6;`}>{host}</span>
                     <input
