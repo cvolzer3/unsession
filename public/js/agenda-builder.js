@@ -43,6 +43,8 @@ function boot(D) {
     quickEdit: false,
     warn: null,
     snapshot: null,
+    autoResult: null,
+    autoUndo: null,
     dragId: null,
     q: '',
     fDay: 'all',
@@ -152,6 +154,10 @@ function boot(D) {
   async function place(id, roomId, minutes, day, opts = {}) {
     const cur = byId(id);
     if (!cur) return;
+    // Hand-editing ends the auto-schedule run: its bulk undo no longer describes
+    // the grid, so retire it rather than let it unschedule edited sessions.
+    S.autoResult = null;
+    S.autoUndo = null;
     const before = slotOf(cur);
     const wasUnscheduled = cur.day === null;
     // Optimistic: move locally, then confirm with the server.
@@ -192,6 +198,8 @@ function boot(D) {
   async function unschedule(id) {
     const cur = byId(id);
     if (!cur) return;
+    S.autoResult = null;
+    S.autoUndo = null;
     const before = slotOf(cur);
     Object.assign(cur, { day: null, start: null, end: null });
     if (S.selId === id) S.selId = null;
@@ -211,6 +219,69 @@ function boot(D) {
       toast(err.message, false);
     }
   }
+
+  /* ------------------------------------------------------- auto-schedule */
+  const autoBtn = document.getElementById('auto-schedule');
+
+  function autoBusy(on) {
+    if (!autoBtn) return;
+    autoBtn.disabled = on;
+    autoBtn.textContent = on ? 'Scheduling…' : 'Auto-schedule the bin';
+    autoBtn.style.opacity = on ? '0.6' : '1';
+  }
+
+  /** Fill the bin server-side, then fold the placements into local state. */
+  async function runAutoSchedule() {
+    if (!bin().length) {
+      toast('Nothing in the bin to schedule', false);
+      return;
+    }
+    autoBusy(true);
+    try {
+      const res = await api('/app/api/agenda/autoschedule', {});
+      const placed = res.sessions || [];
+      placed.forEach(upsert);
+      S.warn = null;
+      S.snapshot = null;
+      S.autoUndo = placed.length ? placed.map((s) => s.id) : null;
+      S.autoResult = { placed: placed.length, skipped: res.skipped || [] };
+      if (placed.length) markDirty();
+      render();
+    } catch (err) {
+      toast(err.message, false);
+    } finally {
+      autoBusy(false);
+    }
+  }
+
+  /** Bulk undo — sends exactly the auto-placed sessions back to the bin. */
+  async function undoAuto() {
+    const ids = S.autoUndo;
+    S.autoResult = null;
+    S.autoUndo = null;
+    if (!ids || !ids.length) {
+      render();
+      return;
+    }
+    const before = ids.map(byId).filter(Boolean).map((s) => ({ ...s }));
+    for (const id of ids) {
+      const cur = byId(id);
+      if (cur) Object.assign(cur, { day: null, start: null, end: null });
+    }
+    render();
+    try {
+      const res = await api('/app/api/agenda/autoschedule/undo', { ids });
+      (res.sessions || []).forEach(upsert);
+      toast(`${ids.length} session${ids.length === 1 ? '' : 's'} sent back to the bin`);
+      render();
+    } catch (err) {
+      before.forEach(upsert);
+      render();
+      toast(err.message, false);
+    }
+  }
+
+  if (autoBtn) autoBtn.addEventListener('click', runAutoSchedule);
 
   async function undoDrop() {
     const snapshot = S.snapshot;
@@ -858,6 +929,30 @@ function boot(D) {
         '<button type="button" data-dismiss-warn style="padding:6px 10px;background:transparent;color:#ffe8b3;border:1px solid #7a5c1a;font-size:12px;cursor:pointer;">Replace</button>' +
         '</div></div>';
     }
+
+    if (S.autoResult) {
+      const r = S.autoResult;
+      const headline = r.placed
+        ? `Auto-scheduled ${r.placed} session${r.placed === 1 ? '' : 's'}`
+        : 'Nothing could be placed';
+      h +=
+        '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">' +
+        '<div style="display:flex;gap:10px;align-items:flex-start;">' +
+        '<div style="flex:1;">' +
+        `<div style="font-weight:700;font-size:13px;margin-bottom:${r.skipped.length ? '5px' : '0'};">${esc(headline)}</div>` +
+        r.skipped
+          .map(
+            (s) =>
+              `<div style="font-size:12px;line-height:1.45;color:#c3c5cc;">Left in the bin — “${esc(s.title)}”: ${esc(s.reason)}</div>`
+          )
+          .join('') +
+        '</div>' +
+        (r.placed
+          ? '<button type="button" data-auto-undo style="padding:6px 12px;background:#fff;color:#16171d;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>'
+          : '') +
+        '<button type="button" data-auto-dismiss style="padding:6px 10px;background:transparent;color:#c3c5cc;border:1px solid #3d3f47;font-size:12px;cursor:pointer;">Dismiss</button>' +
+        '</div></div>';
+    }
     cardsEl.innerHTML = h;
   }
 
@@ -996,6 +1091,16 @@ function boot(D) {
     }
     if (t.closest('[data-undo]')) {
       await undoDrop();
+      return;
+    }
+    if (t.closest('[data-auto-undo]')) {
+      await undoAuto();
+      return;
+    }
+    if (t.closest('[data-auto-dismiss]')) {
+      S.autoResult = null;
+      S.autoUndo = null;
+      renderCards();
       return;
     }
     if (t.closest('[data-quick-edit]')) {

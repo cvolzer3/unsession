@@ -17,7 +17,7 @@ import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
-import { now, one, run } from '../lib/db';
+import { batch, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
 import { logActivity } from '../lib/activity';
 import { requireOrgRole } from '../lib/auth';
@@ -40,6 +40,7 @@ import {
   toViewSession,
   type SessionRow,
 } from '../lib/agenda';
+import { autoSchedule } from '../lib/auto-schedule';
 
 const app = new Hono<Ctx>();
 
@@ -224,6 +225,14 @@ app.get('/app/agenda', async (c) => {
             <div style="font-size:14px;font-weight:700;">Unscheduled</div>
             <div id="bin-count" style={`margin-left:auto;font-family:${MONO};font-size:11px;color:#9a9da6;`}></div>
           </div>
+          <button
+            type="button"
+            id="auto-schedule"
+            title="Place everything in the bin into the first conflict-free slot"
+            style="width:100%;padding:9px 0;background:#fff;border:1px solid #4c5fd5;color:#4c5fd5;font-size:12.5px;font-weight:600;cursor:pointer;margin-bottom:12px;"
+          >
+            Auto-schedule the bin
+          </button>
           <div id="bin" data-drop="bin" style="display:grid;gap:8px;min-height:200px;"></div>
           <div style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;">
             <div style={`${MICRO}margin-bottom:8px;`}>ADD DIRECTLY</div>
@@ -390,6 +399,91 @@ app.post('/app/api/agenda/unschedule', requireOrgRole('collaborator'), async (c)
   const ids = displayIds(bundle.sessions);
   const fresh = bundle.sessions.find((s) => s.id === cur.id)!;
   return c.json({ ok: true, session: toViewSession(fresh, bundle, ids) });
+});
+
+/**
+ * Fill the unscheduled bin in one action (the builder's "Auto-schedule").
+ *
+ * Only ever adds — sessions already on the grid keep their slots. Unlike
+ * `/place` this does NOT fire `notifyScheduleChange`: auto-scheduling produces a
+ * reviewable draft the organizer can undo in one click, and a bulk placement
+ * that mails every confirmed speaker before the organizer has looked at it is
+ * worse than no mail at all. Moving a session by hand afterwards notifies as usual.
+ */
+app.post('/app/api/agenda/autoschedule', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+
+  const bundle = await loadAgenda(c.env.DB, event.id);
+  const days = eventDays(event);
+  const { placements, skipped } = autoSchedule(bundle, {
+    days: days.length,
+    dayStart: event.day_start_min,
+    dayEnd: event.day_end_min,
+  });
+
+  if (placements.length) {
+    const stamp = now();
+    await batch(
+      c.env.DB,
+      placements.map((p) => [
+        `UPDATE sessions SET day = ?, start_min = ?, end_min = ?, duration_min = ?, room_id = ?, all_rooms = 0,
+           ics_sequence = ics_sequence + 1, updated_at = ? WHERE id = ? AND event_id = ?`,
+        [p.day, p.start, p.end, p.end - p.start, p.roomId, stamp, p.id, event.id],
+      ])
+    );
+    await logActivity(c.env.DB, {
+      eventId: event.id,
+      subjectType: 'event',
+      subjectId: event.id,
+      actor: c.var.user?.name || c.var.user?.email || 'System',
+      action: 'Auto-scheduled the bin',
+      detail: placements
+        .map((p) => `${p.title} → ${days[p.day]?.label ?? `Day ${p.day + 1}`} ${fmtTime(p.start)} · ${p.roomName}`)
+        .join('; '),
+    });
+  }
+
+  const fresh = await loadAgenda(c.env.DB, event.id);
+  const ids = displayIds(fresh.sessions);
+  const sessions = placements
+    .map((p) => fresh.sessions.find((s) => s.id === p.id))
+    .filter((s): s is SessionRow => !!s)
+    .map((s) => toViewSession(s, fresh, ids));
+
+  return c.json({ ok: true, sessions, skipped });
+});
+
+/** Undo an auto-schedule run: send exactly those sessions back to the bin. */
+app.post('/app/api/agenda/autoschedule/undo', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const body = await c.req.json<{ ids: string[] }>();
+  const ids = Array.isArray(body?.ids) ? body.ids.filter((id) => typeof id === 'string') : [];
+  if (!ids.length) return c.json({ ok: false, error: 'Nothing to undo.' }, 400);
+
+  const stamp = now();
+  await batch(
+    c.env.DB,
+    ids.map((id) => [
+      `UPDATE sessions SET day = NULL, start_min = NULL, end_min = NULL,
+         ics_sequence = ics_sequence + 1, updated_at = ? WHERE id = ? AND event_id = ?`,
+      [stamp, id, event.id],
+    ])
+  );
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'event',
+    subjectId: event.id,
+    actor: c.var.user?.name || c.var.user?.email || 'System',
+    action: 'Undid auto-schedule',
+    detail: `${ids.length} session${ids.length === 1 ? '' : 's'} returned to the bin`,
+  });
+
+  const fresh = await loadAgenda(c.env.DB, event.id);
+  const fids = displayIds(fresh.sessions);
+  const sessions = fresh.sessions.filter((s) => ids.includes(s.id)).map((s) => toViewSession(s, fresh, fids));
+  return c.json({ ok: true, sessions });
 });
 
 /** Copy a service block to another day (the prototype's "Copy to Day 2"). */
