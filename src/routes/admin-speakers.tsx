@@ -978,7 +978,7 @@ app.get('/app/speakers', async (c) => {
                   <a href="/app/emails?tab=outbox" style="color:#4c5fd5;">
                     Emails → Outbox
                   </a>
-                  . Undo takes a reminder back as if it never happened; sending emails every speaker above.
+                  . Undo removes the reminder before it sends.
                 </div>
               </div>
             </details>
