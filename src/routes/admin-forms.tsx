@@ -293,29 +293,21 @@ function SettingsFields({
         <div>
           <div style={FIELD_LABEL}>Notify on every new submission</div>
           {members.length ? (
-            <div style="border:1px solid #e2e3e8;background:#fff;">
-              {members.map((m) => (
-                <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid #f2f3f5;cursor:pointer;">
-                  <input
-                    type="checkbox"
-                    name="notifyMembers[]"
-                    value={m.id}
-                    checked={notified.has(m.id)}
-                    style="accent-color:#4c5fd5;flex:none;"
-                  />
-                  <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    {m.name || m.email}
-                  </span>
-                  {m.name ? (
-                    <span
-                      style={`font-family:${MONO};font-size:11px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}
-                    >
-                      {m.email}
-                    </span>
-                  ) : null}
-                  <span style={`${MICRO}margin-left:auto;flex:none;`}>{m.role.toUpperCase()}</span>
-                </label>
-              ))}
+            /* `notify-chips.js` hides the select and drives it with @-chips;
+               without JavaScript the multi-select is the picker. */
+            <div data-notify-members>
+              <select
+                name="notifyMembers[]"
+                multiple={true}
+                size={Math.min(4, members.length)}
+                style={`${inputStyle}padding:4px;`}
+              >
+                {members.map((m) => (
+                  <option value={m.id} selected={notified.has(m.id)} data-name={m.name ?? ''} data-email={m.email}>
+                    {m.name ? `${m.name} — ${m.email}` : m.email}
+                  </option>
+                ))}
+              </select>
             </div>
           ) : (
             <div style="font-size:11.5px;color:#686b74;background:#f8f8fa;border:1px solid #eceded;padding:8px 10px;">
@@ -491,7 +483,7 @@ app.get('/app/forms', async (c) => {
     );
 
   return c.html(
-    <AdminLayout {...props} headerActions={headerActions} scripts={['/js/form-builder.js']}>
+    <AdminLayout {...props} headerActions={headerActions} scripts={['/js/form-builder.js', '/js/notify-chips.js']}>
       {raw(`<style>${PAGE_CSS}</style>`)}
       {raw(
         `<script type="application/json" id="fb-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`
