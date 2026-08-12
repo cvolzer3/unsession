@@ -363,22 +363,26 @@ function boot(DATA) {
     const outPlans = allPlans.filter((p) => !p.ruled && !p.assigned);
     const planRows = inPlans
       .map((p) => {
-        // Who reviews this one: pinned reviewers hold their slot, the rest are
-        // the plan's round-robin. Pinning someone puts it in their queue now.
-        const revRows = (p.reviewers || [])
-          .map(
-            (r) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid #f0f1f4;">
+        // Only the people explicitly picked for this submission — the plan's
+        // round-robin rotation stays behind the scenes. Picking someone puts
+        // it in their queue now; ✕ un-picks them (never touches a score).
+        const picked = (p.reviewers || []).filter((r) => r.pinned);
+        const revRows = picked.length
+          ? `<div style="padding:4px 12px 2px;border-top:1px solid #f0f1f4;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">PICKED REVIEWERS</div>` +
+            picked
+              .map(
+                (r) => `<div style="display:flex;align-items:center;gap:8px;padding:5px 12px;">
               <span style="font-size:12.5px;">${esc(r.name)}</span>
-              <span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#9a9da6;">${r.pinned ? 'PINNED' : 'AUTO'}</span>
               ${r.scored ? `<span style="font-size:11px;color:#2b8a3e;">✓ scored</span>` : ''}
               ${
-                r.pinned && !r.scored && DATA.canWrite
+                !r.scored && DATA.canWrite
                   ? `<button type="button" data-unassign-reviewer="${esc(p.id)}:${esc(r.id)}" aria-label="Remove reviewer" style="margin-left:auto;background:none;border:none;color:#9a9da6;font-size:14px;cursor:pointer;">✕</button>`
                   : ''
               }
             </div>`
-          )
-          .join('');
+              )
+              .join('')
+          : '';
         const addable = DATA.canWrite ? p.addable || [] : [];
         // Same pattern as the plan editor: a dashed "+ Add reviewer…" select
         // that assigns as soon as a person is picked.
