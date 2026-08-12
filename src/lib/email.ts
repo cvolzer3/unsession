@@ -120,7 +120,23 @@ function mimeWord(s: string): string {
 export async function sendEmail(env: Bindings, input: SendEmailInput): Promise<SendEmailResult> {
   const id = newId('eml');
   const created = now();
-  const enabled = env.EMAIL_ENABLED === '1' && !!env.EMAIL;
+  let enabled = env.EMAIL_ENABLED === '1' && !!env.EMAIL;
+
+  // Sandbox events never send real mail: their seeded speakers/reviewers use
+  // addresses on domains we don't own, and every sandbox flow already surfaces
+  // links in the UI when the row is `simulated`.
+  if (enabled) {
+    if (input.to.toLowerCase().endsWith('@sandbox.unsession.dev')) {
+      enabled = false;
+    } else if (input.eventId) {
+      const sb = await one<{ is_sandbox: number }>(
+        env.DB,
+        `SELECT o.is_sandbox FROM events e JOIN orgs o ON o.id = e.org_id WHERE e.id = ?`,
+        input.eventId
+      );
+      if (sb?.is_sandbox) enabled = false;
+    }
+  }
 
   await run(
     env.DB,

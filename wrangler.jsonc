@@ -33,11 +33,9 @@
     }
   ],
 
-  // Email sending — enable after unsession.dev finishes Email Service domain onboarding.
-  // Until then `env.EMAIL` is undefined and src/lib/email.ts records rows with
-  // status 'simulated' and surfaces magic links in the UI. Flip EMAIL_ENABLED to "1"
-  // at the same time you uncomment this block.
-  // "send_email": [{ "name": "EMAIL" }],
+  // Email sending — unsession.dev onboarded to Email Service 2026-08-12 (Workers
+  // Paid active). Sandbox orgs are force-simulated in src/lib/email.ts.
+  "send_email": [{ "name": "EMAIL" }],
 
   "triggers": {
     "crons": ["*/15 * * * *"]
@@ -49,6 +47,6 @@
     // once the custom domain route is attached.
     "APP_ORIGIN": "https://unsession.dev",
     "EMAIL_FROM": "no-reply@unsession.dev",
-    "EMAIL_ENABLED": "0"
+    "EMAIL_ENABLED": "1"
   }
 }
