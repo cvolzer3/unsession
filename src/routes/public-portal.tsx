@@ -94,8 +94,21 @@ type ChecklistTask = {
   response: Record<string, unknown> | null;
 };
 
+/** Speaker-supplied social links (review-round B6) — only non-empty keys are stored. */
+type ProfileLinks = { linkedin?: string; x?: string; website?: string; other?: string };
+
+type ProfileRow = {
+  id: string;
+  name: string;
+  email: string;
+  bio: string;
+  pronouns: string | null;
+  links_json: string | null;
+  headshot_file_id: string | null;
+};
+
 type PortalData = {
-  profile: { id: string; name: string; email: string; bio: string; headshot_file_id: string | null } | null;
+  profile: ProfileRow | null;
   submissions: SubmissionCard[];
   drafts: { id: string; title: string; formSlug: string }[];
   tasks: ChecklistTask[];
@@ -104,9 +117,9 @@ type PortalData = {
 };
 
 async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Promise<PortalData> {
-  const profile = await one<{ id: string; name: string; email: string; bio: string; headshot_file_id: string | null }>(
+  const profile = await one<ProfileRow>(
     env.DB,
-    `SELECT id, name, email, bio, headshot_file_id FROM speaker_profiles WHERE event_id = ? AND email = ?`,
+    `SELECT id, name, email, bio, pronouns, links_json, headshot_file_id FROM speaker_profiles WHERE event_id = ? AND email = ?`,
     event.id,
     email
   );
@@ -465,6 +478,7 @@ app.get('/:event/portal', async (c) => {
 
   const data = await loadPortal(c.env, event, user.email);
   const files = filesEnabled(c.env);
+  const profileLinks = jsonParse<ProfileLinks>(data.profile?.links_json ?? null, {});
   const first = (data.profile?.name || user.name || user.email).split(/[\s@]/)[0];
   const vars = {
     speaker_name: data.profile?.name || user.name || user.email,
@@ -648,11 +662,41 @@ app.get('/:event/portal', async (c) => {
               />
             </div>
           </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Pronouns (optional)</div>
+              <input name="pronouns" placeholder="she/her" value={data.profile?.pronouns ?? ''} style={INPUT} />
+            </div>
+            <div></div>
+          </div>
           <div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Bio</div>
             <textarea name="bio" rows={2} style={`${INPUT}resize:vertical;font-family:inherit;`}>
               {data.profile?.bio ?? ''}
             </textarea>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">
+              Links (optional) — shown on your public speaker page
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">LinkedIn</div>
+                <input name="link_linkedin" placeholder="linkedin.com/in/…" value={profileLinks.linkedin ?? ''} style={INPUT} />
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">X</div>
+                <input name="link_x" placeholder="x.com/…" value={profileLinks.x ?? ''} style={INPUT} />
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Website</div>
+                <input name="link_website" placeholder="https://…" value={profileLinks.website ?? ''} style={INPUT} />
+              </div>
+              <div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Other</div>
+                <input name="link_other" placeholder="https://…" value={profileLinks.other ?? ''} style={INPUT} />
+              </div>
+            </div>
           </div>
           <div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Headshot</div>
@@ -1078,12 +1122,43 @@ app.post('/:event/portal/task/form', async (c) => {
   return back(c, g.event.slug, `“${task.tpl_name ?? 'Form'}” submitted — thank you!`);
 });
 
+/** Normalize a profile link: prepend https:// on bare domains, allow only http(s). Null = invalid. */
+function normalizeLink(raw: string): string | null {
+  let value = raw.trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+const LINK_FIELDS = [
+  ['linkedin', 'LinkedIn'],
+  ['x', 'X'],
+  ['website', 'Website'],
+  ['other', 'Other'],
+] as const;
+
 app.post('/:event/portal/profile', async (c) => {
   const g = await guard(c);
   if (g instanceof Response) return g;
   const form = await c.req.formData();
   const name = String(form.get('name') ?? '').trim();
   const bio = String(form.get('bio') ?? '').trim();
+  const pronouns = String(form.get('pronouns') ?? '').trim() || null;
+
+  const links: ProfileLinks = {};
+  for (const [key, label] of LINK_FIELDS) {
+    const raw = String(form.get(`link_${key}`) ?? '').trim();
+    if (!raw) continue;
+    const url = normalizeLink(raw);
+    if (!url) return back(c, g.event.slug, `The ${label} link needs to be a web address (https://…)`);
+    links[key] = url;
+  }
+  const linksJson = Object.keys(links).length ? JSON.stringify(links) : null;
 
   let profileId = g.profileId;
   if (!profileId) {
@@ -1095,19 +1170,29 @@ app.post('/:event/portal/profile', async (c) => {
     profileId = newId('spk');
     await run(
       c.env.DB,
-      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, headshot_file_id, slug, created_at)
-       VALUES (?,?,?,?,?,?,NULL,?,?)`,
+      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, pronouns, links_json, headshot_file_id, slug, created_at)
+       VALUES (?,?,?,?,?,?,?,?,NULL,?,?)`,
       profileId,
       g.event.id,
       c.var.user?.id ?? null,
       g.email,
       name || g.email,
       bio,
+      pronouns,
+      linksJson,
       slug,
       now()
     );
   } else {
-    await run(c.env.DB, `UPDATE speaker_profiles SET name = ?, bio = ? WHERE id = ?`, name, bio, profileId);
+    await run(
+      c.env.DB,
+      `UPDATE speaker_profiles SET name = ?, bio = ?, pronouns = ?, links_json = ? WHERE id = ?`,
+      name,
+      bio,
+      pronouns,
+      linksJson,
+      profileId
+    );
   }
 
   const headshot = form.get('headshot');

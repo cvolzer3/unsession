@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import type { Ctx, Event } from '../types';
 import { PublicLayout } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
-import { one } from '../lib/db';
+import { one, jsonParse } from '../lib/db';
 import { eventDays, fmtSpan, loadAgenda, roomNamer, type SessionRow } from '../lib/agenda';
 
 const app = new Hono<Ctx>();
@@ -23,9 +23,22 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  pronouns: string | null;
+  links_json: string | null;
   slug: string;
   headshot_file_id: string | null;
 };
+
+type ProfileLinks = { linkedin?: string; x?: string; website?: string; other?: string };
+
+/** "Other" links get labeled by their hostname — "github.com ↗" reads better than "Other ↗". */
+function hostLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '') || 'Link';
+  } catch {
+    return 'Link';
+  }
+}
 
 /** Sessions a public profile may list: published, and confirmed when the event hides unconfirmed talks. */
 function publishable(event: Event, s: SessionRow): boolean {
@@ -109,6 +122,13 @@ app.get('/:event/speakers/:slug', async (c) => {
 
   const headshot = profile.headshot_file_id ? `/files/${profile.headshot_file_id}` : null;
 
+  const links = jsonParse<ProfileLinks>(profile.links_json, {});
+  const linkItems: { label: string; url: string }[] = [];
+  if (links.linkedin) linkItems.push({ label: 'LinkedIn', url: links.linkedin });
+  if (links.x) linkItems.push({ label: 'X', url: links.x });
+  if (links.website) linkItems.push({ label: 'Website', url: links.website });
+  if (links.other) linkItems.push({ label: hostLabel(links.other), url: links.other });
+
   return c.html(
     <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={840}>
       <div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
@@ -134,9 +154,24 @@ app.get('/:event/speakers/:slug', async (c) => {
               {`SPEAKER · ${event.name.toUpperCase()}`}
             </div>
             <h1 style="margin:8px 0 0;font-size:34px;letter-spacing:-0.02em;line-height:1.1;">{profile.name}</h1>
+            {profile.pronouns ? (
+              <div style="font-size:13px;color:var(--muted);margin-top:6px;">{profile.pronouns}</div>
+            ) : null}
             {profile.bio ? (
               <div style="font-size:14.5px;color:var(--text-secondary);line-height:1.6;margin-top:12px;max-width:520px;">
                 {profile.bio}
+              </div>
+            ) : null}
+            {linkItems.length ? (
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;margin-top:12px;">
+                {linkItems.map((l, i) => (
+                  <>
+                    {i > 0 ? <span style="color:var(--faint);">·</span> : null}
+                    <a href={l.url} target="_blank" rel="noopener noreferrer">
+                      {`${l.label} ↗`}
+                    </a>
+                  </>
+                ))}
               </div>
             ) : null}
           </div>
