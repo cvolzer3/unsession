@@ -210,6 +210,12 @@ export const MINI_FORMS: Record<string, MiniForm> = {
       { id: 'tv_arrive', type: 'DATE', label: 'Arrival date', required: true },
       { id: 'tv_depart', type: 'DATE', label: 'Departure date', required: true },
       { id: 'tv_diet', type: 'TXT', label: 'Dietary requirements', placeholder: 'Vegetarian, allergies…' },
+      {
+        id: 'tv_notes',
+        type: 'LONG',
+        label: 'Anything else we should know?',
+        placeholder: 'Accessibility needs, arriving late, travelling with a companion…',
+      },
     ],
   },
   'Session details confirmation (mini-form)': {
@@ -1127,10 +1133,10 @@ export async function autoCompleteProfileTasks(
   return open.length;
 }
 
-/* ---------------------------------------------------------------- nudges */
+/* ------------------------------------------------------- manual reminders */
 
-/** Real task_nag send for one instance (drawer "Nudge" + bulk reminders). */
-export async function nudgeTask(
+/** Real task_nag send for one instance — the outbox delivers queued drawer "Remind"s through this. */
+export async function remindTask(
   env: Bindings,
   opts: {
     task: TaskRow;
@@ -1140,6 +1146,7 @@ export async function nudgeTask(
     sessionTitle?: string | null;
     subject?: string;
     body?: string;
+    actor?: string;
   }
 ): Promise<{ status: string }> {
   const tpl = await one<{ subject: string; body: string }>(
@@ -1171,8 +1178,8 @@ export async function nudgeTask(
     eventId: opts.event.id,
     subjectType: 'task',
     subjectId: opts.task.id,
-    actor: 'Organizer',
-    action: 'Nudge sent',
+    actor: opts.actor || 'Organizer',
+    action: 'Reminder sent',
     detail: `“${opts.taskName}” → ${opts.profile.email}`,
   });
   return { status: res.status };

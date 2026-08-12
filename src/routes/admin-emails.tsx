@@ -5,9 +5,10 @@
  * server-rendered themed preview. Multiple templates per key are allowed —
  * Duplicate creates “Copy of X” for the decision dialog's template picker.
  *
- * The Outbox tab is where queued decisions (lib/decision-queue) are reviewed
- * and actually sent — deciding a submission queues it here, and nothing
- * reaches a speaker until an organizer sends from this page.
+ * The Outbox tab is where queued decisions (lib/decision-queue) and queued
+ * task reminders (lib/reminder-queue) are reviewed and actually sent —
+ * deciding a submission or hitting Remind on a task queues it here, and
+ * nothing reaches a speaker until an organizer sends from this page.
  */
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
@@ -27,6 +28,12 @@ import {
   removeQueuedDecisions,
   sendQueuedDecisions,
 } from '../lib/decision-queue';
+import {
+  listReminderQueue,
+  queuedReminderCount,
+  removeQueuedReminders,
+  sendQueuedReminders,
+} from '../lib/reminder-queue';
 import type { DecisionKind } from '../lib/decisions';
 
 const app = new Hono<Ctx>();
@@ -115,8 +122,11 @@ app.get('/app/emails', async (c) => {
   const statusFilter = c.req.query('status') ?? 'all';
   const detailId = c.req.query('id');
 
-  const queuedCount = await queuedDecisionCount(c.env, event.id);
+  const queuedDecisions = await queuedDecisionCount(c.env, event.id);
+  const queuedReminders = await queuedReminderCount(c.env, event.id);
+  const queuedCount = queuedDecisions + queuedReminders;
   const outboxRows = tab === 'outbox' ? await listDecisionQueue(c.env, event.id) : [];
+  const reminderRows = tab === 'outbox' ? await listReminderQueue(c.env, event.id) : [];
 
   const templates =
     tab === 'templates'
@@ -222,13 +232,18 @@ app.get('/app/emails', async (c) => {
               <div style="min-width:0;">
                 <div style="font-size:15px;font-weight:700;">
                   {queuedCount > 0
-                    ? `${queuedCount} queued decision${queuedCount === 1 ? '' : 's'} — nothing sent yet`
+                    ? `${[
+                        queuedDecisions ? `${queuedDecisions} decision${queuedDecisions === 1 ? '' : 's'}` : '',
+                        queuedReminders ? `${queuedReminders} task reminder${queuedReminders === 1 ? '' : 's'}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')} queued — nothing sent yet`
                     : 'The outbox is empty'}
                 </div>
                 <div style="font-size:12.5px;color:#686b74;margin-top:3px;max-width:560px;">
-                  Deciding a submission queues it here; speakers see nothing until you send. Sending flips the status,
-                  creates sessions for accepts, and emails every speaker below. Undo takes a decision back as if it
-                  never happened.
+                  Deciding a submission or hitting Remind on a speaker task queues it here; speakers see nothing until
+                  you send. Sending flips statuses, creates sessions for accepts, and emails every speaker below. Undo
+                  takes anything back as if it never happened.
                 </div>
               </div>
               {queuedCount > 0 ? (
@@ -295,13 +310,57 @@ app.get('/app/emails', async (c) => {
               );
             })}
 
+            {reminderRows.length ? (
+              <div>
+                <div style={`${MICRO}margin-bottom:6px;`}>{`TASK REMINDERS · ${reminderRows.length}`}</div>
+                <div style="background:#fff;border:1px solid #e2e3e8;">
+                  {reminderRows.map((r) => (
+                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 220px 170px 80px;gap:12px;padding:11px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                      <div style="min-width:0;">
+                        <a
+                          href={`/app/speakers?open=${r.speaker_profile_id}`}
+                          style="font-size:13.5px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                        >
+                          {r.task_name}
+                        </a>
+                        <div style="font-size:11.5px;color:#9a9da6;">
+                          {r.due_date ? `Due ${r.due_date}` : 'No due date'}
+                        </div>
+                      </div>
+                      <div style="min-width:0;">
+                        <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          {r.speaker_name || 'No speaker on file'}
+                        </div>
+                        <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                          {r.speaker_email || '—'}
+                        </div>
+                      </div>
+                      <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
+                        {`${r.queued_by} · ${r.created_at.slice(0, 16).replace('T', ' ')}`}
+                      </div>
+                      <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                        <input type="hidden" name="id" value={r.id} />
+                        <input type="hidden" name="kind" value="reminder" />
+                        <button
+                          type="submit"
+                          style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
+                        >
+                          Undo
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             {queuedCount === 0 ? (
               <div style="background:#fff;border:1px solid #e2e3e8;padding:36px 16px;text-align:center;font-size:13px;color:#686b74;">
                 Accept, decline or waitlist submissions from{' '}
                 <a href="/app/submissions" style="color:#4c5fd5;font-weight:600;">
                   Submissions
                 </a>{' '}
-                or the evaluation view — they collect here for one reviewed send.
+                or the evaluation view, or hit Remind on a speaker task — they collect here for one reviewed send.
               </div>
             ) : null}
           </div>
@@ -409,16 +468,30 @@ app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
   const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
   const res = await sendQueuedDecisions(c.env, event.id, actor, OUTBOX_SEND_LIMIT);
+  // Decisions and reminders share one send budget; reminders take what's left.
+  const rem = await sendQueuedReminders(c.env, event.id, actor, OUTBOX_SEND_LIMIT - res.processed);
 
   const n = (x: number, word: string) => `${x} ${word}${x === 1 ? '' : 's'}`;
-  let msg = `${n(res.updated, 'decision')} applied · ${n(res.emailed, 'email')}${
-    res.emailed > 0 && res.simulated === res.emailed ? ' simulated (see Log)' : ' sent'
-  }`;
-  if (res.simulated && res.simulated !== res.emailed) msg += ` (${res.simulated} simulated)`;
-  if (res.skipped.length) msg += ` · ${res.skipped.length} skipped — no longer decidable`;
-  if (res.remaining) msg += ` · ${res.remaining} still queued — send again for the rest`;
+  const parts: string[] = [];
+  if (res.processed || !rem.processed) {
+    let d = `${n(res.updated, 'decision')} applied · ${n(res.emailed, 'email')}${
+      res.emailed > 0 && res.simulated === res.emailed ? ' simulated (see Log)' : ' sent'
+    }`;
+    if (res.simulated && res.simulated !== res.emailed) d += ` (${res.simulated} simulated)`;
+    parts.push(d);
+  }
+  if (rem.processed) {
+    parts.push(
+      `${n(rem.emailed, 'task reminder')}${rem.emailed > 0 && rem.simulated === rem.emailed ? ' simulated (see Log)' : ' sent'}`
+    );
+  }
+  let msg = parts.join(' · ');
+  const skippedCount = res.skipped.length + rem.skipped.length;
+  if (skippedCount) msg += ` · ${skippedCount} skipped — no longer sendable`;
+  const remaining = res.remaining + rem.remaining;
+  if (remaining) msg += ` · ${remaining} still queued — send again for the rest`;
 
-  const dest = backTo(form, `/app/emails?tab=${res.remaining ? 'outbox' : 'log'}`);
+  const dest = backTo(form, `/app/emails?tab=${remaining ? 'outbox' : 'log'}`);
   return c.redirect(`${dest}${dest.includes('?') ? '&' : '?'}ok=${encodeURIComponent(msg)}`);
 });
 
@@ -427,8 +500,13 @@ app.post('/app/emails/outbox/remove', requireOrgRole('admin'), async (c) => {
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
   const form = await c.req.parseBody();
   const id = String(form.id ?? '');
-  const removed = id ? await removeQueuedDecisions(c.env, event.id, [id], actor) : 0;
-  const msg = removed ? 'Decision undone — nothing was sent' : 'Already gone';
+  const isReminder = String(form.kind ?? '') === 'reminder';
+  const removed = !id
+    ? 0
+    : isReminder
+      ? await removeQueuedReminders(c.env, event.id, [id], actor)
+      : await removeQueuedDecisions(c.env, event.id, [id], actor);
+  const msg = removed ? `${isReminder ? 'Reminder' : 'Decision'} undone — nothing was sent` : 'Already gone';
   const dest = backTo(form, '/app/emails?tab=outbox');
   return c.redirect(`${dest}${dest.includes('?') ? '&' : '?'}ok=${encodeURIComponent(msg)}`);
 });

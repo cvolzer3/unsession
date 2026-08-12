@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx } from '../types';
-import { AdminLayout, MONO, STATUS_COLORS } from '../views/layout';
+import { AdminLayout, DrawerExpandButton, MONO, STATUS_COLORS } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, one, run, now, jsonParse } from '../lib/db';
 import { newId } from '../lib/ids';
@@ -20,6 +20,7 @@ import { logActivity } from '../lib/activity';
 import { sendEmail, renderTemplate } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
 import { zipHeadshots, zipSlides } from '../lib/zip';
+import { queueTaskReminder } from '../lib/reminder-queue';
 import * as T from '../lib/tasks';
 
 const app = new Hono<Ctx>();
@@ -31,6 +32,19 @@ const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13
 const BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
 const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
+
+/**
+ * Both drawers on this page — the speaker detail (rendered by speakers.js into
+ * `#drawer`) and the template editor. Their widths live here, not inline, so
+ * the shared full-screen rule in ADMIN_BASE_CSS can override them.
+ */
+const DRAWER_CSS = `
+  .drawer-speaker,.drawer-template{position:fixed;top:0;right:0;bottom:0;max-width:92vw;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);display:flex;flex-direction:column;}
+  /* The speaker panel re-renders while open, so speakers.js sets its own
+     animation inline — only the sizing belongs here. */
+  .drawer-speaker{width:440px;}
+  .drawer-template{width:480px;animation:slidein 0.18s ease;}
+`;
 
 const CELL_STYLE: Record<string, string> = {
   c: 'background:#2b8a3e;color:#fff;',
@@ -323,18 +337,21 @@ const Segmented: FC<{ name: string; options: [string, string][] }> = ({ name, op
 
 /** The template editor drawer — one server-rendered shell, driven by speakers.js. */
 const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
-  <div id="editor" hidden>
+  <div id="editor" data-drawer hidden>
     <div data-close-editor style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></div>
-    <div style="position:fixed;top:0;right:0;bottom:0;width:480px;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;">
-      <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+    <div class="us-drawer-panel drawer-template">
+      <div style="padding:16px var(--band-x);border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
         <div id="ed-title" style={LABEL}>
           NEW TASK TEMPLATE
         </div>
-        <button data-close-editor style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">
-          ×
-        </button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+          <DrawerExpandButton />
+          <button data-close-editor class="us-icon-btn" aria-label="Close" style="font-size:18px;line-height:1;">
+            ×
+          </button>
+        </div>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:28px;">
+      <div style="flex:1;overflow-y:auto;padding:20px var(--band-x);display:flex;flex-direction:column;gap:28px;">
         <div style="display:grid;gap:12px;">
           <div>
             <div style={`${LABEL}margin-bottom:6px;`}>NAME</div>
@@ -573,7 +590,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
           </div>
         </div>
       </div>
-      <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+      <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
         <button id="ed-save" style={PRIMARY}>
           Create template
         </button>
@@ -619,11 +636,11 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
       </div>
     </div>
 
-    {/* bulk assign — also reused as the post-create “assign now?” step (speakers.js) */}
+    {/* post-create “assign now?” offer — N existing speakers match the new rule (speakers.js) */}
     <div id="dlg-bulk" data-dialog hidden style={DIALOG}>
       <div style="background:#fff;width:480px;max-width:100%;padding:24px;">
         <div id="bulk-title" style="font-size:16px;font-weight:700;margin-bottom:4px;">
-          Assign a template to the current view
+          Assign now?
         </div>
         <div id="bulk-view" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-bottom:14px;`}></div>
         <select id="bulk-tpl" style={`${INPUT}margin-bottom:12px;`}></select>
@@ -633,6 +650,49 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
             Cancel
           </button>
           <button id="bulk-go" style={PRIMARY}>
+            Create tasks
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {/* assign task — pick a template, then reach speakers by rule or by hand */}
+    <div id="dlg-assign" data-dialog hidden style={DIALOG}>
+      <div style="background:#fff;width:520px;max-width:100%;max-height:88vh;padding:24px;display:flex;flex-direction:column;">
+        <div style="font-size:16px;font-weight:700;margin-bottom:14px;">Assign task</div>
+        <div style={`${LABEL}margin-bottom:6px;`}>TEMPLATE</div>
+        <select id="as-tpl" style={`${INPUT}margin-bottom:14px;`}></select>
+        <div style={`${LABEL}margin-bottom:6px;`}>SPEAKERS</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px;">
+          <button type="button" data-as-mode="rule" style="padding:8px 6px;font-size:12px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+            By rule
+          </button>
+          <button type="button" data-as-mode="pick" style="padding:8px 6px;font-size:12px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+            Pick speakers
+          </button>
+        </div>
+        <div style="flex:1;overflow-y:auto;min-height:0;">
+          <div id="as-rule" style="display:grid;gap:6px;">
+            <select id="as-group" style={INPUT}>
+              <option value="acceptance">All accepted speakers</option>
+              <option value="confirmation">Confirmed speakers only</option>
+            </select>
+            <div id="as-clauses" style="display:grid;gap:6px;"></div>
+            <button id="as-add-clause" type="button" style="justify-self:start;padding:6px 11px;background:#fff;border:1px dashed #c9cbd2;font-size:12px;color:#686b74;cursor:pointer;">
+              ＋ Add clause
+            </button>
+          </div>
+          <div id="as-pick" hidden style="display:grid;gap:8px;">
+            <input id="as-q" placeholder="Filter speakers…" style={INPUT} />
+            <div id="as-list" style="border:1px solid #e2e3e8;max-height:240px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div id="as-preview" style="background:#f4f4f6;padding:11px 13px;font-size:12.5px;color:#33343c;margin:14px 0 16px;line-height:1.5;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button data-dialog-close="#dlg-assign" style={BTN}>
+            Cancel
+          </button>
+          <button id="as-go" style={PRIMARY}>
             Create tasks
           </button>
         </div>
@@ -838,7 +898,7 @@ app.get('/app/speakers', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/speakers.js']}>
-      <style>{raw('@keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}')}</style>
+      <style>{raw(DRAWER_CSS)}</style>
       <div style="padding:22px 28px;">
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
           <select id="f-task" style="padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
@@ -863,11 +923,11 @@ app.get('/app/speakers', async (c) => {
             </button>
           ) : null}
           <div style="margin-left:auto;display:flex;gap:6px;">
-            <button id="bulk-open" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
-              Assign to view
+            <button id="assign-open" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+              Assign task
             </button>
             <a href="/app/speakers.csv" style="padding:6px 11px;font-size:12.5px;border:1px solid #e2e3e8;background:#fff;color:#33343c;text-decoration:none;">
-              ↓ CSV
+              Export CSV
             </a>
           </div>
         </div>
@@ -899,7 +959,7 @@ app.get('/app/speakers', async (c) => {
         <TemplateCards data={data} />
       </div>
 
-      <div id="drawer" hidden></div>
+      <div id="drawer" data-drawer hidden></div>
       <EditorDrawer files={files} />
       <Dialogs eventName={event.name} userEmail={c.var.user?.email ?? ''} />
       <script type="application/json" id="data-speakers">
@@ -969,9 +1029,13 @@ type DrawerTask = {
   stateLabel: string;
   due: string | null;
   removable: boolean;
-  nudgeable: boolean;
+  remindable: boolean;
+  /** A queued manual reminder is waiting in Emails → Outbox. */
+  reminderQueued: boolean;
   review: boolean;
   file: string | null;
+  /** Submitted mini-form answers (AV requirements, travel details…) for the organizer to review. */
+  answers: { label: string; value: string }[] | null;
 };
 
 app.get('/app/api/speakers/detail/:id', async (c) => {
@@ -993,9 +1057,11 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
     )
   ).map((r) => r.session_id);
 
-  const tasks = await all<T.TaskRow & { tpl_name: string | null; tpl_type: string | null; tpl_target: string | null }>(
+  const tasks = await all<
+    T.TaskRow & { tpl_name: string | null; tpl_type: string | null; tpl_target: string | null; tpl_settings: string | null }
+  >(
     c.env.DB,
-    `SELECT t.*, tt.name AS tpl_name, tt.type AS tpl_type, tt.target AS tpl_target
+    `SELECT t.*, tt.name AS tpl_name, tt.type AS tpl_type, tt.target AS tpl_target, tt.settings_json AS tpl_settings
        FROM tasks t LEFT JOIN task_templates tt ON tt.id = t.template_id
       WHERE t.event_id = ? AND t.status != 'cancelled'
         AND (t.speaker_profile_id = ?${sessionIds.length ? ` OR t.session_id IN (${sessionIds.map(() => '?').join(',')})` : ''})`,
@@ -1006,6 +1072,15 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
 
   const today = T.todayISO();
   const stateLabel: Record<string, string> = { c: 'DONE', p: 'TO DO', o: 'OVERDUE', r: 'IN REVIEW' };
+  const queuedReminders = new Set(
+    (
+      await all<{ task_id: string }>(
+        c.env.DB,
+        `SELECT task_id FROM task_reminder_queue WHERE speaker_profile_id = ?`,
+        profile.id
+      )
+    ).map((r) => r.task_id)
+  );
   const rows: DrawerTask[] = [];
   for (const t of T.dedupeTasks(tasks)) {
     const oneOff = t.template_id ? null : jsonParse<T.OneOffSpec>(t.one_off_json, { name: 'Task', type: 'checkbox' });
@@ -1020,6 +1095,20 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
             )
           )?.filename ?? null
         : null;
+    // Mini-form answers land in tasks.response_json — this drawer is where the
+    // organizer reads them (the portal only shows them back to the speaker).
+    let answers: { label: string; value: string }[] | null = null;
+    if ((t.tpl_type ?? oneOff?.type) === 'form' && t.response_json) {
+      const response = jsonParse<Record<string, unknown>>(t.response_json, {});
+      const spec = T.formSpecOf(jsonParse<T.TaskSettings>(t.tpl_settings, {}));
+      answers = spec.fields
+        .map((f) => {
+          const v = response[f.id];
+          return { label: f.label, value: f.type === 'CHK' ? (v ? 'Yes' : '') : String(v ?? '').trim() };
+        })
+        .filter((a) => a.value);
+      if (!answers.length) answers = null;
+    }
     rows.push({
       id: t.id,
       name: T.snapshotOf(t)?.name ?? t.tpl_name ?? oneOff?.name ?? 'Task',
@@ -1028,9 +1117,11 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
       stateLabel: stateLabel[state],
       due: t.due_date,
       removable: state !== 'c',
-      nudgeable: state !== 'c',
+      remindable: state !== 'c',
+      reminderQueued: queuedReminders.has(t.id),
       review: t.status === 'pending_review',
       file,
+      answers,
     });
   }
   rows.sort((a, b) => (a.state === 'c' ? 1 : 0) - (b.state === 'c' ? 1 : 0));
@@ -1242,8 +1333,8 @@ app.post('/app/api/speakers/template', requireOrgRole('admin'), async (c) => {
     id,
     message:
       body.trigger === 'manual'
-        ? `“${name}” created — assign it from a speaker profile or “Assign to view”`
-        : `“${name}” created — assigns on ${body.trigger} from now on. Not retroactive: use “Assign to view” for existing speakers`,
+        ? `“${name}” created — assign it from a speaker profile or “Assign task”`
+        : `“${name}” created — assigns on ${body.trigger} from now on. Not retroactive: use “Assign task” for existing speakers`,
   });
 });
 
@@ -1466,10 +1557,11 @@ app.post('/app/api/speakers/task/remove', requireOrgRole('collaborator'), async 
   return c.json({ ok: true, message: `“${ctx.name}” removed · logged with actor` });
 });
 
-app.post('/app/api/speakers/task/nudge', requireOrgRole('collaborator'), async (c) => {
+app.post('/app/api/speakers/task/remind', requireOrgRole('collaborator'), async (c) => {
   const { taskId, speakerProfileId } = await c.req.json<{ taskId: string; speakerProfileId: string }>();
   const ctx = await taskContext(c, taskId);
   if (!ctx) return c.json({ ok: false, error: 'Task not found' }, 404);
+  if (ctx.task.status === 'done') return c.json({ ok: false, error: 'Already complete — no reminder needed' }, 400);
   const profile = await one<{ id: string; name: string; email: string }>(
     c.env.DB,
     `SELECT id, name, email FROM speaker_profiles WHERE id = ? AND event_id = ?`,
@@ -1477,22 +1569,17 @@ app.post('/app/api/speakers/task/nudge', requireOrgRole('collaborator'), async (
     ctx.event.id
   );
   if (!profile) return c.json({ ok: false, error: 'Speaker not found' }, 404);
-  const session = ctx.task.session_id
-    ? await one<{ title: string }>(c.env.DB, `SELECT title FROM sessions WHERE id = ?`, ctx.task.session_id)
-    : null;
-  const rem = ctx.template ? T.parseReminders(ctx.template) : null;
-  const res = await T.nudgeTask(c.env, {
-    task: ctx.task,
+  // Like decisions, reminding is two steps: this queues, Emails → Outbox sends.
+  await queueTaskReminder(c.env, {
+    eventId: ctx.event.id,
+    taskId: ctx.task.id,
+    speakerProfileId: profile.id,
     taskName: ctx.name,
-    event: ctx.event,
-    profile,
-    sessionTitle: session?.title ?? null,
-    subject: rem?.subject,
-    body: rem?.body,
+    actorName: c.var.user?.name || c.var.user?.email || 'Organizer',
   });
   return c.json({
     ok: true,
-    message: `Nudge sent to ${profile.name}: “${ctx.name}”${res.status === 'simulated' ? ' (simulated — see the email log)' : ''}`,
+    message: `Reminder to ${profile.name} queued: “${ctx.name}” — send it from Emails → Outbox`,
   });
 });
 

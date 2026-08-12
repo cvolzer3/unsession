@@ -7,7 +7,7 @@
  * its apply-to-open-instances dialog, bulk assignment, the reminder-email
  * editor and the file review loop.
  */
-import { toast, api, openDialog, closeDialog } from './ui.js';
+import { toast, api, openDialog, closeDialog, expandButton } from './ui.js';
 
 const DATA = JSON.parse(document.getElementById('data-speakers').textContent);
 const MONO = "'IBM Plex Mono',monospace";
@@ -21,7 +21,6 @@ const CELL = {
   '-': 'background:#fafafb;border:1px solid #eceded;color:#c9cbd2;',
 };
 const GLYPH = { c: '✓', p: '·', o: '!', r: '⋯', '-': '' };
-const TIPS = { c: 'Complete', p: 'To do', o: 'Overdue', r: 'Pending review', '-': 'Not assigned' };
 const STATE_COLOR = { c: '#2b8a3e', p: '#9a9da6', o: '#c92a2a', r: '#b08800' };
 const TYPE_LABEL = { checkbox: 'CHECK', file: 'FILE', form: 'FORM', profile: 'AUTO' };
 
@@ -194,11 +193,16 @@ if (focusParam === 'overdue' || focusParam === 'unconfirmed') {
 const drawer = $('#drawer');
 let current = null;
 
-async function openSpeaker(id) {
+async function openSpeaker(id, animate = true) {
   const res = await api(`/app/api/speakers/detail/${id}`, undefined, 'GET');
   current = res;
   drawer.hidden = false;
-  drawer.innerHTML = drawerHtml(res);
+  drawer.innerHTML = drawerHtml(res, animate);
+}
+
+/** In-place refresh after a mutation — no slide-in, so the drawer doesn't appear to close and reopen. */
+function refreshSpeaker() {
+  return openSpeaker(current.speaker.id, false);
 }
 
 function closeSpeaker() {
@@ -207,7 +211,7 @@ function closeSpeaker() {
   current = null;
 }
 
-function drawerHtml(d) {
+function drawerHtml(d, animate = true) {
   const s = d.speaker;
   const first = (s.name || '').split(' ')[0] || s.name;
   const sub = d.submission;
@@ -221,7 +225,8 @@ function drawerHtml(d) {
   const taskRows = d.tasks
     .map(
       (t) => `
-      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #f2f3f5;">
+      <div style="padding:8px 0;border-bottom:1px solid #f2f3f5;">
+      <div style="display:flex;align-items:center;gap:8px;">
         <span style="${boxOf(t.state)}">${GLYPH[t.state]}</span>
         <div style="font-size:13px;">${esc(t.name)}</div>
         ${t.tag ? `<span style="font-family:${MONO};font-size:8.5px;color:#9a9da6;background:#f4f4f6;padding:2px 5px;flex:none;">${esc(t.tag)}</span>` : ''}
@@ -232,8 +237,25 @@ function drawerHtml(d) {
                <button data-changes="${t.id}" style="padding:4px 9px;background:#fff;border:1px solid #e8d79a;font-size:11.5px;color:#b08800;cursor:pointer;flex:none;">Request changes</button>`
             : ''
         }
-        ${t.nudgeable ? `<button data-nudge="${t.id}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Nudge</button>` : ''}
+        ${
+          t.remindable
+            ? t.reminderQueued
+              ? `<button disabled title="Waiting in Emails → Outbox" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#2b8a3e;flex:none;">Queued ✓</button>`
+              : `<button data-remind="${t.id}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind</button>`
+            : ''
+        }
         ${t.removable ? `<button data-remove="${t.id}" title="Remove this task (logged)" style="padding:4px 8px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#9a9da6;cursor:pointer;flex:none;">×</button>` : ''}
+      </div>
+      ${
+        t.answers && t.answers.length
+          ? `<div style="margin:6px 0 2px 30px;display:grid;gap:3px;">${t.answers
+              .map(
+                (a) =>
+                  `<div style="font-size:12px;color:#686b74;line-height:1.45;"><span style="color:#9a9da6;">${esc(a.label)}</span> — ${esc(a.value)}</div>`
+              )
+              .join('')}</div>`
+          : ''
+      }
       </div>`
     )
     .join('');
@@ -262,12 +284,15 @@ function drawerHtml(d) {
 
   return `
   <div data-close-drawer style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></div>
-  <div style="position:fixed;top:0;right:0;bottom:0;width:440px;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;">
-    <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+  <div class="us-drawer-panel drawer-speaker" style="animation:${animate ? 'slidein 0.18s ease' : 'none'};">
+    <div style="padding:16px var(--band-x);border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
       <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">SPEAKER</div>
-      <button data-close-drawer style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;">×</button>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+        ${expandButton(drawer.hasAttribute('data-expanded'))}
+        <button data-close-drawer class="us-icon-btn" aria-label="Close" style="font-size:18px;line-height:1;">×</button>
+      </div>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:18px;">
+    <div style="flex:1;overflow-y:auto;padding:20px var(--band-x);display:flex;flex-direction:column;gap:18px;">
       <div>
         <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;">${esc(s.name)}</div>
         <div style="font-family:${MONO};font-size:11.5px;color:#4c5fd5;margin-top:2px;">${esc(s.email)}</div>
@@ -300,7 +325,7 @@ function drawerHtml(d) {
       </div>
       ${assign}
     </div>
-    <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;gap:8px;">
+    <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;gap:8px;">
       <button id="drawer-email" style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Email speaker</button>
       <button data-close-drawer style="padding:9px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">Close</button>
     </div>
@@ -319,16 +344,16 @@ document.addEventListener('click', async (e) => {
   }
   if (!current) return;
 
-  const nudge = e.target.closest('[data-nudge]');
-  if (nudge) {
+  const remind = e.target.closest('[data-remind]');
+  if (remind) {
     try {
-      const res = await api('/app/api/speakers/task/nudge', {
-        taskId: nudge.getAttribute('data-nudge'),
+      const res = await api('/app/api/speakers/task/remind', {
+        taskId: remind.getAttribute('data-remind'),
         speakerProfileId: current.speaker.id,
       });
-      nudge.textContent = 'Sent ✓';
-      nudge.disabled = true;
-      nudge.style.color = '#2b8a3e';
+      remind.textContent = 'Queued ✓';
+      remind.disabled = true;
+      remind.style.color = '#2b8a3e';
       toast(res.message);
     } catch (err) {
       toast(err.message, false);
@@ -341,7 +366,7 @@ document.addEventListener('click', async (e) => {
     try {
       const res = await api('/app/api/speakers/task/remove', { taskId: remove.getAttribute('data-remove') });
       toast(res.message);
-      await openSpeaker(current.speaker.id);
+      await refreshSpeaker();
       markStale();
     } catch (err) {
       toast(err.message, false);
@@ -357,7 +382,7 @@ document.addEventListener('click', async (e) => {
         action: 'approve',
       });
       toast(res.message);
-      await openSpeaker(current.speaker.id);
+      await refreshSpeaker();
       markStale();
     } catch (err) {
       toast(err.message, false);
@@ -409,7 +434,7 @@ document.addEventListener('click', async (e) => {
         : { speakerProfileId: current.speaker.id, templateId: pick };
     const res = await api('/app/api/speakers/assign', payload);
     toast(res.message);
-    await openSpeaker(current.speaker.id);
+    await refreshSpeaker();
     markStale();
   } catch (err) {
     toast(err.message, false);
@@ -439,7 +464,7 @@ $('#changes-go').addEventListener('click', async () => {
     });
     closeDialog('#dlg-changes');
     toast(res.message);
-    if (current) await openSpeaker(current.speaker.id);
+    if (current) await refreshSpeaker();
     markStale();
   } catch (err) {
     toast(err.message, false);
@@ -554,25 +579,7 @@ function renderEditor() {
   $('[data-box="lock"]').textContent = ed.lock ? '✓' : '';
 
   $('#ed-clauses-wrap').hidden = ed.trigger === 'manual';
-  $('#ed-clauses').innerHTML = ed.clauses
-    .map((cl, i) => {
-      const opts = DATA.taxonomies[cl.field] || null;
-      const valueEl = opts
-        ? `<select data-clause-val="${i}" style="flex:1;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">${opts
-            .map((o) => `<option value="${esc(o)}"${o === cl.value ? ' selected' : ''}>${esc(o)}</option>`)
-            .join('')}</select>`
-        : `<input data-clause-val="${i}" value="${esc(cl.value)}" placeholder="e.g. Travel support = Yes" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">`;
-      return `<div style="display:flex;gap:6px;align-items:center;">
-        <select data-clause-field="${i}" style="width:126px;flex:none;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
-          ${['Track', 'Format', 'Level', 'Form answer']
-            .map((f) => `<option${f === cl.field ? ' selected' : ''}>${f}</option>`)
-            .join('')}
-        </select>
-        ${valueEl}
-        <button data-clause-rm="${i}" style="background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;padding:2px;flex:none;">×</button>
-      </div>`;
-    })
-    .join('');
+  $('#ed-clauses').innerHTML = clauseRowsHtml(ed.clauses, 'clause');
 
   const hasDue = ed.type !== 'profile';
   $('#ed-due-wrap').hidden = !hasDue;
@@ -617,6 +624,29 @@ function renderEditor() {
   $('#ed-archive').hidden = !ed.id;
   $('#ed-archive').textContent = ed.archived ? 'Restore template' : 'Archive template';
   scheduleMatch();
+}
+
+/** Shared clause-row markup — the editor uses data-clause-* attributes, the assign-task dialog data-aclause-*. */
+function clauseRowsHtml(clauses, attr) {
+  return clauses
+    .map((cl, i) => {
+      const opts = DATA.taxonomies[cl.field] || null;
+      const valueEl = opts
+        ? `<select data-${attr}-val="${i}" style="flex:1;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">${opts
+            .map((o) => `<option value="${esc(o)}"${o === cl.value ? ' selected' : ''}>${esc(o)}</option>`)
+            .join('')}</select>`
+        : `<input data-${attr}-val="${i}" value="${esc(cl.value)}" placeholder="e.g. Travel support = Yes" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">`;
+      return `<div style="display:flex;gap:6px;align-items:center;">
+        <select data-${attr}-field="${i}" style="width:126px;flex:none;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+          ${['Track', 'Format', 'Level', 'Form answer']
+            .map((f) => `<option${f === cl.field ? ' selected' : ''}>${f}</option>`)
+            .join('')}
+        </select>
+        ${valueEl}
+        <button data-${attr}-rm="${i}" style="background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;padding:2px;flex:none;">×</button>
+      </div>`;
+    })
+    .join('');
 }
 
 /* ------------------------------------------------- live rule-match line */
@@ -1026,9 +1056,8 @@ function fillBulkTemplates() {
 
 function renderBulk() {
   const preset = bulkPreset;
-  const list = preset
-    ? [...preset.ids].map((id) => rows.find((r) => r.id === id) || { id, name: '', session: '', cells: {} })
-    : filtered();
+  if (!preset) return;
+  const list = [...preset.ids].map((id) => rows.find((r) => r.id === id) || { id, name: '', session: '', cells: {} });
   const tplId = $('#bulk-tpl').value;
   const tpl = activeTemplates().find((t) => t.id === tplId) || activeTemplates()[0];
   if (!tpl) {
@@ -1038,19 +1067,10 @@ function renderBulk() {
   }
   const candidates = list.filter((r) => (r.cells[tpl.id] || '-') === '-');
   const already = list.length - candidates.length;
-  const noSess = preset && tpl.target === 'session' ? candidates.filter((r) => preset.noSession.has(r.id)).length : 0;
+  const noSess = tpl.target === 'session' ? candidates.filter((r) => preset.noSession.has(r.id)).length : 0;
   const create = candidates.length - noSess;
-  if (preset) {
-    const who = tpl.trigger === 'acceptance' ? 'ACCEPTED' : 'CONFIRMED';
-    $('#bulk-view').textContent = `RULE MATCH: ${list.length} ${who} SPEAKER${list.length === 1 ? '' : 'S'} RIGHT NOW`;
-  } else {
-    const label =
-      (state.task ? activeTemplates().find((t) => t.id === state.task)?.name || 'All speakers' : 'All speakers') +
-      (state.state ? ` · ${TIPS[state.state]}` : '') +
-      (state.review ? ' · Pending review' : '') +
-      (state.q.trim() ? ` · “${state.q.trim()}”` : '');
-    $('#bulk-view').textContent = `VIEW: ${label.toUpperCase()} — ${list.length} SPEAKERS`;
-  }
+  const who = tpl.trigger === 'acceptance' ? 'ACCEPTED' : 'CONFIRMED';
+  $('#bulk-view').textContent = `RULE MATCH: ${list.length} ${who} SPEAKER${list.length === 1 ? '' : 'S'} RIGHT NOW`;
   const skips = [
     already ? `${already} already have it and are skipped` : '',
     noSess ? `${noSess} speaker${noSess === 1 ? '' : 's'} with no session are skipped` : '',
@@ -1063,7 +1083,7 @@ function renderBulk() {
       }. Speakers see them in their portals immediately; assignment email follows the digest schedule.`
     : noSess
       ? `Nothing to create — ${noSess} matching speaker${noSess === 1 ? '' : 's'} have no session yet; session tasks need one.`
-      : 'Everyone in this view already has this task — nothing to create.';
+      : 'Everyone matching already has this task — nothing to create.';
   $('#bulk-go').textContent = `Create ${create} tasks`;
   $('#bulk-go').style.cssText = `padding:9px 16px;border:none;font-size:13px;font-weight:600;${
     create ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'
@@ -1088,14 +1108,6 @@ function openBulkForNewTemplate(tplId, preview, createdMessage) {
   openDialog('#dlg-bulk');
 }
 
-$('#bulk-open').addEventListener('click', () => {
-  bulkPreset = null;
-  $('#bulk-title').textContent = 'Assign a template to the current view';
-  $('#bulk-tpl').disabled = false;
-  fillBulkTemplates();
-  renderBulk();
-  openDialog('#dlg-bulk');
-});
 $('#bulk-tpl').addEventListener('change', renderBulk);
 $('#bulk-go').addEventListener('click', async () => {
   const ids = ($('#bulk-go').dataset.ids || '').split(',').filter(Boolean);
@@ -1119,6 +1131,204 @@ new MutationObserver(() => {
     reload(msg);
   }
 }).observe($('#dlg-bulk'), { attributes: true, attributeFilter: ['hidden'] });
+
+/* ------------------------------------------------------------ assign task */
+
+/**
+ * "Assign task" dialog: pick a template, then choose who gets it — either by
+ * rule (accepted/confirmed group narrowed with the same clauses templates use,
+ * resolved server-side by /template/match) or by hand-picking speakers.
+ */
+const as = { mode: 'rule', group: 'acceptance', clauses: [], picked: new Set(), q: '', preview: null };
+let asTimer = null;
+let asSeq = 0;
+
+function assignCandidates() {
+  if (as.mode === 'pick') return [...as.picked].map((id) => rows.find((r) => r.id === id)).filter(Boolean);
+  if (!as.preview) return null; // rule check still in flight
+  return as.preview.speakerIds.map((id) => rows.find((r) => r.id === id) || { id, name: '', session: '', cells: {} });
+}
+
+function scheduleAssignMatch() {
+  clearTimeout(asTimer);
+  as.preview = null;
+  renderAssignPreview();
+  asTimer = setTimeout(async () => {
+    const seq = ++asSeq;
+    try {
+      const res = await api('/app/api/speakers/template/match', { trigger: as.group, clauses: as.clauses });
+      if (seq !== asSeq || $('#dlg-assign').hidden) return;
+      as.preview = res;
+      renderAssignPreview();
+    } catch {
+      if (seq === asSeq) $('#as-preview').textContent = 'Could not check who matches — try again.';
+    }
+  }, 250);
+}
+
+function renderAssignList() {
+  const q = as.q.trim().toLowerCase();
+  const list = rows.filter((r) => !q || r.name.toLowerCase().includes(q) || r.session.toLowerCase().includes(q));
+  $('#as-list').innerHTML =
+    list
+      .map(
+        (r) => `<div data-as-spk="${r.id}" style="display:flex;gap:10px;align-items:center;padding:8px 10px;border-bottom:1px solid #f2f3f5;cursor:pointer;">
+        <span style="${box(as.picked.has(r.id))}">${as.picked.has(r.id) ? '✓' : ''}</span>
+        <div style="min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(r.name)}</div>
+          ${r.session ? `<div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.session)}</div>` : ''}
+        </div>
+      </div>`
+      )
+      .join('') || '<div style="padding:14px;font-size:12.5px;color:#9a9da6;">No speakers match.</div>';
+}
+
+function renderAssignPreview() {
+  const go = $('#as-go');
+  const out = $('#as-preview');
+  const tpl = activeTemplates().find((t) => t.id === $('#as-tpl').value) || activeTemplates()[0];
+  const idle = (text) => {
+    out.textContent = text;
+    go.textContent = 'Create tasks';
+    go.style.cssText = 'padding:9px 16px;border:none;font-size:13px;font-weight:600;background:#e2e3e8;color:#9a9da6;cursor:default;';
+    go.dataset.ids = '';
+  };
+  if (!tpl) return idle('No active templates — create one below first.');
+  go.dataset.tpl = tpl.id;
+  if (as.mode === 'rule' && !as.preview) return idle('Checking who matches…');
+  const list = assignCandidates();
+  if (!list.length) {
+    return idle(
+      as.mode === 'rule'
+        ? as.clauses.length
+          ? 'The rule matches nobody right now — check the clauses.'
+          : `No ${as.group === 'acceptance' ? 'accepted' : 'confirmed'} speakers yet.`
+        : 'Pick at least one speaker from the list.'
+    );
+  }
+  const candidates = list.filter((r) => (r.cells[tpl.id] || '-') === '-');
+  const already = list.length - candidates.length;
+  const noSet = as.mode === 'rule' && tpl.target === 'session' ? new Set(as.preview.noSessionIds || []) : null;
+  const noSess = noSet ? candidates.filter((r) => noSet.has(r.id)).length : 0;
+  const create = candidates.length - noSess;
+  const who =
+    as.mode === 'rule'
+      ? `${list.length} ${as.group === 'acceptance' ? 'accepted' : 'confirmed'} speaker${list.length === 1 ? '' : 's'} match${list.length === 1 ? 'es' : ''} the rule`
+      : `${list.length} speaker${list.length === 1 ? '' : 's'} picked`;
+  const skips = [
+    already ? `${already} already have it and are skipped` : '',
+    noSess ? `${noSess} speaker${noSess === 1 ? '' : 's'} with no session are skipped` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  out.textContent = create
+    ? `${who}. This will create ${create} “${tpl.name}” task${create === 1 ? '' : 's'}${
+        skips ? ` · ${skips}` : ''
+      }. Speakers see them in their portals immediately; assignment email follows the digest schedule.`
+    : `${who} — nothing to create${skips ? ` (${skips})` : ''}.`;
+  go.textContent = `Create ${create} task${create === 1 ? '' : 's'}`;
+  go.style.cssText = `padding:9px 16px;border:none;font-size:13px;font-weight:600;${
+    create ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'
+  }`;
+  // Send every unassigned candidate — the server reports no-session skips honestly.
+  go.dataset.ids = create ? candidates.map((r) => r.id).join(',') : '';
+}
+
+function renderAssign() {
+  $$('[data-as-mode]').forEach((b) => (b.style.cssText = seg(b.dataset.asMode === as.mode)));
+  $('#as-rule').hidden = as.mode !== 'rule';
+  $('#as-pick').hidden = as.mode !== 'pick';
+  if (as.mode === 'rule') $('#as-clauses').innerHTML = clauseRowsHtml(as.clauses, 'aclause');
+  else renderAssignList();
+  renderAssignPreview();
+}
+
+$('#assign-open').addEventListener('click', () => {
+  as.mode = 'rule';
+  as.group = 'acceptance';
+  as.clauses = [];
+  as.picked = new Set();
+  as.q = '';
+  as.preview = null;
+  $('#as-tpl').innerHTML = activeTemplates()
+    .map((t) => `<option value="${t.id}">${esc(t.name)} · ${TYPE_LABEL[t.type]}${t.target === 'session' ? ' · session' : ''}</option>`)
+    .join('');
+  $('#as-group').value = as.group;
+  $('#as-q').value = '';
+  renderAssign();
+  scheduleAssignMatch();
+  openDialog('#dlg-assign');
+});
+
+$('#dlg-assign').addEventListener('click', (e) => {
+  const mode = e.target.closest('[data-as-mode]');
+  if (mode) {
+    as.mode = mode.dataset.asMode;
+    renderAssign();
+    if (as.mode === 'rule' && !as.preview) scheduleAssignMatch();
+    return;
+  }
+  const rm = e.target.closest('[data-aclause-rm]');
+  if (rm) {
+    as.clauses.splice(Number(rm.getAttribute('data-aclause-rm')), 1);
+    $('#as-clauses').innerHTML = clauseRowsHtml(as.clauses, 'aclause');
+    scheduleAssignMatch();
+    return;
+  }
+  if (e.target.closest('#as-add-clause')) {
+    const track = (DATA.taxonomies.Track || [])[0] || '';
+    as.clauses.push({ field: 'Track', value: track });
+    $('#as-clauses').innerHTML = clauseRowsHtml(as.clauses, 'aclause');
+    scheduleAssignMatch();
+    return;
+  }
+  const spk = e.target.closest('[data-as-spk]');
+  if (spk) {
+    const id = spk.getAttribute('data-as-spk');
+    if (as.picked.has(id)) as.picked.delete(id);
+    else as.picked.add(id);
+    renderAssignList();
+    renderAssignPreview();
+  }
+});
+
+$('#dlg-assign').addEventListener('input', (e) => {
+  if (e.target.id === 'as-q') {
+    as.q = e.target.value;
+    renderAssignList();
+  } else if (e.target.dataset.aclauseVal !== undefined) {
+    // clause typing skips the re-render to keep focus — the match refresh is enough
+    as.clauses[Number(e.target.dataset.aclauseVal)].value = e.target.value;
+    scheduleAssignMatch();
+  }
+});
+
+$('#dlg-assign').addEventListener('change', (e) => {
+  if (e.target.id === 'as-tpl') {
+    renderAssignPreview();
+  } else if (e.target.id === 'as-group') {
+    as.group = e.target.value;
+    scheduleAssignMatch();
+  } else if (e.target.dataset.aclauseField !== undefined) {
+    const i = Number(e.target.dataset.aclauseField);
+    const field = e.target.value;
+    const opts = DATA.taxonomies[field];
+    as.clauses[i] = { field, value: opts ? opts[0] || '' : '' };
+    $('#as-clauses').innerHTML = clauseRowsHtml(as.clauses, 'aclause');
+    scheduleAssignMatch();
+  }
+});
+
+$('#as-go').addEventListener('click', async () => {
+  const ids = ($('#as-go').dataset.ids || '').split(',').filter(Boolean);
+  if (!ids.length) return;
+  try {
+    const res = await api('/app/api/speakers/bulk-assign', { templateId: $('#as-go').dataset.tpl, speakerIds: ids });
+    reload(res.message);
+  } catch (err) {
+    toast(err.message, false);
+  }
+});
 
 /* -------------------------------------------------------------- deep link */
 
