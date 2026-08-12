@@ -1,9 +1,11 @@
 /**
- * `/{event}/evaluate` island (track B3).
+ * Evaluator queue island (track B3) — loaded by `/{event}/evaluate` and the
+ * admin `/app/evaluation?tab=mine` tab, both rendering `views/eval-queue.tsx`.
  *
  * The review card: star rows, keys 1–5 filling the next empty criterion, Enter
  * to submit, and the Skip / Abstain actions. Scores are final, so there is no
- * edit path here — the server rejects a second write anyway.
+ * edit path here — the server rejects a second write anyway. All URLs come
+ * from the server-built `#data-evaluate` payload, so either base path works.
  */
 import { toast, api } from './ui.js';
 

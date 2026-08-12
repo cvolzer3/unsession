@@ -5,8 +5,9 @@
  * `prototype/design_handoff_program/design/Evaluation.dc.html` (organizer view,
  * plan list / editor / detail, reminders modal). The prototype's
  * "Evaluator queue | Organizer view" toggle becomes: admins get
- * Evaluations + Evaluation Plans, and an "Open my queue" button appears when the
- * signed-in user is also a reviewer.
+ * All Evaluations + Evaluation Plans, and a "My Evaluations" tab appears when
+ * the signed-in user is also a reviewer — the same queue `/{event}/evaluate`
+ * renders, shared via `src/views/eval-queue.tsx`.
  */
 import { Hono } from 'hono';
 import type { FC } from 'hono/jsx';
@@ -14,6 +15,7 @@ import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO, STATUS_COLORS } from '../views/layout';
 import { adminProps } from '../views/chrome';
+import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { all, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
 import { requireOrgRole, requestMagicLink } from '../lib/auth';
@@ -32,6 +34,7 @@ import {
   fmtDay,
   initialsOfName,
   loadEvalContext,
+  loadEvaluatorFields,
   matchesRules,
   members,
   mergeTags,
@@ -204,7 +207,10 @@ app.get('/app/evaluation', async (c) => {
     peopleById: new Map(people.map((p) => [p.id, { id: p.id, name: p.name || p.email.split('@')[0], email: p.email }])),
   };
 
-  const tab = c.req.query('tab') === 'plans' ? 'plans' : 'scores';
+  const iAmReviewer = ctx.plans.some((p) => p.reviewers.some((r) => r.userId === user.id));
+
+  const tabParam = c.req.query('tab');
+  const tab = tabParam === 'plans' ? 'plans' : tabParam === 'mine' && iAmReviewer ? 'mine' : 'scores';
   const planParam = c.req.query('plan') ?? '';
   const filters: Filters = {
     q: c.req.query('q') ?? '',
@@ -216,31 +222,50 @@ app.get('/app/evaluation', async (c) => {
   const openSub = c.req.query('open') ?? '';
   const detailPlan = ctx.plans.find((p) => p.id === planParam) ?? null;
 
-  const iAmReviewer = ctx.plans.some((p) => p.reviewers.some((r) => r.userId === user.id));
-
-  // reminders modal scope: the plan when we are on a plan page, else the event
-  const scopePlans = tab === 'plans' && detailPlan ? [detailPlan] : ctx.plans;
-  const reminders = await buildReminders(c, ctx, scopePlans, tab === 'plans' && detailPlan ? detailPlan.id : null);
-
-  const headerActions = iAmReviewer ? (
-    <a
-      href={`/${event.slug}/evaluate`}
-      style="padding:6px 14px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;"
-    >
-      Open my queue
-    </a>
-  ) : null;
-
   const tabs = (
     <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
       <a href="/app/evaluation" style={subTab(tab === 'scores')}>
-        Evaluations
+        All Evaluations
       </a>
+      {iAmReviewer ? (
+        <a href="/app/evaluation?tab=mine" style={subTab(tab === 'mine')}>
+          My Evaluations
+        </a>
+      ) : null}
       <a href="/app/evaluation?tab=plans" style={subTab(tab === 'plans')}>
         Evaluation Plans
       </a>
     </div>
   );
+
+  // My Evaluations: the evaluator queue, exactly as `/{event}/evaluate` renders
+  // it (shared view + island), inside the admin shell.
+  if (tab === 'mine') {
+    const myPlans = ctx.plans.filter((p) => p.reviewers.some((r) => r.userId === user.id));
+    const fields = await loadEvaluatorFields(db, event.id);
+    return c.html(
+      <AdminLayout {...props} scripts={['/js/evaluate.js']}>
+        <style>{raw(PAGE_CSS + EVAL_QUEUE_CSS)}</style>
+        <div style="padding:24px 28px;">
+          {tabs}
+          <EvalQueue
+            ctx={ctx}
+            myPlans={myPlans}
+            userId={user.id}
+            slug={event.slug}
+            fields={fields}
+            basePath="/app/evaluation"
+            fixedParams={{ tab: 'mine' }}
+            query={(k) => c.req.query(k)}
+          />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // reminders modal scope: the plan when we are on a plan page, else the event
+  const scopePlans = tab === 'plans' && detailPlan ? [detailPlan] : ctx.plans;
+  const reminders = await buildReminders(c, ctx, scopePlans, tab === 'plans' && detailPlan ? detailPlan.id : null);
 
   const islandData = {
     slug: event.slug,
@@ -272,7 +297,7 @@ app.get('/app/evaluation', async (c) => {
   };
 
   return c.html(
-    <AdminLayout {...props} headerActions={headerActions} scripts={['/js/evaluation.js']}>
+    <AdminLayout {...props} scripts={['/js/evaluation.js']}>
       <style>{raw(PAGE_CSS)}</style>
       <div style="padding:24px 28px;">
         {tabs}
