@@ -12,10 +12,18 @@ import { toast } from './ui.js';
 document.querySelectorAll('form[data-upload] input[type=file]').forEach((input) => {
   input.addEventListener('change', () => {
     if (!input.files || !input.files.length) return;
+    const form = input.closest('form');
     const label = input.closest('label');
-    if (label) label.textContent = 'Uploading…';
+    if (label) {
+      // The input lives inside the label — swap only the text nodes, or the
+      // file control (and the file with it) would be ripped out of the form.
+      [...label.childNodes].forEach((node) => {
+        if (node !== input) node.remove();
+      });
+      label.prepend('Uploading…');
+    }
     toast('Uploading ' + input.files[0].name + '…');
-    input.closest('form').submit();
+    form.submit();
   });
 });
 
