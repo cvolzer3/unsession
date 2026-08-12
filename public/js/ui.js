@@ -7,6 +7,7 @@
  *   data-toggle="#id"                    click toggles [hidden] on the target, closes on outside click
  *   data-dialog-open="#id"               opens a dialog overlay
  *   data-dialog-close                    closes the nearest dialog overlay
+ *   data-drawer-expand                   toggles [data-expanded] on the nearest [data-drawer]
  */
 
 export function toast(msg, ok = true) {
@@ -82,6 +83,21 @@ document.addEventListener('click', (e) => {
   if (opener) {
     e.preventDefault();
     openDialog(opener.getAttribute('data-dialog-open'));
+    return;
+  }
+
+  // Full-screen toggle on a side drawer. The width lives in CSS so the
+  // expanded state is a single attribute, not an inline-style edit.
+  const expander = e.target.closest('[data-drawer-expand]');
+  if (expander) {
+    e.preventDefault();
+    const drawer = expander.closest('[data-drawer]');
+    if (drawer) {
+      const expanded = drawer.hasAttribute('data-expanded');
+      if (expanded) drawer.removeAttribute('data-expanded');
+      else drawer.setAttribute('data-expanded', '');
+      expander.setAttribute('aria-label', expanded ? 'Expand to full screen' : 'Exit full screen');
+    }
     return;
   }
 

@@ -67,6 +67,15 @@ const PAGE_CSS = `
   .us-toggle input:checked + .tk{background:#4c5fd5;justify-content:flex-end;}
   .us-toggle .kn{width:16px;height:16px;border-radius:50%;background:#fff;display:block;}
   @keyframes drawerin{from{transform:translateX(32px);opacity:0}to{transform:none;opacity:1}}
+  /* Width sits midway between the old fixed 420px and half the viewport, so it
+     tracks the window instead of feeling cramped on wide screens. */
+  .us-drawer{position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;transition:width 0.16s ease;}
+  .us-drawer[data-expanded]{width:100vw;}
+  .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
+  .us-icon-btn:hover{color:#16171d;}
+  .us-drawer .ic-min{display:none;}
+  .us-drawer[data-expanded] .ic-max{display:none;}
+  .us-drawer[data-expanded] .ic-min{display:block;}
 `;
 
 function statusBadge(status: string): string {
@@ -634,7 +643,7 @@ app.get('/app/forms', async (c) => {
 
       {/* ------------------------------------------------------ settings drawer */}
       <div id="form-settings" data-dialog hidden style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;">
-        <aside style="position:absolute;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;">
+        <aside class="us-drawer" data-drawer>
           <form
             method="post"
             action={`/app/forms/${active.id}/settings`}
@@ -648,13 +657,38 @@ app.get('/app/forms', async (c) => {
                   {active.name}
                 </div>
               </div>
-              <button
-                type="button"
-                data-dialog-close="#form-settings"
-                style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:4px;"
-              >
-                ×
-              </button>
+              <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+                {/* Maximize / minimize (the corner-arrows "full screen" icon). */}
+                <button
+                  type="button"
+                  class="us-icon-btn"
+                  data-drawer-expand
+                  aria-label="Expand to full screen"
+                  title="Expand to full screen"
+                >
+                  <svg class="ic-max" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </svg>
+                  <svg class="ic-min" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                    <path d="M16 3v3a2 2 0 0 0 2 2h3" />
+                    <path d="M8 21v-3a2 2 0 0 0-2-2H3" />
+                    <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="us-icon-btn"
+                  data-dialog-close="#form-settings"
+                  aria-label="Close"
+                  style="font-size:18px;line-height:1;"
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <div style="flex:1;overflow-y:auto;padding:20px 22px;display:grid;gap:18px;align-content:start;">
               <SettingsFields
