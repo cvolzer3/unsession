@@ -198,9 +198,17 @@ function boot(DATA) {
   }
 
   // ui.js only knows about [data-dialog]; the drawer closes on Escape too.
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && drawer && !drawer.hidden) closeDrawer();
-  });
+  // Capture phase so this runs before ui.js hides open dialogs: when a modal
+  // is layered above the drawer, Escape closes only the modal.
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      if (e.key !== 'Escape' || !drawer || drawer.hidden) return;
+      if (document.querySelector('[data-dialog]:not([hidden])')) return;
+      closeDrawer();
+    },
+    true
+  );
 
   async function openDrawer(id) {
     if (!drawer || !drawerPanel) return;
@@ -479,7 +487,7 @@ function boot(DATA) {
         </div>`;
       })
       .join('');
-    $('#decision-template').textContent = `EMAIL · TEMPLATE “${tpl.name}” · EDITABLE PER SEND`;
+    $('#decision-template').textContent = `TEMPLATE “${tpl.name}” — editable per send`;
     $('#decision-subject').value = tpl.subject || '';
     const body = $('#decision-body');
     body.value = tpl.body || '';
@@ -496,8 +504,7 @@ function boot(DATA) {
     send.textContent = `Send ${n} email${plural(n)} & update status`;
 
     state.decision = { kind, ids: rows.map((r) => r.id) };
-    closeDrawer();
-    openDialog('#decision-modal');
+    openDialog('#decision-modal'); // layers above the drawer, which stays open
   }
 
   const sendBtn = $('#decision-send');
@@ -570,8 +577,7 @@ function boot(DATA) {
     $('#mail-body').value = '';
     $('#mail-preview').hidden = true;
     $('#mail-send').textContent = `Send ${recipients.length} email${plural(recipients.length)}`;
-    closeDrawer();
-    openDialog('#mail-modal');
+    openDialog('#mail-modal'); // layers above the drawer, which stays open
   }
 
   const mailTemplate = $('#mail-template');
