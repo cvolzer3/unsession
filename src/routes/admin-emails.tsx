@@ -1,20 +1,26 @@
 /**
- * `/app/emails` — Templates + Log tabs (spec §5.8). The template editor reuses
- * the prototype's decision-modal editor styling (`Submissions.dc.html`).
+ * `/app/emails` — Templates + Log tabs (spec §5.8). Templates are grouped by
+ * category and edited on a full-page editor (`/app/emails/t/:id`) with the
+ * shared rich-lite WYSIWYG island (DECISIONS C3/R3) and a server-rendered
+ * themed preview. Multiple templates per key are allowed — Duplicate creates
+ * “Copy of X” for the decision dialog's template picker.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO, StatusChip } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, now, one, run } from '../lib/db';
-import { renderTemplate, sendEmail } from '../lib/email';
+import { renderTemplate, sendEmail, wrapHtml } from '../lib/email';
+import { looksRich, sanitizeRich } from '../lib/rich';
+import { newId } from '../lib/ids';
 import { requireOrgRole } from '../lib/auth';
 import { parseTheme } from '../lib/theme';
 
 const app = new Hono<Ctx>();
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
-const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
+const INPUT = 'width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;';
 
 const VARIABLE_HINT: Record<string, string> = {
   accept: '{{speaker_name}}, {{session_title}}, {{event_name}}, {{event_dates}}, {{event_venue}}, {{confirmation_link}}',
@@ -25,6 +31,47 @@ const VARIABLE_HINT: Record<string, string> = {
   schedule_notice: '{{speaker_name}}, {{session_title}}, {{session_time}}, {{session_room}}, {{event_name}}, {{portal_link}}',
   confirm_submission: '{{speaker_name}}, {{session_title}}, {{event_name}}, {{portal_link}}',
 };
+
+/** Template list groups, in display order. Unknown/custom keys land in “Other”. */
+const GROUPS: { label: string; keys: string[] }[] = [
+  { label: 'Decisions', keys: ['accept', 'waitlist', 'decline'] },
+  { label: 'Submissions', keys: ['confirm_submission'] },
+  { label: 'Speaker onboarding', keys: ['task_nag'] },
+  { label: 'Scheduling', keys: ['schedule_notice'] },
+  { label: 'Evaluation', keys: ['reminder'] },
+];
+const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.keys));
+
+type TemplateRow = { id: string; key: string; name: string; subject: string; body: string; updated_at: string };
+
+/** The dummy variable set used by “Send test to me” and the editor preview. */
+function dummyVars(
+  origin: string,
+  event: { name: string; slug: string; start_date: string; end_date: string; venue?: string | null },
+  user: { name?: string | null; email?: string } | null
+): Record<string, string> {
+  const userName = user?.name || 'there';
+  return {
+    speaker_name: userName,
+    first_name: userName.split(' ')[0],
+    session_title: 'Your session title',
+    event_name: event.name,
+    event_dates: `${event.start_date} – ${event.end_date}`,
+    event_venue: event.venue ?? 'the venue',
+    confirmation_link: `${origin}/${event.slug}/portal`,
+    portal_link: `${origin}/${event.slug}/portal`,
+    evaluate_link: `${origin}/${event.slug}/evaluate`,
+    individual_feedback: '(individual feedback goes here)',
+    organizer_name: user?.name || 'The program team',
+    remaining: '3',
+    deadline: 'Aug 24',
+    task_name: 'Upload slides',
+    due_date: 'Sep 14',
+    days_left: '5 days',
+    session_time: 'Day 1, 14:00',
+    session_room: 'Main Stage',
+  };
+}
 
 function tabStyle(active: boolean): string {
   return `padding:7px 14px;font-size:12.5px;cursor:pointer;border:none;font-weight:600;text-decoration:none;display:inline-block;${
@@ -41,11 +88,25 @@ app.get('/app/emails', async (c) => {
   const statusFilter = c.req.query('status') ?? 'all';
   const detailId = c.req.query('id');
 
-  const templates = await all<{ id: string; key: string; name: string; subject: string; body: string; updated_at: string }>(
-    c.env.DB,
-    `SELECT * FROM email_templates WHERE event_id = ? ORDER BY key`,
-    event.id
-  );
+  const templates =
+    tab === 'templates'
+      ? await all<TemplateRow>(c.env.DB, `SELECT * FROM email_templates WHERE event_id = ? ORDER BY key, name`, event.id)
+      : [];
+
+  const sentByKey = new Map<string, number>();
+  if (tab === 'templates') {
+    const counts = await all<{ template_key: string; n: number }>(
+      c.env.DB,
+      `SELECT template_key, COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key IS NOT NULL GROUP BY template_key`,
+      event.id
+    );
+    for (const r of counts) sentByKey.set(r.template_key, r.n);
+  }
+
+  const sections = [
+    ...GROUPS.map((g) => ({ label: g.label, rows: g.keys.flatMap((k) => templates.filter((t) => t.key === k)) })),
+    { label: 'Other', rows: templates.filter((t) => !KNOWN_KEYS.has(t.key)) },
+  ].filter((s) => s.rows.length);
 
   const logRows =
     tab === 'log'
@@ -92,25 +153,37 @@ app.get('/app/emails', async (c) => {
     <AdminLayout {...props} headerActions={tabs}>
       <div style="padding:24px 28px;max-width:1160px;">
         {tab === 'templates' ? (
-          <div style="display:grid;gap:12px;max-width:760px;">
-            {templates.map((t) => (
-              <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
-                <div style="display:flex;align-items:baseline;gap:10px;">
-                  <div style="font-size:14.5px;font-weight:700;letter-spacing:-0.01em;">{t.name}</div>
-                  <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}>
-                    {t.key.toUpperCase()}
-                  </div>
-                  <button
-                    type="button"
-                    data-dialog-open={`#tpl-${t.id}`}
-                    style="margin-left:auto;background:none;border:none;padding:0;font-size:12.5px;color:#4c5fd5;cursor:pointer;"
-                  >
-                    Edit
-                  </button>
-                </div>
-                <div style="font-size:13px;font-weight:600;margin-top:8px;">{t.subject}</div>
-                <div style="font-size:12.5px;color:#686b74;line-height:1.5;margin-top:4px;white-space:pre-wrap;">
-                  {t.body.length > 220 ? t.body.slice(0, 220) + '…' : t.body}
+          <div style="display:grid;gap:18px;max-width:860px;">
+            {sections.map((s) => (
+              <div>
+                <div style={`${MICRO}margin-bottom:6px;`}>{s.label.toUpperCase()}</div>
+                <div style="background:#fff;border:1px solid #e2e3e8;">
+                  {s.rows.map((t) => (
+                    <div style="display:flex;align-items:stretch;border-bottom:1px solid #f2f3f5;">
+                      <a
+                        href={`/app/emails/t/${t.id}`}
+                        style="flex:1;min-width:0;display:grid;grid-template-columns:220px minmax(0,1fr) 80px;gap:14px;align-items:center;padding:11px 14px;color:#16171d;text-decoration:none;"
+                      >
+                        <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          {t.name}
+                        </div>
+                        <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          {t.subject}
+                        </div>
+                        <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;text-align:right;`}>
+                          {`${sentByKey.get(t.key) ?? 0} sent`}
+                        </div>
+                      </a>
+                      <form method="post" action={`/app/emails/t/${t.id}/duplicate`} style="display:flex;border-left:1px solid #f2f3f5;">
+                        <button
+                          type="submit"
+                          style="background:none;border:none;padding:0 14px;font-size:12px;color:#4c5fd5;cursor:pointer;"
+                        >
+                          Duplicate
+                        </button>
+                      </form>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -183,7 +256,11 @@ app.get('/app/emails', async (c) => {
                   {`${detail.created_at} · ${detail.to_email}`}
                 </div>
                 <div style="font-size:14px;font-weight:700;margin-bottom:10px;">{detail.subject}</div>
-                <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#33343c;">{detail.body}</div>
+                {looksRich(detail.body) ? (
+                  <div style="font-size:13px;line-height:1.6;color:#33343c;max-width:620px;">{raw(sanitizeRich(detail.body))}</div>
+                ) : (
+                  <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#33343c;">{detail.body}</div>
+                )}
                 {detail.error ? (
                   <div style="margin-top:10px;border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:8px 10px;font-size:12.5px;">
                     {detail.error}
@@ -194,79 +271,144 @@ app.get('/app/emails', async (c) => {
           </div>
         )}
       </div>
-
-      {templates.map((t) => (
-        <div id={`tpl-${t.id}`} data-dialog hidden style={DIALOG_WRAP}>
-          <div style="background:#fff;width:640px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);">
-            <form method="post" action="/app/emails/template">
-              <input type="hidden" name="id" value={t.id} />
-              <div style="padding:16px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
-                <div style="font-weight:700;font-size:15px;">{`Edit template · ${t.name}`}</div>
-                <button
-                  type="button"
-                  data-dialog-close={`#tpl-${t.id}`}
-                  style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
-                >
-                  ✕
-                </button>
-              </div>
-              <div style="padding:18px 24px;display:grid;gap:14px;">
-                <div>
-                  <div style={`${MICRO}margin-bottom:6px;`}>{`EMAIL · TEMPLATE “${t.name}” · EDITABLE PER SEND`}</div>
-                  <input
-                    name="subject"
-                    value={t.subject}
-                    style="width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;font-weight:600;margin-bottom:6px;outline-color:#4c5fd5;"
-                  />
-                  <textarea
-                    name="body"
-                    rows={Math.min(20, t.body.split('\n').length + 1)}
-                    style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"
-                  >
-                    {t.body}
-                  </textarea>
-                  <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:4px;`}>
-                    {`Variables resolve per recipient: ${VARIABLE_HINT[t.key] ?? '{{event_name}}'}`}
-                  </div>
-                </div>
-              </div>
-              <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
-                <button
-                  type="submit"
-                  name="action"
-                  value="test"
-                  style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;margin-right:auto;"
-                >
-                  Send test to me
-                </button>
-                <button type="button" data-dialog-close={`#tpl-${t.id}`} style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  name="action"
-                  value="save"
-                  style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
-                >
-                  Save template
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ))}
     </AdminLayout>
   );
 });
 
-app.post('/app/emails/template', requireOrgRole('admin'), async (c) => {
-  const event = c.var.event!;
-  const body = await c.req.parseBody();
-  const id = String(body.id ?? '');
-  const subject = String(body.subject ?? '').trim();
-  const text = String(body.body ?? '');
-  const action = String(body.action ?? 'save');
+/* ------------------------------------------------------ full-page editor */
 
+app.get('/app/emails/t/:id', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+  const t = await one<TemplateRow>(
+    c.env.DB,
+    `SELECT * FROM email_templates WHERE id = ? AND event_id = ?`,
+    c.req.param('id'),
+    event.id
+  );
+  if (!t) return c.redirect('/app/emails');
+
+  const sent = await one<{ n: number }>(
+    c.env.DB,
+    `SELECT COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key = ?`,
+    event.id,
+    t.key
+  );
+
+  const props = await adminProps(c, `Emails · ${t.name}`, {
+    headerTitle: 'Edit template',
+    scripts: ['/js/rich-editor.js'],
+  });
+
+  return c.html(
+    <AdminLayout {...props}>
+      <div style="padding:24px 28px;max-width:860px;">
+        <a href="/app/emails" style="font-size:12.5px;">
+          ← Back to templates
+        </a>
+        <div style="background:#fff;border:1px solid #e2e3e8;margin-top:12px;">
+          <form method="post" action={`/app/emails/t/${t.id}`}>
+            <div style="padding:14px 24px;border-bottom:1px solid #e2e3e8;">
+              <div style={MICRO}>{`TEMPLATE · ${t.key.toUpperCase()} · ${sent?.n ?? 0} SENT · EDITABLE PER SEND`}</div>
+            </div>
+            <div style="padding:18px 24px;display:grid;gap:14px;">
+              <div style="display:grid;grid-template-columns:220px 1fr;gap:14px;">
+                <div>
+                  <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
+                  <input name="name" value={t.name} required style={`${INPUT}font-weight:600;`} />
+                </div>
+                <div>
+                  <div style={`${MICRO}margin-bottom:6px;`}>SUBJECT</div>
+                  <input name="subject" value={t.subject} required style={`${INPUT}font-weight:600;`} />
+                </div>
+              </div>
+              <div>
+                <div style="display:flex;align-items:center;margin-bottom:6px;">
+                  <div style={MICRO}>BODY</div>
+                  <div style="margin-left:auto;display:flex;border:1px solid #e2e3e8;">
+                    <button type="button" id="tpl-editor-btn" style={tabStyle(true)}>
+                      Editor
+                    </button>
+                    <button type="button" id="tpl-preview-btn" style={tabStyle(false)}>
+                      Preview
+                    </button>
+                  </div>
+                </div>
+                <div id="tpl-editor-pane">
+                  <textarea
+                    name="body"
+                    data-rich-editor="1"
+                    rows={14}
+                    style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"
+                  >
+                    {t.body}
+                  </textarea>
+                </div>
+                <div id="tpl-preview-pane" hidden>
+                  <div id="tpl-preview-subject" style="font-size:14px;font-weight:700;margin-bottom:10px;"></div>
+                  <iframe
+                    id="tpl-preview-frame"
+                    title="Email preview"
+                    style="width:100%;height:460px;border:1px solid #e2e3e8;background:#f4f4f6;"
+                  ></iframe>
+                </div>
+                <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:6px;`}>
+                  {`Variables resolve per recipient: ${VARIABLE_HINT[t.key] ?? '{{event_name}}'}`}
+                </div>
+              </div>
+            </div>
+            <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+              <button
+                type="submit"
+                name="action"
+                value="test"
+                style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;margin-right:auto;"
+              >
+                Send test to me
+              </button>
+              <button
+                type="submit"
+                formaction={`/app/emails/t/${t.id}/duplicate`}
+                style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
+              >
+                Duplicate
+              </button>
+              <button
+                type="submit"
+                name="action"
+                value="save"
+                style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+              >
+                Save template
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </AdminLayout>
+  );
+});
+
+/** Themed preview for the editor's Preview tab — dummy vars, real wrapper. */
+app.post('/app/emails/preview', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No event selected' }, 400);
+  const payload = await c.req.json<{ subject?: string; body?: string }>().catch(() => null);
+  if (!payload) return c.json({ ok: false, error: 'Bad request' }, 400);
+
+  const vars = dummyVars(c.env.APP_ORIGIN, event, c.var.user);
+  const subject = renderTemplate(String(payload.subject ?? ''), vars);
+  const html = wrapHtml(renderTemplate(String(payload.body ?? ''), vars), {
+    subject,
+    theme: parseTheme(event.theme_json),
+    eventName: event.name,
+  });
+  return c.json({ ok: true, subject, html });
+});
+
+app.post('/app/emails/t/:id', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event!;
+  const id = c.req.param('id');
   const tpl = await one<{ id: string; key: string; name: string }>(
     c.env.DB,
     `SELECT id, key, name FROM email_templates WHERE id = ? AND event_id = ?`,
@@ -275,9 +417,17 @@ app.post('/app/emails/template', requireOrgRole('admin'), async (c) => {
   );
   if (!tpl) return c.redirect('/app/emails');
 
+  const form = await c.req.parseBody();
+  const name = String(form.name ?? '').trim() || tpl.name;
+  const subject = String(form.subject ?? '').trim();
+  const bodySource = String(form.body ?? '');
+  const text = looksRich(bodySource) ? sanitizeRich(bodySource) : bodySource;
+  const action = String(form.action ?? 'save');
+
   await run(
     c.env.DB,
-    `UPDATE email_templates SET subject = ?, body = ?, updated_at = ? WHERE id = ?`,
+    `UPDATE email_templates SET name = ?, subject = ?, body = ?, updated_at = ? WHERE id = ?`,
+    name,
     subject,
     text,
     now(),
@@ -286,28 +436,7 @@ app.post('/app/emails/template', requireOrgRole('admin'), async (c) => {
 
   if (action === 'test') {
     const user = c.var.user!;
-    const theme = parseTheme(event.theme_json);
-    const vars: Record<string, string> = {
-      speaker_name: user.name || 'there',
-      first_name: (user.name || 'there').split(' ')[0],
-      session_title: 'Your session title',
-      event_name: event.name,
-      event_dates: `${event.start_date} – ${event.end_date}`,
-      event_venue: event.venue ?? 'the venue',
-      confirmation_link: `${c.env.APP_ORIGIN}/${event.slug}/portal`,
-      portal_link: `${c.env.APP_ORIGIN}/${event.slug}/portal`,
-      evaluate_link: `${c.env.APP_ORIGIN}/${event.slug}/evaluate`,
-      individual_feedback: '(individual feedback goes here)',
-      organizer_name: user.name || 'The program team',
-      remaining: '3',
-      deadline: 'Aug 24',
-      task_name: 'Upload slides',
-      due_date: 'Sep 14',
-      days_left: '5 days',
-      session_time: 'Day 1, 14:00',
-      session_room: 'Main Stage',
-    };
-    void theme;
+    const vars = dummyVars(c.env.APP_ORIGIN, event, user);
     const res = await sendEmail(c.env, {
       eventId: event.id,
       to: user.email,
@@ -325,7 +454,47 @@ app.post('/app/emails/template', requireOrgRole('admin'), async (c) => {
     return c.redirect('/app/emails?tab=log&ok=' + encodeURIComponent(label));
   }
 
-  return c.redirect('/app/emails?ok=' + encodeURIComponent(`“${tpl.name}” saved`));
+  return c.redirect(`/app/emails/t/${id}?ok=` + encodeURIComponent(`“${name}” saved`));
+});
+
+app.post('/app/emails/t/:id/duplicate', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event!;
+  const src = await one<TemplateRow>(
+    c.env.DB,
+    `SELECT * FROM email_templates WHERE id = ? AND event_id = ?`,
+    c.req.param('id'),
+    event.id
+  );
+  if (!src) return c.redirect('/app/emails');
+
+  // From the editor page the form fields ride along — the copy keeps unsaved
+  // edits; from the list row the form is empty and the stored row is copied.
+  const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+  const baseName = String(form.name ?? '').trim() || src.name;
+  const subject = String(form.subject ?? '').trim() || src.subject;
+  const bodySource = typeof form.body === 'string' && form.body ? form.body : src.body;
+  const body = looksRich(bodySource) ? sanitizeRich(bodySource) : bodySource;
+
+  const id = newId('etp');
+  const name = `Copy of ${baseName}`;
+  try {
+    await run(
+      c.env.DB,
+      `INSERT INTO email_templates (id, event_id, key, name, subject, body, updated_at) VALUES (?,?,?,?,?,?,?)`,
+      id,
+      event.id,
+      src.key,
+      name,
+      subject,
+      body,
+      now()
+    );
+  } catch {
+    return c.redirect(
+      '/app/emails?ok=' + encodeURIComponent(`Couldn't duplicate — the database still allows one template per key`)
+    );
+  }
+  return c.redirect(`/app/emails/t/${id}?ok=` + encodeURIComponent(`Duplicated — now editing “${name}”`));
 });
 
 export default app;
