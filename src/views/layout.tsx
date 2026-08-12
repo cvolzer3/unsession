@@ -463,6 +463,9 @@ export const STATUS_COLORS: Record<string, { label: string; fg: string; bg: stri
   // Display-only split of `in_review`: no evaluation plan covers the row yet.
   // Never stored — see CHIP_ORDER in routes/admin-submissions.tsx.
   needs_assigned: { label: 'Needs Assigned', fg: '#1c7ed6', bg: '#e7f1fb' },
+  // Display-only: a decision sits in the outbox, not yet sent. Never stored —
+  // see CHIP_ORDER. (`queued` below is the email log's word, hence `outbox`.)
+  outbox: { label: 'Queued', fg: '#8a6d1a', bg: '#fbf4e2' },
   accepted: { label: 'Accepted', fg: '#2b8a3e', bg: '#e6f4ea' },
   declined: { label: 'Declined', fg: '#c92a2a', bg: '#fbe9e9' },
   waitlisted: { label: 'Waitlisted', fg: '#9c36b5', bg: '#f6e8f9' },

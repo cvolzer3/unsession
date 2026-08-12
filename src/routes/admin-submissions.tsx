@@ -67,7 +67,7 @@ const IMPORTABLE_STATUS = new Set(STATUS_ORDER);
  * go stale the way a flipped flag would. `BoardRow.chip` carries the bucket;
  * `BoardRow.status` stays the real status for decisions, export and import.
  */
-const CHIP_ORDER = ['draft', 'needs_assigned', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'];
+const CHIP_ORDER = ['draft', 'needs_assigned', 'in_review', 'outbox', 'accepted', 'waitlisted', 'declined', 'withdrawn'];
 
 /** Undecided with no plan covering it — the row nobody is going to look at. */
 function chipFor(status: string, reviewsExpected: number): string {
@@ -92,8 +92,15 @@ function badgeStyle(status: string): string {
 /** Dashed chip for a decision sitting in the outbox — pending, not sent. */
 const QUEUED_COLOR: Record<DecisionKind, string> = { accept: '#2b8a3e', decline: '#c92a2a', waitlist: '#9c36b5' };
 function queuedChipStyle(kind: DecisionKind): string {
-  return `display:inline-block;margin-top:3px;padding:2px 7px;font-size:10px;font-weight:600;color:${QUEUED_COLOR[kind]};border:1px dashed ${QUEUED_COLOR[kind]};font-family:${MONO};letter-spacing:0.04em;`;
+  return `display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;color:${QUEUED_COLOR[kind]};border:1px dashed ${QUEUED_COLOR[kind]};font-family:${MONO};letter-spacing:0.04em;`;
 }
+
+/** Status-column label for a row whose display bucket is `outbox`. */
+const QUEUED_LABEL: Record<DecisionKind, string> = {
+  accept: 'Accept · Queued',
+  decline: 'Decline · Queued',
+  waitlist: 'Waitlist · Queued',
+};
 
 /* ------------------------------------------------------------------ shapes */
 
@@ -442,6 +449,21 @@ app.get('/app/submissions', async (c) => {
   if (!event) return c.redirect('/app/events/new');
 
   const board = await loadBoard(c.env, event);
+
+  // The outbox lives here, where deciding happens — the full rows feed the
+  // review-and-send panel above the table. A queued decision becomes the row's
+  // display bucket: the table shows "Accept · Queued" instead of the stale
+  // status, and the chips row grows a Queued filter (bucket key `outbox` —
+  // `queued` is the email log's word in STATUS_COLORS).
+  const outbox = await listDecisionQueue(c.env, event.id);
+  const queued = new Map(outbox.map((r) => [r.submission_id, r.decision]));
+  for (const r of board.rows) {
+    if (!queued.has(r.id)) continue;
+    board.counts[r.chip] = (board.counts[r.chip] ?? 1) - 1;
+    r.chip = 'outbox';
+    board.counts.outbox = (board.counts.outbox ?? 0) + 1;
+  }
+
   const filter = {
     status: c.req.query('status') ?? 'all',
     form: c.req.query('form') ?? 'all',
@@ -455,11 +477,6 @@ app.get('/app/submissions', async (c) => {
   const serverFilter = total > ROW_CAP;
   const rendered = serverFilter ? matched.slice(0, ROW_CAP) : board.rows;
   const shownCount = serverFilter ? Math.min(matched.length, ROW_CAP) : matched.length;
-
-  // The outbox lives here, where deciding happens — the full rows feed the
-  // review-and-send panel above the table; the map feeds the row chips.
-  const outbox = await listDecisionQueue(c.env, event.id);
-  const queued = new Map(outbox.map((r) => [r.submission_id, r.decision]));
 
   const templates = await all<{ key: string; name: string; subject: string; body: string }>(
     c.env.DB,
@@ -629,9 +646,7 @@ app.get('/app/submissions', async (c) => {
                   <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
                     {outbox.map((q) => (
                       <div style="display:grid;grid-template-columns:108px 64px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                        <span style={queuedChipStyle(q.decision).replace('margin-top:3px;', '')}>
-                          {q.decision.toUpperCase()}
-                        </span>
+                        <span style={queuedChipStyle(q.decision)}>{q.decision.toUpperCase()}</span>
                         <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`SUB-${q.seq}`}</span>
                         <a
                           href={`/app/submissions?open=${q.submission_id}`}
@@ -834,12 +849,12 @@ app.get('/app/submissions', async (c) => {
                       <span style="color:#9a9da6;font-size:10.5px;">{`${r.done}/${r.total}`}</span>
                     </div>
                     <div>
-                      <span style={badgeStyle(r.chip)}>{statusMeta(r.chip).label}</span>
-                      {queued.has(r.id) ? (
-                        <span title="Queued in the outbox — nothing sent yet" style={queuedChipStyle(queued.get(r.id)!)}>
-                          {`${queued.get(r.id)!.toUpperCase()} · QUEUED`}
-                        </span>
-                      ) : null}
+                      <span
+                        title={r.chip === 'outbox' ? 'Decision queued in the outbox — nothing sent yet' : undefined}
+                        style={badgeStyle(r.chip)}
+                      >
+                        {r.chip === 'outbox' ? QUEUED_LABEL[queued.get(r.id)!] : statusMeta(r.chip).label}
+                      </span>
                     </div>
                     <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{r.submitted}</div>
                   </div>
