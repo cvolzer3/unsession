@@ -42,7 +42,11 @@ const TEXTAREA =
   'width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;';
 
 /** Rows shipped to the browser in one page. Past this the island filters server-side. */
-const ROW_CAP = 500;
+// R2 benchmark (2026-08-12, production, 4,034 rows): TTFB 663ms, DOMContentLoaded
+// ~1.0s, 132KB HTML, client filter pass 3.5ms, sort compare 8ms — everything
+// ships and filters client-side at realistic scale. The cap survives only as a
+// pathological-event guard, far above the few-thousand-row realistic ceiling.
+const ROW_CAP = 10000;
 
 const STATUS_ORDER = [
   'draft',

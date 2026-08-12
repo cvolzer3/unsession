@@ -13,7 +13,7 @@ Post-integration notes, minor, for later polish: (a) the Submissions score denom
 Source docs: Chris's `review-punch-list.md` and `triage-todos.md` (Desktop). Chris's calls:
 
 - **R1 · Dashboard pipeline widget: removed.** KPI row keeps the counts; the space goes to the action feed with quick actions (triage B9).
-- **R2 · Submissions row cap:** benchmark at ~3–5k rows, then drop the 500-row cap — everything ships to the client, filter/sort client-side.
+- **R2 · Submissions row cap:** benchmark at ~3–5k rows, then drop the 500-row cap — everything ships to the client, filter/sort client-side. **Done 2026-08-12:** production benchmark at 4,034 rows — TTFB 663ms, DOM ready ~1.0s, 132KB HTML, client filter 3.5ms, sort 8ms. Cap raised 500 → 10,000 (kept only as a pathological-event guard).
 - **R3 · Rich text = WYSIWYG bounded to rich-lite** (bold/italic/links/lists/headings), built as a vanilla-JS island. Applies to email templates, welcome/post-submit messages, section descriptions, task descriptions (triage C3).
 - **R4 · Speaker name stays a single full-name field** — first/last split (triage C5) rejected.
 - **R5 · Speaker CRM stays cut** (C1). Event duplication + form templates remain the answer.
