@@ -13,8 +13,11 @@ import type { FC } from 'hono/jsx';
 import type { Ctx } from '../types';
 import { AdminLayout, DrawerExpandButton, MONO, STATUS_COLORS } from '../views/layout';
 import { adminProps } from '../views/chrome';
-import { all, one, run, now, jsonParse } from '../lib/db';
+import { all, one, run, batch, now, jsonParse } from '../lib/db';
 import { newId } from '../lib/ids';
+import { slugify } from '../lib/slugify';
+import { csvHeaders, parseCsvTable, toCsv } from '../lib/csv';
+import { LINK_FIELDS, linksJson, normalizeLink, type LinkKey, type SpeakerLinks } from '../lib/speaker-links';
 import { requireOrgRole } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { sendEmail, renderTemplate } from '../lib/email';
@@ -72,6 +75,8 @@ type ProfileRow = {
   bio: string;
   slug: string;
   headshot_file_id: string | null;
+  /** Set by the CSV importer (migration 0019) — organizer-added, no CFP trail. */
+  imported_at?: string | null;
 };
 
 type GridRow = {
@@ -105,7 +110,8 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
 
   const profiles = await all<ProfileRow>(
     env.DB,
-    `SELECT id, name, email, bio, slug, headshot_file_id FROM speaker_profiles WHERE event_id = ? ORDER BY name`,
+    `SELECT id, name, email, bio, slug, headshot_file_id, imported_at
+       FROM speaker_profiles WHERE event_id = ? ORDER BY name`,
     eventId
   );
   const tasks = await all<T.TaskRow>(
@@ -160,7 +166,9 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
     );
     const sub = subOf.get(p.email.toLowerCase());
     const onboarding = sub?.status === 'accepted';
-    if (!mine.length && !onboarding) continue;
+    // CSV-imported speakers have no CFP trail and start with no tasks — list
+    // them anyway, or the import would appear to have done nothing.
+    if (!mine.length && !onboarding && !p.imported_at) continue;
 
     const cells: Record<string, string> = {};
     let done = 0;
@@ -606,6 +614,55 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
   </div>
 );
 
+/**
+ * Speaker CSV import. Same three beats as the submissions importer — pick a
+ * file, map the columns, review the count — driven by speakers.js against
+ * `/app/api/speakers/import`.
+ */
+const ImportDialog: FC = () => (
+  <div id="import-modal" data-dialog hidden style={DIALOG}>
+    <div style="background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;">
+      <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+        <div style="font-size:16px;font-weight:700;">Import speakers from CSV</div>
+        <button
+          type="button"
+          data-dialog-close="#import-modal"
+          style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+        >
+          ×
+        </button>
+      </div>
+      <div style="padding:20px 24px;display:grid;gap:16px;overflow-y:auto;">
+        <div>
+          <div style={`${LABEL}margin-bottom:6px;`}>CSV FILE</div>
+          <input type="file" id="import-file" accept=".csv,text/csv" style="font-size:13px;" />
+          <div style="font-size:12.5px;color:#686b74;margin-top:6px;line-height:1.5;">
+            First row is treated as the header. Quoted fields with commas and line breaks are supported. Speakers are
+            matched by <strong>email</strong> — a row whose email is already on file updates that speaker instead of
+            adding a second one.
+          </div>
+        </div>
+        <div id="import-mapping-wrap" hidden>
+          <div style={`${LABEL}margin-bottom:8px;`}>MAP COLUMNS</div>
+          <div id="import-mapping" style="display:grid;gap:6px;"></div>
+        </div>
+        <div id="import-preview" hidden style="background:#f8f8fa;border:1px solid #e2e3e8;padding:10px 14px;font-size:12.5px;color:#686b74;line-height:1.5;"></div>
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+        <a href="/app/speakers/import-template.csv" style="margin-right:auto;font-size:12px;color:#4c5fd5;">
+          Download a template CSV
+        </a>
+        <button type="button" data-dialog-close="#import-modal" style={BTN}>
+          Cancel
+        </button>
+        <button type="button" id="import-run" disabled style={`${PRIMARY}background:#e2e3e8;color:#9a9da6;cursor:default;`}>
+          Import
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, userEmail }) => (
   <>
     {/* apply-to-open-instances */}
@@ -1037,6 +1094,11 @@ app.get('/app/speakers', async (c) => {
             <button id="assign-open" style="padding:7px 12px;font-size:12.5px;cursor:pointer;border:none;background:#4c5fd5;color:#fff;font-weight:600;">
               Assign task
             </button>
+            {canWrite ? (
+              <button id="btn-import" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+                Import CSV
+              </button>
+            ) : null}
             <a href="/app/speakers.csv" style="padding:6px 11px;font-size:12.5px;border:1px solid #e2e3e8;background:#fff;color:#33343c;text-decoration:none;">
               Export CSV
             </a>
@@ -1073,6 +1135,7 @@ app.get('/app/speakers', async (c) => {
       <div id="drawer" data-drawer hidden></div>
       <EditorDrawer files={files} />
       <Dialogs eventName={event.name} userEmail={c.var.user?.email ?? ''} />
+      {canWrite ? <ImportDialog /> : null}
       <script type="application/json" id="data-speakers">
         {raw(JSON.stringify(payload).replace(/</g, '\\u003c'))}
       </script>
@@ -1112,6 +1175,254 @@ app.get('/app/speakers.csv', async (c) => {
       'Content-Disposition': `attachment; filename="${event.slug}-speaker-tasks.csv"`,
     },
   });
+});
+
+/** Starter sheet for the importer — headers the mapper auto-matches, plus one example row. */
+app.get('/app/speakers/import-template.csv', (c) => {
+  const body = toCsv(
+    [
+      {
+        Name: 'Ada Lovelace',
+        Email: 'ada@example.com',
+        Tagline: 'Analyst at the Analytical Engine',
+        Bio: 'Ada writes about computing before it exists.',
+        Pronouns: 'she/her',
+        LinkedIn: 'https://linkedin.com/in/example',
+        X: '',
+        Website: 'https://example.com',
+      },
+    ],
+    ['Name', 'Email', 'Tagline', 'Bio', 'Pronouns', 'LinkedIn', 'X', 'Website']
+  );
+  return new Response(body, { headers: csvHeaders('speaker-import-template.csv') });
+});
+
+/* --------------------------------------------------------- CSV import */
+
+/**
+ * Bulk-add speakers who never came through the CFP. Matching is by email
+ * (the profile's natural key — `speaker_profiles` is UNIQUE on event+email),
+ * so re-importing a corrected sheet updates in place instead of duplicating.
+ *
+ * Mirrors the submissions importer (`/app/api/submissions/import`): the client
+ * previews and maps columns, the server re-parses the same text with
+ * `lib/csv.ts` before writing anything.
+ */
+
+/** One mapped column target. `link:*` writes into the links_json object. */
+type ImportTarget = 'ignore' | 'name' | 'email' | 'bio' | 'tagline' | 'pronouns' | `link:${LinkKey}`;
+
+const IMPORT_MAX_ROWS = 500;
+
+type ImportProfile = {
+  id: string;
+  email: string;
+  name: string;
+  bio: string;
+  tagline: string | null;
+  pronouns: string | null;
+  links_json: string | null;
+  slug: string;
+  imported_at: string | null;
+};
+
+app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event' }, 400);
+  const input = await c.req.json<{ text?: string; mapping?: string[] }>();
+  const text = input.text ?? '';
+  const mapping = (input.mapping ?? []) as ImportTarget[];
+  if (!text.trim()) return c.json({ ok: false, error: 'The file looked empty.' }, 400);
+  if (!mapping.includes('email')) {
+    return c.json({ ok: false, error: 'Map one column to Email — speakers are matched by email address.' }, 400);
+  }
+
+  const table = parseCsvTable(text);
+  if (!table.rows.length) return c.json({ ok: false, error: 'No data rows found below the header.' }, 400);
+  if (table.rows.length > IMPORT_MAX_ROWS) {
+    return c.json({ ok: false, error: `Import at most ${IMPORT_MAX_ROWS} rows at a time.` }, 400);
+  }
+
+  const existing = await all<ImportProfile>(
+    c.env.DB,
+    `SELECT id, email, name, bio, tagline, pronouns, links_json, slug, imported_at
+       FROM speaker_profiles WHERE event_id = ?`,
+    event.id
+  );
+  const byEmail = new Map(existing.map((p) => [p.email.toLowerCase(), p]));
+  const takenSlugs = new Set(existing.map((p) => p.slug));
+
+  const stamp = now();
+  const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
+  const stmts: Array<[string, unknown[]]> = [];
+  /** Rows already handled this run, so a sheet listing someone twice merges instead of colliding. */
+  const seen = new Map<string, ImportProfile & { dirty: boolean }>();
+  const badEmails: string[] = [];
+  const badLinks: string[] = [];
+  let created = 0;
+  let updated = 0;
+  /** Already on file with nothing new in the sheet — a re-import is a no-op, not a failure. */
+  let unchanged = 0;
+  /** No usable email, so there was nothing to match on. */
+  let skipped = 0;
+
+  table.rows.forEach((cells, index) => {
+    const line = index + 2; // header is line 1
+    let email = '';
+    let name = '';
+    let bio = '';
+    let tagline = '';
+    let pronouns = '';
+    const links: SpeakerLinks = {};
+
+    mapping.forEach((target, col) => {
+      if (!target || target === 'ignore') return;
+      const value = (cells[col] ?? '').trim();
+      if (!value) return;
+      if (target === 'email') email = value;
+      else if (target === 'name') name = value;
+      else if (target === 'bio') bio = value;
+      else if (target === 'tagline') tagline = value;
+      else if (target === 'pronouns') pronouns = value;
+      else if (target.startsWith('link:')) {
+        const key = target.slice(5) as LinkKey;
+        const url = normalizeLink(value);
+        if (url) links[key] = url;
+        else badLinks.push(`line ${line}`);
+      }
+    });
+
+    if (!email) {
+      skipped++;
+      return;
+    }
+    // Deliberately permissive — organizer sheets carry odd but real addresses.
+    if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) {
+      badEmails.push(`line ${line}: ${email}`);
+      skipped++;
+      return;
+    }
+
+    const key = email.toLowerCase();
+    const prior = seen.get(key) ?? byEmail.get(key);
+
+    if (prior) {
+      // Fill in what the sheet provides; never blank a field that's already set.
+      const merged: SpeakerLinks = { ...jsonParse<SpeakerLinks>(prior.links_json, {}), ...links };
+      const next: ImportProfile = {
+        ...prior,
+        name: name || prior.name,
+        bio: bio || prior.bio,
+        tagline: tagline || prior.tagline,
+        pronouns: pronouns || prior.pronouns,
+        links_json: linksJson(merged),
+      };
+      const changed =
+        next.name !== prior.name ||
+        next.bio !== prior.bio ||
+        next.tagline !== prior.tagline ||
+        next.pronouns !== prior.pronouns ||
+        next.links_json !== prior.links_json;
+      const already = seen.get(key);
+      if (!already) {
+        if (changed) updated++;
+        else unchanged++;
+      } else if (changed && !already.dirty) {
+        // A later row for the same speaker filled in what the first one left blank.
+        updated++;
+        unchanged--;
+      }
+      seen.set(key, { ...next, dirty: (already?.dirty ?? false) || changed });
+      return;
+    }
+
+    const base = slugify(name || email.split('@')[0], 'speaker');
+    let slug = base;
+    for (let n = 2; takenSlugs.has(slug); n++) slug = `${base}-${n}`;
+    takenSlugs.add(slug);
+
+    seen.set(key, {
+      id: newId('spk'),
+      email,
+      name: name || email,
+      bio,
+      tagline: tagline || null,
+      pronouns: pronouns || null,
+      links_json: linksJson(links),
+      slug,
+      imported_at: stamp,
+      dirty: true,
+    });
+    created++;
+  });
+
+  for (const [key, p] of seen) {
+    if (!p.dirty) continue; // already on file and unchanged — no write, no activity noise
+    const prior = byEmail.get(key);
+    if (prior) {
+      stmts.push([
+        `UPDATE speaker_profiles SET name = ?, bio = ?, tagline = ?, pronouns = ?, links_json = ?
+          WHERE id = ? AND event_id = ?`,
+        [p.name, p.bio, p.tagline, p.pronouns, p.links_json, prior.id, event.id],
+      ]);
+    } else {
+      stmts.push([
+        `INSERT INTO speaker_profiles
+           (id, event_id, user_id, email, name, bio, tagline, pronouns, links_json, headshot_file_id, slug,
+            created_at, imported_at)
+         VALUES (?,?,NULL,?,?,?,?,?,?,NULL,?,?,?)`,
+        [p.id, event.id, p.email, p.name, p.bio, p.tagline, p.pronouns, p.links_json, p.slug, stamp, stamp],
+      ]);
+    }
+    stmts.push([
+      `INSERT INTO activity (id, event_id, subject_type, subject_id, actor, action, detail, created_at)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [
+        newId('act'),
+        event.id,
+        'speaker',
+        prior ? prior.id : p.id,
+        actor,
+        prior ? 'Updated from CSV' : 'Imported from CSV',
+        p.email,
+        stamp,
+      ],
+    ]);
+  }
+
+  // Only a genuine dead end is an error — a sheet that's simply already
+  // up to date reports success with `unchanged`.
+  if (!created && !updated && !unchanged) {
+    return c.json(
+      {
+        ok: false,
+        error: badEmails.length
+          ? `No rows imported — ${badEmails.length} unusable email address${
+              badEmails.length === 1 ? '' : 'es'
+            } (${badEmails.slice(0, 3).join('; ')}${badEmails.length > 3 ? '; …' : ''}).`
+          : 'No rows had an email address — check the column mapping.',
+      },
+      400
+    );
+  }
+  await batch(c.env.DB, stmts);
+
+  const warnings: string[] = [];
+  if (badEmails.length) {
+    warnings.push(
+      `${badEmails.length} row${badEmails.length === 1 ? '' : 's'} skipped for an unusable email (${badEmails
+        .slice(0, 3)
+        .join('; ')}${badEmails.length > 3 ? '; …' : ''})`
+    );
+  }
+  if (badLinks.length) {
+    warnings.push(
+      badLinks.length === 1
+        ? `1 link dropped as an unreadable URL (${badLinks[0]})`
+        : `${badLinks.length} links dropped as unreadable URLs`
+    );
+  }
+  return c.json({ ok: true, created, updated, unchanged, skipped, warnings });
 });
 
 /* ----------------------------------------------------------------- ZIPs */

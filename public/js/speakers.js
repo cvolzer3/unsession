@@ -1361,6 +1361,198 @@ $('#as-go').addEventListener('click', async () => {
   }
 });
 
+/* ------------------------------------------------------------ csv import */
+
+/* Minimal RFC-4180 reader for the mapping preview; the server re-parses the
+   same text with lib/csv.ts before writing anything. */
+function parseCsv(text) {
+  const src = text.replace(/^﻿/, '');
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else quoted = false;
+      } else field += ch;
+      continue;
+    }
+    if (ch === '"') quoted = true;
+    else if (ch === ',') {
+      row.push(field);
+      field = '';
+    } else if (ch === '\r' || ch === '\n') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = '';
+    } else field += ch;
+  }
+  if (field.length || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  while (rows.length && rows[rows.length - 1].every((c) => c.trim() === '')) rows.pop();
+  return rows;
+}
+
+const IMPORT_TARGETS = [
+  ['ignore', 'Ignore'],
+  ['name', 'Name'],
+  ['email', 'Email'],
+  ['tagline', 'Tagline'],
+  ['bio', 'Bio'],
+  ['pronouns', 'Pronouns'],
+  ['link:linkedin', 'Link · LinkedIn'],
+  ['link:x', 'Link · X'],
+  ['link:website', 'Link · Website'],
+  ['link:other', 'Link · Other'],
+];
+
+const imp = { text: '', headers: [], rows: [] };
+
+const importModal = $('#import-modal');
+const importFile = $('#import-file');
+const importRun = $('#import-run');
+
+/** Header → column target. Email is checked before name so "Speaker email" doesn't land on Name. */
+function guessTarget(header) {
+  const h = header.toLowerCase().trim();
+  if (!h) return 'ignore';
+  if (h.includes('email') || h.includes('e-mail')) return 'email';
+  if (h.includes('pronoun')) return 'pronouns';
+  if (h.includes('tagline') || h.includes('job title') || h.includes('headline') || h === 'title') return 'tagline';
+  if (h.includes('bio') || h.includes('about')) return 'bio';
+  if (h.includes('linkedin')) return 'link:linkedin';
+  if (h === 'x' || h.includes('twitter') || h.includes('x.com') || h.includes('x handle')) return 'link:x';
+  if (h.includes('website') || h.includes('site') || h.includes('url') || h.includes('homepage')) return 'link:website';
+  if (h.includes('link')) return 'link:other';
+  if (h.includes('name') || h === 'speaker') return 'name';
+  return 'ignore';
+}
+
+function importRunStyle(on) {
+  importRun.disabled = !on;
+  importRun.style.cssText = on
+    ? 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;'
+    : 'padding:9px 16px;background:#e2e3e8;color:#9a9da6;border:none;font-size:13px;font-weight:600;cursor:default;';
+}
+
+function currentMapping() {
+  return imp.headers.map((_, i) => {
+    const sel = $(`[data-map="${i}"]`);
+    return sel ? sel.value : 'ignore';
+  });
+}
+
+function renderImportPreview() {
+  const preview = $('#import-preview');
+  const mapping = currentMapping();
+  const emailCol = mapping.indexOf('email');
+  if (emailCol === -1) {
+    preview.innerHTML =
+      '<span style="color:#b08800;">Map one column to <strong>Email</strong> — speakers are matched by email address.</span>';
+    preview.hidden = false;
+    importRunStyle(false);
+    return;
+  }
+  const emails = imp.rows.map((r) => (r[emailCol] || '').trim()).filter(Boolean);
+  const unique = new Set(emails.map((e) => e.toLowerCase()));
+  const blank = imp.rows.length - emails.length;
+  preview.innerHTML =
+    `<strong>${unique.size}</strong> speaker${unique.size === 1 ? '' : 's'} in ${imp.rows.length} row${
+      imp.rows.length === 1 ? '' : 's'
+    }` +
+    (blank ? ` · ${blank} row${blank === 1 ? '' : 's'} without an email will be skipped` : '') +
+    (emails.length ? `<br>First: ${esc(emails[0])}` : '');
+  preview.hidden = false;
+  importRunStyle(unique.size > 0);
+}
+
+function renderImportMapping() {
+  $('#import-mapping').innerHTML = imp.headers
+    .map((h, i) => {
+      const guess = guessTarget(h);
+      const sample = (imp.rows[0] || [])[i];
+      return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;">
+        <div style="min-width:0;">
+          <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(
+            h || `Column ${i + 1}`
+          )}</div>
+          ${
+            sample && sample.trim()
+              ? `<div style="font-size:11px;color:#9a9da6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(
+                  sample.trim()
+                )}</div>`
+              : ''
+          }
+        </div>
+        <select data-map="${i}" style="padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
+          ${IMPORT_TARGETS.map(
+            ([v, l]) => `<option value="${v}"${v === guess ? ' selected' : ''}>${esc(l)}</option>`
+          ).join('')}
+        </select>
+      </div>`;
+    })
+    .join('');
+  $('#import-mapping-wrap').hidden = false;
+  renderImportPreview();
+}
+
+if (importModal) {
+  $('#btn-import').addEventListener('click', () => {
+    imp.text = '';
+    imp.headers = [];
+    imp.rows = [];
+    importFile.value = '';
+    $('#import-mapping-wrap').hidden = true;
+    $('#import-preview').hidden = true;
+    importRunStyle(false);
+    openDialog('#import-modal');
+  });
+
+  importFile.addEventListener('change', async () => {
+    const file = importFile.files && importFile.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (rows.length < 2) {
+      toast(rows.length ? 'That file had a header but no rows' : 'That file had no rows', false);
+      return;
+    }
+    imp.text = text;
+    imp.headers = rows[0].map((h) => h.trim());
+    imp.rows = rows.slice(1).filter((r) => r.some((c) => c.trim() !== ''));
+    renderImportMapping();
+  });
+
+  // One listener for every mapping select — they're re-rendered on each file pick.
+  $('#import-mapping').addEventListener('change', renderImportPreview);
+
+  importRun.addEventListener('click', async () => {
+    if (!imp.text) return;
+    importRunStyle(false);
+    try {
+      const res = await api('/app/api/speakers/import', { text: imp.text, mapping: currentMapping() });
+      const parts = [];
+      if (res.created) parts.push(`${res.created} speaker${res.created === 1 ? '' : 's'} added`);
+      if (res.updated) parts.push(`${res.updated} updated`);
+      if (res.unchanged) parts.push(`${res.unchanged} already up to date`);
+      if (res.skipped) parts.push(`${res.skipped} skipped`);
+      reload([parts.join(' · ')].concat(res.warnings || []).join(' — '));
+    } catch (err) {
+      toast(err.message, false);
+      importRunStyle(true);
+    }
+  });
+}
+
 /* -------------------------------------------------------------- deep link */
 
 const openParam = new URL(location.href).searchParams.get('open');
