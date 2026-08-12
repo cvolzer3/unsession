@@ -1,6 +1,8 @@
 /**
  * `/app` — port of `Dashboard.dc.html` with every number computed from D1 for
- * the session's active event.
+ * the session's active event. Reworked per DECISIONS review R1: task-oriented
+ * dashboard — KPI row, a full-width NEEDS ATTENTION feed with quick actions,
+ * and a right rail (my reviews / deadlines / review progress).
  */
 import { Hono } from 'hono';
 import type { Ctx } from '../types';
@@ -9,16 +11,6 @@ import { adminProps } from '../views/chrome';
 import { all, one } from '../lib/db';
 
 const app = new Hono<Ctx>();
-
-const PIPELINE_ORDER = ['submitted', 'in_review', 'accepted', 'confirmed', 'waitlisted', 'declined'] as const;
-const PIPELINE_META: Record<string, { label: string; fg: string }> = {
-  submitted: { label: 'Submitted', fg: '#1c7ed6' },
-  in_review: { label: 'In Review', fg: '#b08800' },
-  accepted: { label: 'Accepted', fg: '#2b8a3e' },
-  confirmed: { label: 'Confirmed', fg: '#087f5b' },
-  waitlisted: { label: 'Waitlisted', fg: '#9c36b5' },
-  declined: { label: 'Declined', fg: '#c92a2a' },
-};
 
 function hourIn(tz: string): number {
   try {
@@ -42,10 +34,45 @@ function daysLeft(iso: string): number {
 }
 
 /**
- * Outstanding reviews per plan. Scope honours the plan's `form`, `status` and
- * `track` rules; `format`/`level` are not yet applied (no seeded plan uses
- * them) — the evaluation track (B3) owns the full rule engine.
+ * WHERE clause + params selecting the submissions in scope for a plan's rules.
+ * Honours `form`, `status` and `track`; `format`/`level` are not yet applied
+ * (no seeded plan uses them) — the evaluation track (B3) owns the full engine.
  */
+function planScope(eventId: string, rulesJson: string, optName: Map<string, string>) {
+  let rules: { form?: string; status?: string; track?: string } = {};
+  try {
+    rules = JSON.parse(rulesJson);
+  } catch {
+    rules = {};
+  }
+  const where: string[] = ['s.event_id = ?'];
+  const params: unknown[] = [eventId];
+  if (rules.form && rules.form !== 'all') {
+    where.push('s.form_id = ?');
+    params.push(rules.form);
+  }
+  if (!rules.status || rules.status === 'active') where.push("s.status IN ('submitted','in_review')");
+  else if (rules.status !== 'all') {
+    where.push('s.status = ?');
+    params.push(rules.status);
+  } else where.push("s.status <> 'draft'");
+  if (rules.track && rules.track !== 'all') {
+    where.push(`json_extract(s.answers_json, '$.f_track') = ?`);
+    params.push(optName.get(rules.track) ?? '');
+  }
+  return { clause: where.join(' AND '), params };
+}
+
+async function trackOptionNames(db: D1Database, eventId: string): Promise<Map<string, string>> {
+  const options = await all<{ id: string; name: string }>(
+    db,
+    `SELECT o.id, o.name FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id WHERE t.event_id = ?`,
+    eventId
+  );
+  return new Map(options.map((o) => [o.id, o.name]));
+}
+
+/** Outstanding reviews per plan, event-wide. */
 async function reviewProgress(db: D1Database, eventId: string) {
   const done =
     (
@@ -64,37 +91,11 @@ async function reviewProgress(db: D1Database, eventId: string) {
   );
   if (!plans.length) return { done, total: done, pct: done ? 100 : 0 };
 
-  const options = await all<{ id: string; name: string }>(
-    db,
-    `SELECT o.id, o.name FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id WHERE t.event_id = ?`,
-    eventId
-  );
-  const optName = new Map(options.map((o) => [o.id, o.name]));
+  const optName = await trackOptionNames(db, eventId);
 
   let outstanding = 0;
   for (const plan of plans) {
-    let rules: { form?: string; status?: string; track?: string } = {};
-    try {
-      rules = JSON.parse(plan.rules_json);
-    } catch {
-      rules = {};
-    }
-    const where: string[] = ['s.event_id = ?'];
-    const params: unknown[] = [eventId];
-    if (rules.form && rules.form !== 'all') {
-      where.push('s.form_id = ?');
-      params.push(rules.form);
-    }
-    if (!rules.status || rules.status === 'active') where.push("s.status IN ('submitted','in_review')");
-    else if (rules.status !== 'all') {
-      where.push('s.status = ?');
-      params.push(rules.status);
-    } else where.push("s.status <> 'draft'");
-    if (rules.track && rules.track !== 'all') {
-      where.push(`json_extract(s.answers_json, '$.f_track') = ?`);
-      params.push(optName.get(rules.track) ?? '');
-    }
-    const clause = where.join(' AND ');
+    const { clause, params } = planScope(eventId, plan.rules_json, optName);
     // `evals` must only count reviews on the plan's in-scope submissions,
     // otherwise reviews on out-of-scope submissions cancel real outstanding work.
     const row = await one<{ subs: number; evals: number }>(
@@ -113,6 +114,47 @@ async function reviewProgress(db: D1Database, eventId: string) {
   const total = done + outstanding;
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
+
+/**
+ * The signed-in organizer's own review queue, if they sit on any evaluation
+ * plan of this event (same eval_plan_reviewers check as `/app/evaluation`).
+ * Approximation: per plan they're on, in-scope submissions vs their submitted
+ * evaluations on those submissions — labelled "in · to go", not exact
+ * assignment math.
+ */
+async function myReviewQueue(db: D1Database, eventId: string, userId: string) {
+  const plans = await all<{ id: string; rules_json: string }>(
+    db,
+    `SELECT p.id, p.rules_json FROM eval_plans p
+       JOIN eval_plan_reviewers r ON r.plan_id = p.id
+      WHERE p.event_id = ? AND r.user_id = ?`,
+    eventId,
+    userId
+  );
+  if (!plans.length) return null;
+
+  const optName = await trackOptionNames(db, eventId);
+  let done = 0;
+  let remaining = 0;
+  for (const plan of plans) {
+    const { clause, params } = planScope(eventId, plan.rules_json, optName);
+    const row = await one<{ subs: number; mine: number }>(
+      db,
+      `SELECT (SELECT COUNT(*) FROM submissions s WHERE ${clause}) AS subs,
+              (SELECT COUNT(*) FROM evaluations ev JOIN submissions s ON s.id = ev.submission_id
+                WHERE ev.plan_id = ? AND ev.reviewer_id = ? AND ${clause}) AS mine`,
+      ...params,
+      plan.id,
+      userId,
+      ...params
+    );
+    done += row?.mine ?? 0;
+    remaining += Math.max(0, (row?.subs ?? 0) - (row?.mine ?? 0));
+  }
+  return { done, remaining };
+}
+
+type AttentionItem = { title: string; sub: string; cta: string; href: string; dot: string; subMono?: boolean };
 
 app.get('/app', async (c) => {
   const event = c.var.event;
@@ -182,7 +224,8 @@ app.get('/app', async (c) => {
     today
   );
 
-  const conflict = await one<{ name: string; day: number; start_min: number; rooms: string }>(
+  // Every double-booked speaker, one row per conflicting session pair.
+  const conflicts = await all<{ name: string; day: number; start_min: number; rooms: string }>(
     db,
     `SELECT sp.name AS name, s1.day AS day, s1.start_min AS start_min,
             (COALESCE(r1.name,'—') || ' and ' || COALESCE(r2.name,'—')) AS rooms
@@ -196,11 +239,27 @@ app.get('/app', async (c) => {
       WHERE s1.event_id = ? AND s1.day IS NOT NULL AND s2.day IS NOT NULL
         AND s1.day = s2.day AND s1.start_min < s2.end_min AND s2.start_min < s1.end_min
         AND s1.id < s2.id
-      LIMIT 1`,
+      ORDER BY s1.day, s1.start_min`,
     event.id
   );
 
+  // Accepted more than 7 days ago, speaker still hasn't confirmed.
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const staleAccepted =
+    (
+      await one<{ n: number }>(
+        db,
+        `SELECT COUNT(*) AS n FROM submissions WHERE event_id = ? AND status = 'accepted' AND updated_at < ?`,
+        event.id,
+        weekAgo
+      )
+    )?.n ?? 0;
+
+  const formCount =
+    (await one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM forms WHERE event_id = ?`, event.id))?.n ?? 0;
+
   const review = await reviewProgress(db, event.id);
+  const myQueue = c.var.user ? await myReviewQueue(db, event.id, c.var.user.id) : null;
 
   const forms = await all<{ name: string; closes_at: string | null; status: string }>(
     db,
@@ -222,13 +281,6 @@ app.get('/app', async (c) => {
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 5);
 
-  const pipeline = PIPELINE_ORDER.map((k) => ({
-    key: k,
-    label: PIPELINE_META[k].label,
-    fg: PIPELINE_META[k].fg,
-    n: cnt(k),
-  }));
-
   const kpis = [
     { label: 'SUBMISSIONS', val: totalSubs, sub: `${cnt('submitted')} new, unassigned`, href: '/app/submissions' },
     { label: 'IN REVIEW', val: cnt('in_review'), sub: `${review.done} of ${review.total} reviews in`, href: '/app/evaluation' },
@@ -241,12 +293,34 @@ app.get('/app', async (c) => {
     { label: 'UNSCHEDULED', val: unscheduled, sub: 'ready for the agenda', href: '/app/agenda' },
   ];
 
-  const attention: { title: string; sub: string; cta: string; href: string; dot: string }[] = [];
-  if (conflict) {
+  const attention: AttentionItem[] = [];
+
+  // Fresh-event leads: no forms yet, or forms but no submissions.
+  if (formCount === 0) {
+    attention.push({
+      title: 'Create your first form',
+      sub: 'Publish a call for talks to start collecting submissions.',
+      cta: 'Open forms →',
+      href: '/app/forms',
+      dot: '#4c5fd5',
+    });
+  } else if (totalSubs === 0) {
+    const links = (props.publicForms ?? []).map((f) => `${c.env.APP_ORIGIN}/${event.slug}/${f.slug}`);
+    attention.push({
+      title: 'Share your form link',
+      sub: links.length ? links.join('  ·  ') : 'Publish a form to get a shareable link.',
+      subMono: links.length > 0,
+      cta: 'Open forms →',
+      href: '/app/forms',
+      dot: '#4c5fd5',
+    });
+  }
+
+  for (const conflict of conflicts) {
     attention.push({
       title: `${conflict.name} is double-booked`,
       sub: `Day ${conflict.day + 1}, ${fmtMin(conflict.start_min)} — ${conflict.rooms} at once`,
-      cta: 'AGENDA',
+      cta: 'Open agenda →',
       href: '/app/agenda',
       dot: '#e03131',
     });
@@ -255,16 +329,40 @@ app.get('/app', async (c) => {
     attention.push({
       title: `${overdue!.n} speaker task${overdue!.n === 1 ? '' : 's'} overdue`,
       sub: `${overdue!.speakers} speaker${overdue!.speakers === 1 ? '' : 's'} behind on onboarding`,
-      cta: 'SPEAKERS',
+      cta: 'Nudge speakers →',
       href: '/app/speakers',
       dot: '#e03131',
+    });
+  }
+  for (const f of forms) {
+    if (f.status !== 'open' || !f.closes_at || f.closes_at.slice(0, 10) < today) continue;
+    const left = daysLeft(f.closes_at);
+    if (left > 7) continue;
+    attention.push({
+      title: `“${f.name}” closes ${fmtDate(f.closes_at)}`,
+      sub: left === 0 ? 'Closes today — extend it or announce the deadline' : `${left} day${left === 1 ? '' : 's'} left — extend it or announce the deadline`,
+      cta: 'Open forms →',
+      href: '/app/forms',
+      dot: '#b08800',
+    });
+  }
+  if (staleAccepted > 0) {
+    attention.push({
+      title:
+        staleAccepted === 1
+          ? `1 accepted speaker hasn't confirmed`
+          : `${staleAccepted} accepted speakers haven't confirmed`,
+      sub: 'Accepted more than 7 days ago — send them a nudge',
+      cta: 'Nudge speakers →',
+      href: '/app/speakers',
+      dot: '#b08800',
     });
   }
   if (unreviewed > 0) {
     attention.push({
       title: `${unreviewed} submission${unreviewed === 1 ? '' : 's'} have no reviews yet`,
       sub: deadlines.length ? `Assign them before ${fmtDate(deadlines[0].date)}` : 'Assign them to an evaluation plan',
-      cta: 'EVALUATION',
+      cta: 'Assign reviewers →',
       href: '/app/evaluation',
       dot: '#b08800',
     });
@@ -273,7 +371,7 @@ app.get('/app', async (c) => {
     attention.push({
       title: `${unscheduled} accepted session${unscheduled === 1 ? '' : 's'} not on the agenda`,
       sub: 'Drag them onto a day in the agenda builder',
-      cta: 'AGENDA',
+      cta: 'Open agenda →',
       href: '/app/agenda',
       dot: '#b08800',
     });
@@ -301,53 +399,53 @@ app.get('/app', async (c) => {
           ))}
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;margin-bottom:14px;">
-          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
-            <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
-              SUBMISSION PIPELINE
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;">
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
+              NEEDS ATTENTION
             </div>
-            <div style="margin-left:auto;font-size:11.5px;">
-              <a href="/app/submissions">Open submissions →</a>
-            </div>
-          </div>
-          <div style="display:flex;height:14px;overflow:hidden;">
-            {pipeline.map((p) => (
-              <div style={`flex:${Math.max(p.n, 0.001)};background:${p.fg};`} title={`${p.label}: ${p.n}`}></div>
-            ))}
-          </div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:9px;">
-            {pipeline.map((p) => (
-              <div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:#686b74;">
-                <span style={`width:9px;height:9px;background:${p.fg};flex:none;`}></span>
-                {p.label}{' '}
-                <span style={`font-family:${MONO};font-weight:600;color:#16171d;`}>{p.n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr;gap:12px;align-items:start;max-width:520px;">
-          <div style="display:flex;flex-direction:column;gap:12px;">
             {attention.length ? (
-              <div style="background:#fff;border:1px solid #e2e3e8;">
-                <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
-                  NEEDS ATTENTION
+              attention.map((a) => (
+                <a
+                  href={a.href}
+                  style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                >
+                  <span style={`width:9px;height:9px;background:${a.dot};flex:none;`}></span>
+                  <span style="min-width:0;">
+                    <span style="display:block;font-size:13px;font-weight:500;">{a.title}</span>
+                    <span
+                      style={
+                        a.subMono
+                          ? `display:block;font-family:${MONO};font-size:11px;color:#686b74;margin-top:2px;word-break:break-all;`
+                          : 'display:block;font-size:11.5px;color:#686b74;margin-top:1px;'
+                      }
+                    >
+                      {a.sub}
+                    </span>
+                  </span>
+                  <span style="margin-left:auto;flex:none;padding:5px 12px;border:1px solid #cdd2ea;background:#fff;color:#4c5fd5;font-size:12px;font-weight:600;white-space:nowrap;">
+                    {a.cta}
+                  </span>
+                </a>
+              ))
+            ) : (
+              <div style="padding:16px;font-size:12.5px;color:#9a9da6;">Nothing needs attention right now.</div>
+            )}
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            {myQueue ? (
+              <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+                <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
+                  MY REVIEWS
                 </div>
-                {attention.map((a) => (
-                  <a
-                    href={a.href}
-                    style="display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
-                  >
-                    <span style={`width:9px;height:9px;background:${a.dot};flex:none;position:relative;top:1px;`}></span>
-                    <span style="min-width:0;">
-                      <span style="display:block;font-size:13px;font-weight:500;">{a.title}</span>
-                      <span style="display:block;font-size:11.5px;color:#686b74;margin-top:1px;">{a.sub}</span>
-                    </span>
-                    <span style={`margin-left:auto;font-family:${MONO};font-size:10px;color:#9a9da6;white-space:nowrap;`}>
-                      {a.cta} →
-                    </span>
-                  </a>
-                ))}
+                <div style="display:flex;align-items:baseline;gap:8px;">
+                  <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{myQueue.remaining}</div>
+                  <div style="font-size:11.5px;color:#686b74;">{`${myQueue.done} in · ${myQueue.remaining} to go`}</div>
+                </div>
+                <div style="font-size:11.5px;margin-top:9px;">
+                  <a href={`/${event.slug}/evaluate`}>Open my queue →</a>
+                </div>
               </div>
             ) : null}
 
