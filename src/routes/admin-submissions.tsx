@@ -925,10 +925,6 @@ app.get('/app/submissions', async (c) => {
               <input type="checkbox" id="decision-request-confirmation" checked style="accent-color:#4c5fd5;" />
               Request confirmation — speakers must confirm before they appear on the public agenda
             </label>
-            <div
-              id="decision-summary"
-              style="background:#f8f8fa;border:1px solid #e2e3e8;padding:10px 14px;font-size:12.5px;color:#686b74;"
-            ></div>
           </div>
           <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
             <button

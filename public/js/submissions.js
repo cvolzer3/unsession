@@ -477,17 +477,6 @@ function boot(DATA) {
   const DONE = { accept: 'Accepted', decline: 'Declined', waitlist: 'Waitlisted' };
   const COLOR = { accept: '#2b8a3e', decline: '#c92a2a', waitlist: '#9c36b5' };
 
-  function summaryFor(kind, n) {
-    const s = plural(n);
-    const later =
-      kind === 'accept'
-        ? `status → Accepted · session${s} created · acceptance email${s} + confirmation loop`
-        : kind === 'decline'
-          ? `status → Declined · decline email${s} with individual feedback merged per recipient`
-          : `status → Waitlisted · waitlist email${s} (promoting later re-runs the accept flow)`;
-    return `Queueing sends nothing and changes no status — speakers see nothing yet, and you can still undo. When you send the queue (panel above the table, or Emails → Outbox): ${later} · logged to activity.`;
-  }
-
   /** Fill subject/body from a template — still editable per send. */
   function fillDecisionTemplate(tpl) {
     $('#decision-subject').value = tpl.subject || '';
@@ -508,7 +497,7 @@ function boot(DATA) {
     const n = rows.length;
 
     $('#decision-heading').textContent = `${VERB[kind]} ${n} submission${plural(n)}`;
-    $('#decision-recip-label').textContent = `RECIPIENTS · ${n} — QUEUED FOR REVIEW. NOTHING SENDS UNTIL YOU ACT ON THE OUTBOX.`;
+    $('#decision-recip-label').textContent = `RECIPIENTS · ${n} — QUEUED FOR REVIEW`;
     $('#decision-recipients').innerHTML = rows
       .map((r) => {
         const sp = r.speakers[0] || { name: 'No speaker on file', email: '—' };
@@ -533,12 +522,12 @@ function boot(DATA) {
       .join('');
     const tplSelect = $('#decision-template-select');
     if (tplSelect && tplList.length > 1) {
-      $('#decision-template').textContent = 'TEMPLATE — editable per send';
+      $('#decision-template').textContent = 'TEMPLATE';
       tplSelect.innerHTML = tplList.map((t, i) => `<option value="${i}">${esc(t.name)}</option>`).join('');
       tplSelect.value = '0';
       tplSelect.hidden = false;
     } else {
-      $('#decision-template').textContent = `TEMPLATE “${tpl.name}” — editable per send`;
+      $('#decision-template').textContent = `TEMPLATE “${tpl.name}”`;
       if (tplSelect) {
         tplSelect.hidden = true;
         tplSelect.innerHTML = '';
@@ -551,10 +540,9 @@ function boot(DATA) {
     const confirmRow = $('#decision-confirm-row');
     confirmRow.hidden = kind !== 'accept';
     $('#decision-request-confirmation').checked = true;
-    $('#decision-summary').textContent = summaryFor(kind, n);
     const send = $('#decision-send');
     send.style.background = COLOR[kind];
-    send.textContent = `Queue ${n} decision${plural(n)} — send later from Outbox`;
+    send.textContent = `Queue ${n} decision${plural(n)}`;
 
     state.decision = { kind, ids: rows.map((r) => r.id), templates: tplList };
     openDialog('#decision-modal'); // layers above the drawer, which stays open
@@ -607,7 +595,7 @@ function boot(DATA) {
       } catch (err) {
         toast(err.message, false);
         sendBtn.disabled = false;
-        sendBtn.textContent = `Queue ${ids.length} decision${plural(ids.length)} — send later from Outbox`;
+        sendBtn.textContent = `Queue ${ids.length} decision${plural(ids.length)}`;
       }
     });
 
