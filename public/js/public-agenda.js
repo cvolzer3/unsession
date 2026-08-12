@@ -68,6 +68,7 @@ function boot(D) {
   const byStart = (a, b) => a.start - b.start || a.end - b.end || (a.allRooms ? -1 : 1);
   const roomLabel = (a) => (a.allRooms ? 'ALL ROOMS' : a.room || '');
   const speakerNames = (a) => a.speakers.map((p) => p.name).join(', ');
+  const speakerLine = (a) => a.speakers.map((p) => (p.affiliation ? p.name + ' (' + p.affiliation + ')' : p.name)).join(', ');
   const matchesTrack = (a) => S.track === 'all' || a.allRooms || a.trackId === S.track;
   const matchesQ = (a) => !S.q || (a.title + ' ' + speakerNames(a)).toLowerCase().includes(S.q);
   const vis = (day) => D.sessions.filter((a) => a.day === day && matchesTrack(a)).sort(byStart);
@@ -148,7 +149,7 @@ function boot(D) {
         hideRoom ? '' : esc(roomLabel(a))
       }</span></div>` +
       `<div style="${svc ? svcTitleStyle : titleStyle}">${esc(svc ? a.title.toUpperCase() : a.title)}</div>` +
-      `<div style="font-size:10px;color:var(--muted);margin-top:1px;">${esc(svc ? '' : speakerNames(a))}</div>` +
+      `<div style="font-size:10px;color:var(--muted);margin-top:1px;">${esc(svc ? '' : speakerLine(a))}</div>` +
       '</div>'
     );
   }
@@ -213,7 +214,7 @@ function boot(D) {
         (a.sponsorBadge
           ? `<span style="font-family:${MONO};font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">SPONSORED</span>`
           : '') +
-        `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(svc ? '' : speakerNames(a))}</div></span>` +
+        `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(svc ? '' : speakerLine(a))}</div></span>` +
         `<span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">${
           svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
         }</span>` +
@@ -274,7 +275,7 @@ function boot(D) {
             a
           )}</span><span style="margin-left:auto;">${esc(roomLabel(a))}</span></div>` +
           `<div style="font-size:13px;font-weight:700;line-height:1.3;margin-top:4px;letter-spacing:-0.01em;">${esc(a.title)}</div>` +
-          `<div style="font-size:11px;color:var(--muted);margin-top:3px;">${esc(speakerNames(a))}</div></div>`;
+          `<div style="font-size:11px;color:var(--muted);margin-top:3px;">${esc(speakerLine(a))}</div></div>`;
       }
       h += '</div>';
       if (!items.length) h += `<div style="font-family:${MONO};font-size:9.5px;color:var(--faint);">NO SESSIONS THIS DAY</div>`;
@@ -352,7 +353,9 @@ function boot(D) {
             )}</div>` +
             `<div><a href="/${D.slug}/speakers/${encodeURIComponent(p.slug)}" style="font-size:13px;font-weight:600;color:var(--text);text-decoration:none;border-bottom:1px solid var(--border-strong);">${esc(
               p.name
-            )}</a>${p.bio ? ` <span style="font-size:12.5px;color:var(--muted);">— ${esc(p.bio)}</span>` : ''}</div></div>`
+            )}</a>${p.affiliation ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:1px;">${esc(p.affiliation)}</div>` : ''}${
+              p.bio ? `<div style="font-size:12.5px;color:var(--muted);margin-top:1px;">${esc(p.bio)}</div>` : ''
+            }</div></div>`
         )
         .join('') +
       '</div></div>';

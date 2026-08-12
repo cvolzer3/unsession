@@ -25,6 +25,7 @@ import {
   loadAgenda,
   publishedRev,
   roomNamer,
+  speakerAffiliation,
   type SessionRow,
   type SpeakerLite,
 } from '../lib/agenda';
@@ -149,7 +150,12 @@ app.get('/:event/embed/agenda', async (c) => {
       const svc = !!s.all_rooms;
       const end = s.end_min ?? s.start_min! + s.duration_min;
       const tr = s.track_option_id ? trackById.get(s.track_option_id) : null;
-      const names = (bundle.speakers.get(s.id) ?? []).map((p) => p.name).join(', ');
+      const names = (bundle.speakers.get(s.id) ?? [])
+        .map((p) => {
+          const role = speakerAffiliation(p);
+          return role ? `${p.name} (${role})` : p.name;
+        })
+        .join(', ');
       const rowStyle = `display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--border);align-items:flex-start;text-decoration:none;color:var(--text);${
         svc ? 'background:var(--bg);' : ''
       }`;
@@ -296,6 +302,9 @@ app.get('/:event/embed/speakers', async (c) => {
           </div>
         )}
         <div style="font-size:13px;font-weight:700;letter-spacing:-0.01em;margin-top:9px;line-height:1.3;">{p.name}</div>
+        {speakerAffiliation(p) ? (
+          <div style="font-size:11.5px;color:var(--text-secondary);margin-top:3px;line-height:1.4;">{speakerAffiliation(p)}</div>
+        ) : null}
         <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45;">{titles.join(' · ')}</div>
       </a>
     );

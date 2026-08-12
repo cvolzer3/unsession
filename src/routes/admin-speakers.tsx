@@ -26,6 +26,7 @@ import { zipHeadshots, zipSlides } from '../lib/zip';
 import { listReminderQueue, queueTaskReminder } from '../lib/reminder-queue';
 import { OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import * as T from '../lib/tasks';
+import { speakerAffiliation } from '../lib/agenda';
 
 const app = new Hono<Ctx>();
 
@@ -73,6 +74,9 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  job_title: string | null;
+  company: string | null;
+  tagline: string | null;
   slug: string;
   headshot_file_id: string | null;
   /** Set by the CSV importer (migration 0019) — organizer-added, no CFP trail. */
@@ -83,6 +87,8 @@ type GridRow = {
   id: string;
   name: string;
   email: string;
+  /** "Job title · Company" line (tagline fallback) shown under the name. */
+  affiliation: string;
   slug: string;
   session: string;
   status: string;
@@ -110,7 +116,7 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
 
   const profiles = await all<ProfileRow>(
     env.DB,
-    `SELECT id, name, email, bio, slug, headshot_file_id, imported_at
+    `SELECT id, name, email, bio, job_title, company, tagline, slug, headshot_file_id, imported_at
        FROM speaker_profiles WHERE event_id = ? ORDER BY name`,
     eventId
   );
@@ -184,6 +190,7 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
       id: p.id,
       name: p.name,
       email: p.email,
+      affiliation: speakerAffiliation(p),
       slug: p.slug,
       session: mySessions?.title ?? sub?.title ?? '',
       status: sub?.status ?? '',
@@ -232,6 +239,11 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
           >
             <div data-open-speaker={r.id} style="padding-right:10px;cursor:pointer;" title="Open speaker profile">
               <div style="font-size:13px;font-weight:600;">{r.name}</div>
+              {r.affiliation ? (
+                <div style="font-size:11px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  {r.affiliation}
+                </div>
+              ) : null}
               <div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 {r.session}
               </div>
@@ -1154,13 +1166,14 @@ app.get('/app/speakers.csv', async (c) => {
   const event = c.var.event;
   if (!event) return c.text('No event', 400);
   const data = await loadPage(c.env, event.id);
-  const header = ['Speaker', 'Email', 'Session', ...data.active.map((t) => t.name), 'Done'];
+  const header = ['Speaker', 'Email', 'Title & Company', 'Session', ...data.active.map((t) => t.name), 'Done'];
   const lines = [header.map(csvCell).join(',')];
   for (const r of data.rows) {
     lines.push(
       [
         r.name,
         r.email,
+        r.affiliation,
         r.session,
         ...data.active.map((t) => TIP[r.cells[t.id]]),
         `${r.done}/${r.assigned}`,
@@ -1210,7 +1223,7 @@ app.get('/app/speakers/import-template.csv', (c) => {
  */
 
 /** One mapped column target. `link:*` writes into the links_json object. */
-type ImportTarget = 'ignore' | 'name' | 'email' | 'bio' | 'tagline' | 'pronouns' | `link:${LinkKey}`;
+type ImportTarget = 'ignore' | 'name' | 'email' | 'bio' | 'job_title' | 'company' | 'tagline' | 'pronouns' | `link:${LinkKey}`;
 
 const IMPORT_MAX_ROWS = 500;
 
@@ -1219,6 +1232,8 @@ type ImportProfile = {
   email: string;
   name: string;
   bio: string;
+  job_title: string | null;
+  company: string | null;
   tagline: string | null;
   pronouns: string | null;
   links_json: string | null;
@@ -1245,7 +1260,7 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
 
   const existing = await all<ImportProfile>(
     c.env.DB,
-    `SELECT id, email, name, bio, tagline, pronouns, links_json, slug, imported_at
+    `SELECT id, email, name, bio, job_title, company, tagline, pronouns, links_json, slug, imported_at
        FROM speaker_profiles WHERE event_id = ?`,
     event.id
   );
@@ -1271,6 +1286,8 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
     let email = '';
     let name = '';
     let bio = '';
+    let jobTitle = '';
+    let company = '';
     let tagline = '';
     let pronouns = '';
     const links: SpeakerLinks = {};
@@ -1282,6 +1299,8 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
       if (target === 'email') email = value;
       else if (target === 'name') name = value;
       else if (target === 'bio') bio = value;
+      else if (target === 'job_title') jobTitle = value;
+      else if (target === 'company') company = value;
       else if (target === 'tagline') tagline = value;
       else if (target === 'pronouns') pronouns = value;
       else if (target.startsWith('link:')) {
@@ -1313,6 +1332,8 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
         ...prior,
         name: name || prior.name,
         bio: bio || prior.bio,
+        job_title: jobTitle || prior.job_title,
+        company: company || prior.company,
         tagline: tagline || prior.tagline,
         pronouns: pronouns || prior.pronouns,
         links_json: linksJson(merged),
@@ -1320,6 +1341,8 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
       const changed =
         next.name !== prior.name ||
         next.bio !== prior.bio ||
+        next.job_title !== prior.job_title ||
+        next.company !== prior.company ||
         next.tagline !== prior.tagline ||
         next.pronouns !== prior.pronouns ||
         next.links_json !== prior.links_json;
@@ -1346,6 +1369,8 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
       email,
       name: name || email,
       bio,
+      job_title: jobTitle || null,
+      company: company || null,
       tagline: tagline || null,
       pronouns: pronouns || null,
       links_json: linksJson(links),
@@ -1361,17 +1386,17 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
     const prior = byEmail.get(key);
     if (prior) {
       stmts.push([
-        `UPDATE speaker_profiles SET name = ?, bio = ?, tagline = ?, pronouns = ?, links_json = ?
+        `UPDATE speaker_profiles SET name = ?, bio = ?, job_title = ?, company = ?, tagline = ?, pronouns = ?, links_json = ?
           WHERE id = ? AND event_id = ?`,
-        [p.name, p.bio, p.tagline, p.pronouns, p.links_json, prior.id, event.id],
+        [p.name, p.bio, p.job_title, p.company, p.tagline, p.pronouns, p.links_json, prior.id, event.id],
       ]);
     } else {
       stmts.push([
         `INSERT INTO speaker_profiles
-           (id, event_id, user_id, email, name, bio, tagline, pronouns, links_json, headshot_file_id, slug,
+           (id, event_id, user_id, email, name, bio, job_title, company, tagline, pronouns, links_json, headshot_file_id, slug,
             created_at, imported_at)
-         VALUES (?,?,NULL,?,?,?,?,?,?,NULL,?,?,?)`,
-        [p.id, event.id, p.email, p.name, p.bio, p.tagline, p.pronouns, p.links_json, p.slug, stamp, stamp],
+         VALUES (?,?,NULL,?,?,?,?,?,?,?,?,NULL,?,?,?)`,
+        [p.id, event.id, p.email, p.name, p.bio, p.job_title, p.company, p.tagline, p.pronouns, p.links_json, p.slug, stamp, stamp],
       ]);
     }
     stmts.push([
@@ -1465,7 +1490,7 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
   if (!event) return c.json({ ok: false, error: 'No event' }, 400);
   const profile = await one<ProfileRow>(
     c.env.DB,
-    `SELECT id, name, email, bio, slug, headshot_file_id FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    `SELECT id, name, email, bio, job_title, company, tagline, slug, headshot_file_id FROM speaker_profiles WHERE id = ? AND event_id = ?`,
     c.req.param('id'),
     event.id
   );
@@ -1599,7 +1624,14 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
   const badge = sub?.session_status === 'confirmed' ? 'confirmed' : (sub?.status ?? '');
   return c.json({
     ok: true,
-    speaker: { id: profile.id, name: profile.name, email: profile.email, bio: profile.bio, slug: profile.slug },
+    speaker: {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      affiliation: speakerAffiliation(profile),
+      bio: profile.bio,
+      slug: profile.slug,
+    },
     submission: sub
       ? {
           id: sub.id,

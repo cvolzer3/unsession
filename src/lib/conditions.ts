@@ -30,6 +30,9 @@ export type SpeakerInput = {
   name: string;
   email: string;
   bio?: string;
+  jobTitle?: string;
+  company?: string;
+  /** Legacy free-text "CTO at Acme" line — superseded by jobTitle + company. */
   tagline?: string;
   links?: SpeakerLinks;
   headshotFileId?: string | null;

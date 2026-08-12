@@ -122,7 +122,8 @@ export const TOOLS: Tool[] = [
   },
   {
     name: 'list_speakers',
-    description: 'List an event’s speaker profiles (name, email, bio, pronouns, links, headshot URL) with task progress counts. Read-only.',
+    description:
+      'List an event’s speaker profiles (name, email, bio, job title, company, pronouns, links, headshot URL) with task progress counts. Read-only.',
     inputSchema: { type: 'object', properties: { event: EVENT_PROP }, required: ['event'], additionalProperties: false },
     run: (env, auth, a) => api.listSpeakers(env, auth, str(a.event)),
   },
@@ -158,7 +159,13 @@ export const TOOLS: Tool[] = [
           description: 'Speakers in order; each needs a name or an email.',
           items: {
             type: 'object',
-            properties: { name: { type: 'string' }, email: { type: 'string' }, bio: { type: 'string' } },
+            properties: {
+              name: { type: 'string' },
+              email: { type: 'string' },
+              bio: { type: 'string' },
+              jobTitle: { type: 'string' },
+              company: { type: 'string' },
+            },
             additionalProperties: false,
           },
         },
@@ -300,7 +307,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'update_speaker',
     description:
-      'UPDATE a speaker profile: name, bio, pronouns and/or links ({linkedin, x, website, other}; links merge, null removes). Activity-logged; may auto-complete an open “complete profile” task. Sends no email.',
+      'UPDATE a speaker profile: name, bio, job title, company, pronouns and/or links ({linkedin, x, website, other}; links merge, null removes). Activity-logged; may auto-complete an open “complete profile” task. Sends no email.',
     write: true,
     inputSchema: {
       type: 'object',
@@ -308,6 +315,8 @@ export const TOOLS: Tool[] = [
         id: { type: 'string', description: 'Speaker profile id (spk_…).' },
         name: { type: 'string' },
         bio: { type: 'string' },
+        jobTitle: { type: ['string', 'null'] },
+        company: { type: ['string', 'null'] },
         pronouns: { type: ['string', 'null'] },
         links: { type: 'object', description: 'Keys linkedin/x/website/other; values are URLs, null removes.' },
       },

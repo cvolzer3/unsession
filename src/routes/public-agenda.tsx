@@ -26,6 +26,7 @@ import {
   loadAgenda,
   publishedRev,
   roomNamer,
+  speakerAffiliation,
   type AgendaBundle,
   type SessionRow,
 } from '../lib/agenda';
@@ -146,7 +147,7 @@ app.get('/:event/agenda', async (c) => {
         trackId: s.track_option_id,
         sponsorName: s.sponsor_name,
         sponsorBadge: s.type === 'sponsor' && !!s.sponsor_badge,
-        speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({ name: p.name, slug: p.slug, bio: p.bio })),
+        speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({ name: p.name, slug: p.slug, bio: p.bio, affiliation: speakerAffiliation(p) })),
       }))
       .sort((a, b) => a.day - b.day || a.start - b.start || (a.allRooms ? -1 : 1));
 
@@ -199,7 +200,9 @@ app.get('/:event/agenda', async (c) => {
                 SPONSORED
               </span>
             ) : null}
-            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">{svc ? '' : s.speakers.map((p) => p.name).join(', ')}</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
+              {svc ? '' : s.speakers.map((p) => (p.affiliation ? `${p.name} (${p.affiliation})` : p.name)).join(', ')}
+            </div>
           </span>
           <span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">
             {svc ? null : (
