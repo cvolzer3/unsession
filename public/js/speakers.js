@@ -169,7 +169,7 @@ if (focusParam === 'overdue' || focusParam === 'unconfirmed') {
   banner.style.cssText =
     'display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;';
   banner.innerHTML =
-    `<span>From the dashboard — showing <b>${esc(label)}</b>.</span>` +
+    `<span>Showing <b>${esc(label)}</b>.</span>` +
     '<button type="button" data-focus-clear style="margin-left:auto;background:none;border:none;color:#7a5c0a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;white-space:nowrap;">Show all speakers</button>';
   gridWrap.parentNode.insertBefore(banner, gridWrap);
   banner.querySelector('[data-focus-clear]').addEventListener('click', () => {

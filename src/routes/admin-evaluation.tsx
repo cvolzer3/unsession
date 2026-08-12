@@ -402,8 +402,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
       {filters.unreviewed ? (
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;">
           <span>
-            From the dashboard — showing{' '}
-            <b>{`${rows.length} submission${rows.length === 1 ? '' : 's'} with no evaluations yet`}</b>. Assign
+            Showing <b>{`${rows.length} submission${rows.length === 1 ? '' : 's'} with no evaluations yet`}</b>. Assign
             evaluators or nudge the ones already assigned.
           </span>
           <a
