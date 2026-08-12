@@ -27,7 +27,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, publicNav } from '../views/layout';
+import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import {
   eventDays,
@@ -60,7 +60,7 @@ import {
 const app = new Hono<Ctx>();
 
 const MONO = 'var(--font-mono)';
-const PAGE_MAX = 960;
+const PAGE_MAX = PUBLIC_PAGE_MAX;
 
 /* ------------------------------------------------------------ shared ctx */
 

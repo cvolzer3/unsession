@@ -10,7 +10,7 @@
  */
 import { Hono } from 'hono';
 import type { Ctx, Event } from '../types';
-import { PublicLayout, publicNav } from '../views/layout';
+import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
 import { eventDays, fmtSpan, loadAgenda, roomNamer, type SessionRow } from '../lib/agenda';
@@ -85,8 +85,8 @@ app.get('/:event/speakers/:slug', async (c) => {
 
   if (!profile || !mine.length) {
     return c.html(
-      <PublicLayout title="Speaker" event={event} theme={theme} maxWidth={840} nav={publicNav(event.slug, 'speakers')}>
-        <div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
+      <PublicLayout title="Speaker" event={event} theme={theme} maxWidth={PUBLIC_PAGE_MAX} nav={publicNav(event.slug, 'speakers')}>
+        <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 72px;`}>
           {backLink}
           <div style="margin-top:60px;text-align:center;">
             <div style="font-size:20px;font-weight:600;">Speaker not found</div>
@@ -134,8 +134,8 @@ app.get('/:event/speakers/:slug', async (c) => {
   if (links.other) linkItems.push({ label: hostLabel(links.other), url: links.other });
 
   return c.html(
-    <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={840} nav={publicNav(event.slug, 'speakers')}>
-      <div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
+    <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={PUBLIC_PAGE_MAX} nav={publicNav(event.slug, 'speakers')}>
+      <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 72px;`}>
         {backLink}
         <div style="display:flex;gap:30px;align-items:flex-start;margin-top:34px;flex-wrap:wrap;">
           <div style="width:172px;height:172px;flex:none;">

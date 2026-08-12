@@ -383,6 +383,14 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
 /* ------------------------------------------------------------------ public */
 
 /**
+ * The one content width shared by every attendee-facing page that carries the
+ * nav row (agenda, sessions, speakers, gallery, itinerary). The header takes
+ * its width from PublicLayout's `maxWidth`, so pages that disagree make the
+ * nav jump sideways on every click — always pass this on nav pages.
+ */
+export const PUBLIC_PAGE_MAX = 960;
+
+/**
  * The attendee-facing nav row (Agenda / Sessions / Speakers / Gallery /
  * Itinerary). Pass the current page's key so it renders bold; content pages
  * (forms, portal) simply don't pass `nav` and keep their chrome unchanged.

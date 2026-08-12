@@ -15,7 +15,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, MONO, fmtDateRange, publicNav } from '../views/layout';
+import { PublicLayout, MONO, fmtDateRange, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one } from '../lib/db';
 import {
@@ -33,8 +33,6 @@ import { icsFilename, sessionIcs } from '../lib/ics';
 import { loadEmbedConfig, trackFiltered } from './public-embed';
 
 const app = new Hono<Ctx>();
-
-const PAGE_MAX = 1240;
 
 function jsonBlock(id: string, value: unknown) {
   return (
@@ -95,7 +93,7 @@ export async function withCache(c: Context<Ctx>, key: string, build: () => Promi
 
 function notPublished(event: { name: string; slug: string }, theme: Theme) {
   return (
-    <PublicLayout title="Agenda" event={event} theme={theme} maxWidth={680} nav={publicNav(event.slug, 'agenda')}>
+    <PublicLayout title="Agenda" event={event} theme={theme} maxWidth={PUBLIC_PAGE_MAX} nav={publicNav(event.slug, 'agenda')}>
       <div style="max-width:680px;margin:0 auto;padding:64px 20px 100px;text-align:center;">
         <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);margin-bottom:10px;">
           AGENDA
@@ -236,25 +234,14 @@ app.get('/:event/agenda', async (c) => {
         title="Agenda"
         event={event}
         theme={theme}
-        maxWidth={PAGE_MAX}
+        maxWidth={PUBLIC_PAGE_MAX}
         nav={publicNav(event.slug, 'agenda')}
         scripts={['/js/public-agenda.js']}
       >
         {jsonBlock('data-public-agenda', payload)}
-        <div style={`max-width:${PAGE_MAX}px;margin:0 auto;padding:24px 28px 60px;`}>
-          <div style="display:flex;align-items:flex-end;gap:12px;">
-            <div>
-              <h1 style="margin:12px 0 2px;font-size:28px;letter-spacing:-0.02em;">Agenda</h1>
-              <div style="font-size:13px;color:var(--muted);">{subtitle}</div>
-            </div>
-            <button
-              type="button"
-              id="tz-toggle"
-              style="margin-left:auto;padding:6px 10px;background:var(--card);border:1px solid var(--border-strong);font-family:var(--font-mono);font-size:10px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;"
-            >
-              EVENT TIME
-            </button>
-          </div>
+        <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 60px;`}>
+          <h1 style="margin:12px 0 2px;font-size:28px;letter-spacing:-0.02em;">Agenda</h1>
+          <div style="font-size:13px;color:var(--muted);">{subtitle}</div>
           <div
             style="position:sticky;top:51px;background:var(--bg);padding:10px 0 12px;z-index:5;border-bottom:1px solid var(--border);margin:16px 0 18px;display:grid;gap:9px;"
           >

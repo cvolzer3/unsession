@@ -1,7 +1,7 @@
 /**
  * Public agenda island — view switching (LIST / DAY / WEEK / TRACK / ROOMS),
- * day tabs, track chips, search, sortable list headers, the session detail
- * popover and the EVENT TIME ↔ YOUR TIME toggle.
+ * day tabs, track chips, search, sortable list headers and the session detail
+ * popover. All times are shown in the event's timezone.
  *
  * Ported from `Agenda.dc.html`: 1.3 px/min time grid, 56px gutter, 10px right
  * pad, concurrency columns inside each overlap cluster. Colours come from the
@@ -19,46 +19,14 @@ function boot(D) {
   const MONO = 'var(--font-mono)';
   const nDays = D.days.length;
 
-  const S = { view: 'list', day: 0, track: 'all', q: '', tz: 'event', sortKey: 'time', sortDir: 1, selId: null };
+  const S = { view: 'list', day: 0, track: 'all', q: '', sortKey: 'time', sortDir: 1, selId: null };
 
   const esc = (s) =>
     String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-  /* ------------------------------------------------------------ timezone */
-  function offsetMin(tz, dateIso) {
-    try {
-      const at = new Date(`${dateIso}T12:00:00Z`);
-      const name = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longOffset' })
-        .formatToParts(at)
-        .find((p) => p.type === 'timeZoneName').value;
-      const m = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(name);
-      if (!m) return 0;
-      return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0));
-    } catch {
-      return 0;
-    }
-  }
-  function abbrev(tz, dateIso) {
-    try {
-      const at = new Date(`${dateIso}T12:00:00Z`);
-      const opts = { timeZoneName: 'short' };
-      if (tz) opts.timeZone = tz;
-      return new Intl.DateTimeFormat('en-US', opts).formatToParts(at).find((p) => p.type === 'timeZoneName').value;
-    } catch {
-      return tz || '';
-    }
-  }
-  const day0 = (D.days[0] || {}).date || new Date().toISOString().slice(0, 10);
-  const eventOffset = offsetMin(D.timezone, day0);
-  const localOffset = -new Date(`${day0}T12:00:00Z`).getTimezoneOffset();
-  const shiftMin = localOffset - eventOffset;
-  const eventLabel = `EVENT TIME · ${abbrev(D.timezone, day0)}`;
-  const hrs = shiftMin / 60;
-  const localLabel = `YOUR TIME · ${abbrev(null, day0)} (${hrs < 0 ? '−' : '+'}${Math.abs(Number(hrs.toFixed(2)))})`;
-
-  const shift = () => (S.tz === 'local' ? shiftMin : 0);
+  /* ---------------------------------------------------------------- time */
   const fmtTime = (m) => {
-    const t = (((480 + Math.round(m + shift())) % 1440) + 1440) % 1440;
+    const t = (((480 + Math.round(m)) % 1440) + 1440) % 1440;
     return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   };
   const span = (a) => `${fmtTime(a.start)}–${fmtTime(a.end)}`;
@@ -78,7 +46,6 @@ function boot(D) {
   const chipsEl = document.getElementById('track-chips');
   const searchEl = document.getElementById('agenda-search');
   const clearEl = document.getElementById('clear-filters');
-  const tzBtn = document.getElementById('tz-toggle');
 
   /* ------------------------------------------------------------- layout */
   function lay(items) {
@@ -398,7 +365,6 @@ function boot(D) {
     });
     searchEl.hidden = S.view !== 'list';
     clearEl.hidden = !(S.q || S.track !== 'all');
-    tzBtn.textContent = S.tz === 'event' ? eventLabel : localLabel;
   }
 
   function render() {
@@ -451,11 +417,6 @@ function boot(D) {
       S.q = '';
       S.track = 'all';
       searchEl.value = '';
-      render();
-      return;
-    }
-    if (e.target.closest('#tz-toggle')) {
-      S.tz = S.tz === 'event' ? 'local' : 'event';
       render();
       return;
     }
