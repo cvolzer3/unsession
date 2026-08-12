@@ -9,7 +9,7 @@ import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
-import { derive, FONT_PAIRINGS, initialsOf, normalizeHex, parseTheme } from '../lib/theme';
+import { derive, FONT_PAIRINGS, initialsOf, normalizeHex, parseTheme, tint } from '../lib/theme';
 import { EVENT_MODES, TIMEZONES } from '../lib/defaults';
 import { slugTaken } from '../lib/events';
 import { slugify } from '../lib/slugify';
@@ -147,19 +147,26 @@ app.get('/app/setup', async (c) => {
 
             {/* ----------------------------------------------------------- rooms */}
             <div style={CARD}>
-              <div style={`${MICRO}margin-bottom:12px;`}>ROOMS · AGENDA GRID DERIVES FROM THESE</div>
+              <div style={`${MICRO}margin-bottom:12px;`}>ROOMS</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 {rooms.map((r) => (
-                  <span style="display:inline-flex;align-items:center;gap:8px;border:1px solid #e2e3e8;padding:7px 8px 7px 12px;font-size:13px;">
-                    {r.name}
-                    <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
-                      {r.capacity ? `· ${r.capacity}` : ''}
-                    </span>
+                  <span style="display:inline-flex;align-items:center;background:#f4f5f9;border:1px solid #e2e3e8;font-size:13px;">
+                    <button
+                      type="button"
+                      data-dialog-open={`#room-edit-${r.id}`}
+                      title="Edit room"
+                      style="display:inline-flex;align-items:center;gap:8px;background:none;border:none;padding:7px 4px 7px 12px;font-size:13px;color:#16171d;font-family:inherit;cursor:pointer;"
+                    >
+                      {r.name}
+                      <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                        {r.capacity ? `· ${r.capacity}` : ''}
+                      </span>
+                    </button>
                     <button
                       type="submit"
                       form={`rm-${r.id}`}
                       title="Remove room"
-                      style="background:none;border:none;color:#9a9da6;cursor:pointer;font-size:13px;padding:0;"
+                      style="background:none;border:none;color:#9a9da6;cursor:pointer;font-size:13px;padding:7px 8px 7px 4px;"
                     >
                       ✕
                     </button>
@@ -181,7 +188,14 @@ app.get('/app/setup', async (c) => {
                     {options
                       .filter((o) => o.taxonomy_id === tx.id)
                       .map((o) => (
-                        <span style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e3e8;padding:4px 10px;font-size:12px;background:#fff;">
+                        <button
+                          type="button"
+                          data-dialog-open={`#opt-edit-${o.id}`}
+                          title="Edit option"
+                          style={`display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e3e8;padding:4px 10px;font-size:12px;color:#16171d;font-family:inherit;cursor:pointer;background:${
+                            o.color ? tint(o.color, 0.9) : '#f4f5f9'
+                          };`}
+                        >
                           <span
                             style={
                               o.color
@@ -190,7 +204,7 @@ app.get('/app/setup', async (c) => {
                             }
                           ></span>
                           {o.duration_min ? `${o.name} (${o.duration_min} min)` : o.name}
-                        </span>
+                        </button>
                       ))}
                     <button
                       type="button"
@@ -372,6 +386,60 @@ app.get('/app/setup', async (c) => {
         </div>
       </div>
 
+      {rooms.map((r) => (
+        <div id={`room-edit-${r.id}`} data-dialog hidden style={DIALOG_WRAP}>
+          <div style={DIALOG_CARD}>
+            <form method="post" action="/app/setup/rooms/update">
+              <input type="hidden" name="room_id" value={r.id} />
+              <div style={DIALOG_HEAD}>
+                <div style="font-weight:700;font-size:15px;">Edit room</div>
+                <button
+                  type="button"
+                  data-dialog-close={`#room-edit-${r.id}`}
+                  style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={DIALOG_BODY}>
+                <div>
+                  <div style={FIELD_LABEL}>Room name *</div>
+                  <input name="name" required value={r.name} style={INPUT} />
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <div>
+                    <div style={FIELD_LABEL}>Capacity</div>
+                    <input
+                      type="number"
+                      min="1"
+                      name="capacity"
+                      placeholder="e.g. 120"
+                      value={r.capacity ? String(r.capacity) : ''}
+                      style={INPUT}
+                    />
+                  </div>
+                  <div>
+                    <div style={FIELD_LABEL}>Priority order</div>
+                    <input type="number" min="1" name="priority" value={String(r.priority)} style={INPUT} />
+                  </div>
+                </div>
+                <div style="font-size:11.5px;color:#9a9da6;">
+                  Priority sets column order in the agenda grid — 1 is leftmost.
+                </div>
+              </div>
+              <div style={DIALOG_FOOT}>
+                <button type="button" data-dialog-close={`#room-edit-${r.id}`} style={CANCEL_BTN}>
+                  Cancel
+                </button>
+                <button type="submit" style={CREATE_BTN}>
+                  Save room
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ))}
+
       {taxonomies.map((tx) => (
         <div id={`opt-dialog-${tx.id}`} data-dialog hidden style={DIALOG_WRAP}>
           <div style={DIALOG_CARD}>
@@ -437,6 +505,77 @@ app.get('/app/setup', async (c) => {
           </div>
         </div>
       ))}
+
+      {options.map((o) => {
+        const tx = taxonomies.find((t) => t.id === o.taxonomy_id);
+        if (!tx) return null;
+        return (
+          <div id={`opt-edit-${o.id}`} data-dialog hidden style={DIALOG_WRAP}>
+            <div style={DIALOG_CARD}>
+              <form method="post" action="/app/setup/options/update">
+                <input type="hidden" name="option_id" value={o.id} />
+                <div style={DIALOG_HEAD}>
+                  <div style="font-weight:700;font-size:15px;">{`Edit option · ${tx.name}`}</div>
+                  <button
+                    type="button"
+                    data-dialog-close={`#opt-edit-${o.id}`}
+                    style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={DIALOG_BODY}>
+                  <div>
+                    <div style={FIELD_LABEL}>Name *</div>
+                    <input name="name" required value={o.name} style={INPUT} />
+                  </div>
+                  {tx.has_color ? (
+                    <div style="display:flex;align-items:center;gap:10px;">
+                      <div style="font-size:12px;color:#686b74;width:110px;">Color</div>
+                      <input
+                        type="color"
+                        name="color"
+                        value={o.color ?? '#7048e8'}
+                        style="width:44px;height:32px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                      />
+                    </div>
+                  ) : null}
+                  {tx.has_duration ? (
+                    <div>
+                      <div style={FIELD_LABEL}>Duration (minutes)</div>
+                      <input
+                        type="number"
+                        min="5"
+                        step="5"
+                        name="duration"
+                        value={String(o.duration_min ?? 30)}
+                        style="width:120px;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+                <div style={DIALOG_FOOT}>
+                  <button
+                    type="submit"
+                    formaction="/app/setup/options/delete"
+                    formnovalidate
+                    data-confirm={`Delete “${o.name}”? Sessions tagged with it lose the tag, and evaluation rules pinned to it stop matching. Submitted answers keep their text.`}
+                    style="margin-right:auto;padding:8px 0;background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;"
+                  >
+                    ✕ Delete option
+                  </button>
+                  <button type="button" data-dialog-close={`#opt-edit-${o.id}`} style={CANCEL_BTN}>
+                    Cancel
+                  </button>
+                  <button type="submit" style={CREATE_BTN}>
+                    Save option
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })}
 
       <div id="tax-dialog" data-dialog hidden style={DIALOG_WRAP}>
         <div style={DIALOG_CARD}>
@@ -562,6 +701,40 @@ app.post('/app/setup/rooms', guard, async (c) => {
   return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” added — agenda grid gains a column`));
 });
 
+app.post('/app/setup/rooms/update', guard, async (c) => {
+  const event = c.var.event!;
+  const body = await c.req.parseBody();
+  const roomId = String(body.room_id ?? '');
+  const room = await one<{ id: string; name: string; capacity: number | null; priority: number }>(
+    c.env.DB,
+    `SELECT * FROM rooms WHERE id = ? AND event_id = ?`,
+    roomId,
+    event.id
+  );
+  if (!room) return c.redirect('/app/setup');
+  const name = String(body.name ?? '').trim() || room.name;
+  const capacity = Number.parseInt(String(body.capacity ?? ''), 10);
+  const priority = Number.parseInt(String(body.priority ?? ''), 10);
+  await run(
+    c.env.DB,
+    `UPDATE rooms SET name=?, capacity=?, priority=? WHERE id=? AND event_id=?`,
+    name,
+    Number.isFinite(capacity) ? capacity : null,
+    Number.isFinite(priority) ? priority : room.priority,
+    roomId,
+    event.id
+  );
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'event',
+    subjectId: event.id,
+    actor: c.var.user?.name || 'System',
+    action: 'Room updated',
+    detail: name,
+  });
+  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” updated — agenda grid follows`));
+});
+
 app.post('/app/setup/rooms/delete', guard, async (c) => {
   const event = c.var.event!;
   const body = await c.req.parseBody();
@@ -632,6 +805,56 @@ app.post('/app/setup/options', guard, async (c) => {
     count?.n ?? 0
   );
   return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” added to ${tax.name}`));
+});
+
+app.post('/app/setup/options/update', guard, async (c) => {
+  const event = c.var.event!;
+  const body = await c.req.parseBody();
+  const optionId = String(body.option_id ?? '');
+  const row = await one<OptRow & { has_color: number; has_duration: number; taxonomy: string }>(
+    c.env.DB,
+    `SELECT o.*, t.has_color, t.has_duration, t.name AS taxonomy
+       FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
+      WHERE o.id = ? AND t.event_id = ?`,
+    optionId,
+    event.id
+  );
+  if (!row) return c.redirect('/app/setup');
+  const name = String(body.name ?? '').trim() || row.name;
+  const duration = Number.parseInt(String(body.duration ?? ''), 10);
+  await run(
+    c.env.DB,
+    `UPDATE taxonomy_options SET name=?, color=?, duration_min=? WHERE id=?`,
+    name,
+    row.has_color ? normalizeHex(String(body.color ?? row.color ?? '#7048e8')) : row.color,
+    row.has_duration && Number.isFinite(duration) ? duration : row.has_duration ? row.duration_min : null,
+    optionId
+  );
+  return c.redirect(
+    '/app/setup?ok=' + encodeURIComponent(`“${name}” updated — forms, routing, filters follow`)
+  );
+});
+
+app.post('/app/setup/options/delete', guard, async (c) => {
+  const event = c.var.event!;
+  const body = await c.req.parseBody();
+  const optionId = String(body.option_id ?? '');
+  const row = await one<{ id: string; name: string; taxonomy: string }>(
+    c.env.DB,
+    `SELECT o.id, o.name, t.name AS taxonomy
+       FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
+      WHERE o.id = ? AND t.event_id = ?`,
+    optionId,
+    event.id
+  );
+  if (!row) return c.redirect('/app/setup');
+  // Sessions hold FK references — untag them before deleting, mirroring rooms/delete.
+  await run(c.env.DB, `UPDATE sessions SET track_option_id = NULL WHERE track_option_id = ?`, optionId);
+  await run(c.env.DB, `UPDATE sessions SET format_option_id = NULL WHERE format_option_id = ?`, optionId);
+  await run(c.env.DB, `DELETE FROM taxonomy_options WHERE id = ?`, optionId);
+  return c.redirect(
+    '/app/setup?ok=' + encodeURIComponent(`“${row.name}” removed from ${row.taxonomy} — tagged sessions are now untagged`)
+  );
 });
 
 export default app;

@@ -113,3 +113,9 @@ const logoBtn = document.getElementById('logo-upload');
 if (logoBtn && logoBtn.disabled) {
   logoBtn.parentElement?.addEventListener('click', () => toast('File storage not yet enabled', false));
 }
+
+// Destructive submits (option delete in the edit dialogs) ask before posting.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-confirm]');
+  if (btn && !window.confirm(btn.dataset.confirm)) e.preventDefault();
+});
