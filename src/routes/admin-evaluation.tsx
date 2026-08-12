@@ -1678,7 +1678,10 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
   if (!memberCount) return c.json({ ok: false, error: 'Assign at least one member reviewer' }, 400);
 
   const subs = await loadEvalContext(c.env.DB, event.id);
-  const matched = subs.submissions.filter((s) => matchesRules(s, rules));
+  // Explicit per-submission assignments count toward coverage, so tightening
+  // the rules on a plan that lives off assignments doesn't lock the editor out.
+  const assigned = new Set(body.id ? subs.plans.find((p) => p.id === body.id)?.includeIds ?? [] : []);
+  const matched = subs.submissions.filter((s) => matchesRules(s, rules) || assigned.has(s.id));
   if (!matched.length) return c.json({ ok: false, error: 'No submissions match — loosen the rules' }, 400);
 
   const reviewsPer = Math.max(1, Math.min(3, Number(body.reviewsPer) || 3));

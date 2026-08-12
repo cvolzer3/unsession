@@ -222,7 +222,7 @@ function meanOf(values: number[]): number | null {
 }
 
 async function loadBoard(env: Bindings, event: Event): Promise<Board> {
-  const [forms, versions, options, subs, speakers, evals, plans] = await Promise.all([
+  const [forms, versions, options, subs, speakers, evals, plans, includes] = await Promise.all([
     all<FormRow>(
       env.DB,
       `SELECT id, name, slug, status, created_at FROM forms WHERE event_id = ?
@@ -262,6 +262,12 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
       event.id
     ),
     all<PlanRow>(env.DB, `SELECT id, name, reviews_per, rules_json, criteria_json FROM eval_plans WHERE event_id = ?`, event.id),
+    all<{ plan_id: string; submission_id: string }>(
+      env.DB,
+      `SELECT i.plan_id, i.submission_id FROM eval_plan_includes i
+         JOIN eval_plans p ON p.id = i.plan_id WHERE p.event_id = ?`,
+      event.id
+    ),
   ]);
 
   const formById = new Map(forms.map((f) => [f.id, f]));
@@ -293,6 +299,8 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
     ...p,
     rules: jsonParse<Record<string, string>>(p.rules_json, {}),
   }));
+  // Explicit per-submission assignments (migration 0014) — additive to the rules.
+  const included = new Set(includes.map((i) => `${i.plan_id}:${i.submission_id}`));
 
   const counts: Record<string, number> = {};
   const rows: BoardRow[] = subs.map((s) => {
@@ -319,7 +327,9 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
       status: s.status,
     };
     let expected = 0;
-    for (const p of parsedPlans) if (planCovers(p.rules, shape)) expected += p.reviews_per;
+    for (const p of parsedPlans) {
+      if (planCovers(p.rules, shape) || included.has(`${p.id}:${s.id}`)) expected += p.reviews_per;
+    }
 
     const chip = chipFor(s.status, expected);
     counts[chip] = (counts[chip] ?? 0) + 1;
@@ -1141,7 +1151,7 @@ app.get('/app/api/submissions/:id', async (c) => {
   const row = board.rows.find((r) => r.id === id);
   if (!row) return c.json({ ok: false, error: 'Submission not found' }, 404);
 
-  const [files, comments, activity, evals] = await Promise.all([
+  const [files, comments, activity, evals, plans, planIncludes] = await Promise.all([
     all<FileRow>(
       c.env.DB,
       `SELECT id, filename, size, subject_type, subject_id FROM files WHERE event_id = ?`,
@@ -1161,6 +1171,12 @@ app.get('/app/api/submissions/:id', async (c) => {
       id
     ),
     all<EvalRow>(c.env.DB, `SELECT submission_id, plan_id, scores_json, abstained FROM evaluations WHERE submission_id = ?`, id),
+    all<PlanRow>(
+      c.env.DB,
+      `SELECT id, name, reviews_per, rules_json, criteria_json FROM eval_plans WHERE event_id = ? ORDER BY created_at`,
+      event.id
+    ),
+    all<{ plan_id: string }>(c.env.DB, `SELECT plan_id FROM eval_plan_includes WHERE submission_id = ?`, id),
   ]);
 
   const filesById = new Map(files.map((f) => [f.id, f]));
@@ -1213,6 +1229,17 @@ app.get('/app/api/submissions/:id', async (c) => {
     return { name, val: avg.toFixed(1), pct: Math.round((avg / 5) * 100) };
   });
 
+  // Which plans cover this row — by rules or by explicit assignment. The drawer
+  // renders both and lets an admin assign to (or unassign from) the rest.
+  const assignedPlanIds = new Set(planIncludes.map((p) => p.plan_id));
+  const shape = { formId: row.formId, trackId: row.trackId, formatId: row.formatId, levelId: row.levelId, status: row.status };
+  const planList = plans.map((p) => ({
+    id: p.id,
+    name: p.name,
+    ruled: planCovers(jsonParse<Record<string, string>>(p.rules_json, {}), shape),
+    assigned: assignedPlanIds.has(p.id),
+  }));
+
   const activityLines = [
     ...(row.submittedAt
       ? [
@@ -1259,6 +1286,7 @@ app.get('/app/api/submissions/:id', async (c) => {
         label: `${row.done} OF ${row.total} EVALUATIONS IN`,
         criteria,
       },
+      plans: planList,
       comments: comments.map((cm) => ({
         who: cm.name || cm.email,
         text: cm.body,
@@ -1267,6 +1295,58 @@ app.get('/app/api/submissions/:id', async (c) => {
       activity: activityLines,
     },
   });
+});
+
+/* ------------------------------------------------------------ plan assign */
+
+/**
+ * Explicitly pull one submission into an evaluation plan (or drop the explicit
+ * include again). Additive to the plan's rules: removing an include never
+ * hides a rule-matched submission, and reviews already recorded always keep
+ * the submission visible in the plan (lib/evals `planSubmissions`).
+ */
+app.post('/app/api/submissions/assign-plan', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event' }, 400);
+  const input = await c.req.json<{ submissionId?: string; planId?: string; remove?: boolean }>();
+
+  const sub = await one<{ id: string; seq: number; title: string }>(
+    c.env.DB,
+    `SELECT id, seq, title FROM submissions WHERE id = ? AND event_id = ?`,
+    input.submissionId ?? '',
+    event.id
+  );
+  if (!sub) return c.json({ ok: false, error: 'Submission not found' }, 404);
+  const plan = await one<{ id: string; name: string }>(
+    c.env.DB,
+    `SELECT id, name FROM eval_plans WHERE id = ? AND event_id = ?`,
+    input.planId ?? '',
+    event.id
+  );
+  if (!plan) return c.json({ ok: false, error: 'That evaluation plan no longer exists' }, 404);
+
+  if (input.remove) {
+    await run(c.env.DB, `DELETE FROM eval_plan_includes WHERE plan_id = ? AND submission_id = ?`, plan.id, sub.id);
+  } else {
+    await run(
+      c.env.DB,
+      `INSERT OR IGNORE INTO eval_plan_includes (plan_id, submission_id, created_at) VALUES (?,?,?)`,
+      plan.id,
+      sub.id,
+      now()
+    );
+  }
+
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'submission',
+    subjectId: sub.id,
+    actor: c.var.user?.name || c.var.user?.email || 'Organizer',
+    action: input.remove ? 'Removed from evaluation plan' : 'Assigned to evaluation plan',
+    detail: `“${plan.name}”`,
+  });
+
+  return c.json({ ok: true, planName: plan.name });
 });
 
 /* ---------------------------------------------------------------- decisions */

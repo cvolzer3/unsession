@@ -132,15 +132,21 @@ function boot(DATA) {
     });
   }
 
-  /** Past ROW_CAP rows the server owns filtering — round-trip through the URL. */
-  function reloadFiltered() {
+  /** Full reload keeping the current filters, plus any extra params (open, ok). */
+  function reloadWith(extra) {
     const p = new URLSearchParams();
     if (state.status !== 'all') p.set('status', state.status);
     if (state.form !== 'all') p.set('form', state.form);
     if (state.track !== 'all') p.set('track', state.track);
     if (state.q) p.set('q', state.q);
+    Object.entries(extra || {}).forEach(([k, v]) => v && p.set(k, v));
     const qs = p.toString();
     location.href = `/app/submissions${qs ? `?${qs}` : ''}`;
+  }
+
+  /** Past ROW_CAP rows the server owns filtering — round-trip through the URL. */
+  function reloadFiltered() {
+    reloadWith(null);
   }
   const changed = () => (DATA.serverFilter ? reloadFiltered() : render());
 
@@ -339,6 +345,45 @@ function boot(DATA) {
         }</div>
       </div></div>`;
 
+    // Plans covering this submission (by rules or explicit assignment), plus an
+    // assign control for the rest — the fix for a "Needs Assigned" row.
+    const allPlans = s.plans || [];
+    const inPlans = allPlans.filter((p) => p.ruled || p.assigned);
+    const outPlans = allPlans.filter((p) => !p.ruled && !p.assigned);
+    const planRows = inPlans
+      .map(
+        (p) => `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e2e3e8;padding:8px 12px;">
+          <span style="font-size:13px;font-weight:600;">${esc(p.name)}</span>
+          <span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#9a9da6;">${p.ruled ? 'VIA RULES' : 'ASSIGNED'}</span>
+          ${
+            !p.ruled && p.assigned && DATA.canWrite
+              ? `<button type="button" data-unassign-plan="${esc(p.id)}" style="margin-left:auto;background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;">Remove</button>`
+              : ''
+          }
+        </div>`
+      )
+      .join('');
+    const assignControl =
+      DATA.canWrite && outPlans.length
+        ? `<div style="display:flex;gap:6px;margin-top:${inPlans.length ? '8px' : '0'};">
+            <select data-assign-plan-select style="flex:1;padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;color:#16171d;">
+              ${outPlans.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}
+            </select>
+            <button type="button" data-assign-plan style="padding:7px 14px;background:#4c5fd5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Assign</button>
+          </div>`
+        : '';
+    const plansBlock = `<div>${micro('EVALUATION PLANS')}
+      ${
+        inPlans.length
+          ? `<div style="display:grid;gap:6px;">${planRows}</div>`
+          : `<div style="font-size:12.5px;color:${allPlans.length ? '#c92a2a' : '#9a9da6'};margin-bottom:8px;">${
+              allPlans.length
+                ? 'No plan covers this submission — nobody will review it.'
+                : `No evaluation plans yet.${DATA.canWrite ? ' <a href="/app/evaluation" style="color:#4c5fd5;">Create one →</a>' : ''}`
+            }</div>`
+      }
+      ${assignControl}</div>`;
+
     // Internal comments and the activity log are deliberately not rendered here
     // (deferred, not cut) — the server still returns both in the payload.
     return `<div style="padding:20px 24px;border-bottom:1px solid #e2e3e8;position:sticky;top:0;background:#fff;z-index:2;">
@@ -364,6 +409,7 @@ function boot(DATA) {
         ${uploads}
         ${speakers}
         ${evaluation}
+        ${plansBlock}
       </div>`;
   }
 
@@ -372,6 +418,41 @@ function boot(DATA) {
     drawerPanel
       .querySelectorAll('[data-drawer-action]')
       .forEach((b) => b.addEventListener('click', () => openDecision(b.dataset.drawerAction, [s.id])));
+
+    // Assign to / unassign from an evaluation plan. Membership feeds the row's
+    // status chip and expected-review counts, so reload with the drawer reopened
+    // rather than patching the table piecemeal.
+    const assignBtn = drawerPanel.querySelector('[data-assign-plan]');
+    if (assignBtn)
+      assignBtn.addEventListener('click', async () => {
+        const sel = drawerPanel.querySelector('[data-assign-plan-select]');
+        if (!sel || !sel.value) return;
+        const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : 'plan';
+        assignBtn.disabled = true;
+        try {
+          await api('/app/api/submissions/assign-plan', { submissionId: s.id, planId: sel.value });
+          reloadWith({ open: s.id, ok: `Assigned to “${name}” — its reviewers will see it in their queues` });
+        } catch (err) {
+          toast(err.message, false);
+          assignBtn.disabled = false;
+        }
+      });
+    drawerPanel.querySelectorAll('[data-unassign-plan]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        try {
+          const res = await api('/app/api/submissions/assign-plan', {
+            submissionId: s.id,
+            planId: b.dataset.unassignPlan,
+            remove: true,
+          });
+          reloadWith({ open: s.id, ok: `Removed from “${res.planName}”` });
+        } catch (err) {
+          toast(err.message, false);
+          b.disabled = false;
+        }
+      })
+    );
   }
 
   /* ------------------------------------------------------- decision modal */

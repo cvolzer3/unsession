@@ -2,9 +2,11 @@
  * Evaluation mechanics (spec B3). OWNER: B3.
  *
  * Plan membership is computed from the plan's rules on every read — nothing is
- * materialized — exactly like the prototype's `matchesRules`. Assignment is the
- * prototype's round-robin `assignedFor`, seeded by submission id and capped by
- * `reviews_per`; chairs see everything and score nothing.
+ * materialized — exactly like the prototype's `matchesRules`, plus any explicit
+ * per-submission includes (`eval_plan_includes`, migration 0014) an organizer
+ * added from the submission drawer. Assignment is the prototype's round-robin
+ * `assignedFor`, seeded by submission id and capped by `reviews_per`; chairs
+ * see everything and score nothing.
  */
 import { all, jsonParse, now, one, run } from './db';
 import { newId } from './ids';
@@ -54,6 +56,8 @@ export type EvalPlan = {
   automation: Automation;
   createdAt: string;
   reviewers: PlanReviewer[];
+  /** Submissions explicitly assigned to this plan, beyond what the rules match. */
+  includeIds: string[];
 };
 
 export type EvalSpeaker = { name: string; email: string; bio: string };
@@ -197,6 +201,12 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
       ORDER BY r.rowid`,
     eventId
   );
+  const includes = await all<{ plan_id: string; submission_id: string }>(
+    db,
+    `SELECT i.plan_id, i.submission_id FROM eval_plan_includes i
+       JOIN eval_plans p ON p.id = i.plan_id WHERE p.event_id = ?`,
+    eventId
+  );
   return rows.map((p) => ({
     id: p.id,
     eventId: p.event_id,
@@ -218,6 +228,7 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
         name: r.name || r.email.split('@')[0],
         email: r.email,
       })),
+    includeIds: includes.filter((i) => i.plan_id === p.id).map((i) => i.submission_id),
   }));
 }
 
@@ -465,18 +476,23 @@ export function assignedFor(plan: EvalPlan, sub: EvalSubmission): PlanReviewer[]
   return Array.from({ length: effRp(plan) }, (_, i) => sc[(start + i) % sc.length]);
 }
 
+/** Rule match OR explicit include — the plan's live scope. */
+export function inPlanScope(plan: EvalPlan, s: EvalSubmission): boolean {
+  return matchesRules(s, plan.rules) || plan.includeIds.includes(s.id);
+}
+
 export function matchedSubmissions(plan: EvalPlan, subs: EvalSubmission[]): EvalSubmission[] {
-  return subs.filter((s) => matchesRules(s, plan.rules));
+  return subs.filter((s) => inPlanScope(plan, s));
 }
 
 /**
- * What the plan covers today: everything matching the rules, plus anything that
- * already carries an evaluation under this plan (a decision made later must not
- * erase the review record).
+ * What the plan covers today: everything matching the rules or explicitly
+ * assigned, plus anything that already carries an evaluation under this plan
+ * (a decision made later must not erase the review record).
  */
 export function planSubmissions(plan: EvalPlan, subs: EvalSubmission[], evals: Evaluation[]): EvalSubmission[] {
   const scored = new Set(evals.filter((e) => e.planId === plan.id).map((e) => e.submissionId));
-  return subs.filter((s) => matchesRules(s, plan.rules) || scored.has(s.id));
+  return subs.filter((s) => inPlanScope(plan, s) || scored.has(s.id));
 }
 
 export function cumMaxOf(criteria: Criterion[]): number {
