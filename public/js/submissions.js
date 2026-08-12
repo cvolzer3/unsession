@@ -505,13 +505,8 @@ function boot(DATA) {
           <div style="display:flex;gap:8px;align-items:baseline;">
             <span style="font-size:13px;font-weight:600;">${esc(sp.name)}</span>
             <span style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</span>
-            <span style="font-size:12px;color:#686b74;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">${esc(r.title)}</span>
           </div>
-          ${
-            r.queued
-              ? `<div style="margin-top:4px;font-family:${MONO};font-size:10px;color:#b08800;">ALREADY IN OUTBOX AS ${esc(r.queued.toUpperCase())} — QUEUEING REPLACES IT</div>`
-              : ''
-          }
+          <div style="font-size:12px;color:#686b74;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.title)}</div>
           ${
             kind === 'decline'
               ? `<input data-feedback="${esc(r.id)}" placeholder="Optional individual feedback for this speaker…" style="margin-top:8px;width:100%;padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;">`
