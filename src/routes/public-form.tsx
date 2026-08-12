@@ -650,8 +650,6 @@ function renderPage(opts: {
             <>
               {'Signed in as '}
               <span style={`font-family:${MONO_VAR};`}>{opts.user.email}</span>
-              {' — no password, ever. '}
-              {settings.allowDrafts ? 'Your draft autosaves.' : 'Submit when you’re ready.'}
             </>
           ) : settings.allowDrafts ? (
             'No password, ever — leave your email and we’ll send a link so you can pick this up on any device. Your draft autosaves.'
@@ -748,11 +746,11 @@ function renderPage(opts: {
             >
               Submit session →
             </button>
-            <div style="font-size:12px;color:var(--muted);text-align:center;">
-              {settings.allowDrafts
-                ? 'Drafts validate softly — submitting runs the real checks. You can edit until the call closes.'
-                : 'Submitting runs the real checks.'}
-            </div>
+            {settings.allowDrafts ? (
+              <div style="font-size:12px;color:var(--muted);text-align:center;">
+                You can edit until the call closes.
+              </div>
+            ) : null}
           </form>
         </div>
       </div>
