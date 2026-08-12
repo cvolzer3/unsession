@@ -28,25 +28,38 @@ const tint = (h, f) =>
 
 const input = document.getElementById('theme-primary');
 if (input) {
+  // Derived swatches are editable; once touched (flag "1") they stop tracking
+  // the primary color until Reset flips them back.
+  const DERIVE = {
+    hover: (p) => shade(p, 0.85),
+    border: (p) => tint(p, 0.55),
+    tint: (p) => tint(p, 0.9),
+  };
+  const swatches = Object.keys(DERIVE)
+    .map((key) => ({
+      key,
+      input: document.getElementById(`sw-${key}`),
+      flag: document.getElementById(`${key}-set`),
+    }))
+    .filter((s) => s.input && s.flag);
+  const resetBtn = document.getElementById('derived-reset');
+
+  const syncDerived = () => {
+    for (const s of swatches) {
+      if (s.flag.value !== '1') s.input.value = DERIVE[s.key](input.value);
+    }
+  };
+
   const paint = () => {
     const p = input.value;
     const L = lum(hex2rgb(p));
-    const white = 1.05 / (L + 0.05);
-    const dark = (L + 0.05) / 0.05;
-    const useWhite = white >= dark;
-    const hover = shade(p, 0.85);
-    const border = tint(p, 0.55);
-    const tintc = tint(p, 0.9);
+    const useWhite = 1.05 / (L + 0.05) >= (L + 0.05) / 0.05;
     const on = useWhite ? '#fff' : '#16171d';
+    const borderInput = document.getElementById('sw-border');
+    const border = borderInput ? borderInput.value : tint(p, 0.55);
 
-    const set = (id, bg) => {
-      const el = document.getElementById(id);
-      if (el) el.style.background = bg;
-    };
-    set('sw-primary', p);
-    set('sw-hover', hover);
-    set('sw-border', border);
-    set('sw-tint', tintc);
+    const sw = document.getElementById('sw-primary');
+    if (sw) sw.style.background = p;
 
     const hexLabel = document.getElementById('theme-primary-hex');
     if (hexLabel) hexLabel.textContent = p;
@@ -63,12 +76,27 @@ if (input) {
       btn.style.background = p;
       btn.style.color = on;
     }
-    const ratio = document.getElementById('pv-contrast');
-    if (ratio) {
-      ratio.textContent = `${(useWhite ? white : dark).toFixed(1)}:1 · ${useWhite ? 'white' : 'near-black'} text`;
-    }
+    if (resetBtn) resetBtn.hidden = !swatches.some((s) => s.flag.value === '1');
   };
-  input.addEventListener('input', paint);
+
+  input.addEventListener('input', () => {
+    syncDerived();
+    paint();
+  });
+  for (const s of swatches) {
+    s.input.addEventListener('input', () => {
+      s.flag.value = '1';
+      paint();
+    });
+  }
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      for (const s of swatches) s.flag.value = '0';
+      syncDerived();
+      paint();
+    });
+  }
+  syncDerived();
   paint();
 }
 

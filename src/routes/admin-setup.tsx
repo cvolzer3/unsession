@@ -9,7 +9,7 @@ import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
-import { derive, FONT_PAIRINGS, initialsOf, normalizeHex, parseTheme, tint } from '../lib/theme';
+import { FONT_PAIRINGS, initialsOf, normalizeHex, paletteFor, parseTheme, tint } from '../lib/theme';
 import { EVENT_MODES, TIMEZONES } from '../lib/defaults';
 import { slugTaken } from '../lib/events';
 import { slugify } from '../lib/slugify';
@@ -59,7 +59,8 @@ app.get('/app/setup', async (c) => {
     event.id
   );
   const theme = parseTheme(event.theme_json);
-  const d = derive(theme.primary);
+  const d = paletteFor(theme);
+  const hasOverride = Boolean(theme.hover || theme.border || theme.tint);
   const host = c.env.APP_ORIGIN.replace(/^https?:\/\//, '') + '/';
 
   const saveButton = (
@@ -269,29 +270,58 @@ app.get('/app/setup', async (c) => {
                   </span>
                 </div>
                 <div style="border-top:1px solid #f2f3f5;padding-top:12px;">
-                  <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
-                    DERIVED AUTOMATICALLY
+                  <div style="display:flex;align-items:center;margin-bottom:8px;">
+                    <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}>
+                      DERIVED AUTOMATICALLY · CLICK TO OVERRIDE
+                    </div>
+                    <button
+                      id="derived-reset"
+                      type="button"
+                      hidden={!hasOverride}
+                      title="Discard overrides and re-derive from the primary color"
+                      style="margin-left:auto;background:none;border:none;padding:0;font-size:11px;color:#4c5fd5;cursor:pointer;font-family:inherit;"
+                    >
+                      Reset
+                    </button>
                   </div>
+                  <input type="hidden" id="hover-set" name="hover_set" value={theme.hover ? '1' : '0'} />
+                  <input type="hidden" id="border-set" name="border_set" value={theme.border ? '1' : '0'} />
+                  <input type="hidden" id="tint-set" name="tint_set" value={theme.tint ? '1' : '0'} />
                   <div style="display:flex;gap:8px;">
                     <div style="flex:1;text-align:center;">
                       <div id="sw-primary" style={`height:30px;background:${d.primary};border:1px solid #e2e3e8;`}></div>
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">primary</div>
                     </div>
                     <div style="flex:1;text-align:center;">
-                      <div id="sw-hover" style={`height:30px;background:${d.hover};border:1px solid #e2e3e8;`}></div>
+                      <input
+                        id="sw-hover"
+                        type="color"
+                        name="hover"
+                        value={d.hover}
+                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                      />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">hover</div>
                     </div>
                     <div style="flex:1;text-align:center;">
-                      <div id="sw-border" style={`height:30px;background:${d.border};border:1px solid #e2e3e8;`}></div>
+                      <input
+                        id="sw-border"
+                        type="color"
+                        name="border"
+                        value={d.border}
+                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                      />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">border</div>
                     </div>
                     <div style="flex:1;text-align:center;">
-                      <div id="sw-tint" style={`height:30px;background:${d.tint};border:1px solid #e2e3e8;`}></div>
+                      <input
+                        id="sw-tint"
+                        type="color"
+                        name="tint"
+                        value={d.tint}
+                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                      />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">tint</div>
                     </div>
-                  </div>
-                  <div id="pv-contrast" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:8px;`}>
-                    {`${d.contrastRatio}:1 · ${d.contrastChoice} text`}
                   </div>
                 </div>
               </div>
@@ -647,6 +677,12 @@ app.post('/app/setup', guard, async (c) => {
   theme.primary = normalizeHex(String(body.primary ?? theme.primary));
   const font = String(body.font ?? theme.font);
   theme.font = FONT_PAIRINGS.some((p) => p.ui === font) ? font : theme.font;
+  // Palette slots are stored only when explicitly overridden (the `*_set` flag);
+  // otherwise they keep deriving from primary.
+  for (const key of ['hover', 'border', 'tint'] as const) {
+    if (String(body[`${key}_set`] ?? '') === '1' && body[key]) theme[key] = normalizeHex(String(body[key]));
+    else delete theme[key];
+  }
 
   await run(
     c.env.DB,

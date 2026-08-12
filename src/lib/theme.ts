@@ -109,8 +109,6 @@ export type Derived = {
   border: string;
   tint: string;
   textOn: string;
-  contrastRatio: string;
-  contrastChoice: 'white' | 'near-black';
 };
 
 /** Prototype's derivation: hover = shade 0.85, border = tint 0.55, tint = tint 0.9. */
@@ -126,14 +124,23 @@ export function derive(primaryRaw: string): Derived {
     border: tint(primary, 0.55),
     tint: tint(primary, 0.9),
     textOn: useWhite ? '#fff' : '#16171d',
-    contrastRatio: (useWhite ? white : dark).toFixed(1),
-    contrastChoice: useWhite ? 'white' : 'near-black',
+  };
+}
+
+/** Derived palette with the theme's manual overrides applied on top. */
+export function paletteFor(theme: Theme): Derived {
+  const d = derive(theme.primary || DEFAULT_THEME.primary);
+  return {
+    ...d,
+    hover: theme.hover ? normalizeHex(theme.hover) : d.hover,
+    border: theme.border ? normalizeHex(theme.border) : d.border,
+    tint: theme.tint ? normalizeHex(theme.tint) : d.tint,
   };
 }
 
 /** CSS custom-property string for the public (event-themed) layout. */
 export function themeStyleVars(theme: Theme): string {
-  const d = derive(theme.primary || DEFAULT_THEME.primary);
+  const d = paletteFor(theme);
   const pair = pairingFor(theme.font || DEFAULT_THEME.font);
   return [
     `--primary:${d.primary}`,

@@ -46,6 +46,10 @@ export type Theme = {
   bg: string;
   font: string;
   logoFileId?: string | null;
+  /** Manual overrides for the derived palette; unset slots derive from primary. */
+  hover?: string | null;
+  border?: string | null;
+  tint?: string | null;
 };
 
 export type Event = {
