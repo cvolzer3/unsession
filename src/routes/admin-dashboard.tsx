@@ -358,7 +358,7 @@ app.get('/app', async (c) => {
         staleAccepted === 1
           ? `1 accepted speaker hasn't confirmed`
           : `${staleAccepted} accepted speakers haven't confirmed`,
-      sub: 'Accepted more than 7 days ago — send them a nudge',
+      sub: 'Accepted more than 7 days ago — send them a reminder',
       cta: 'Show unconfirmed →',
       href: '/app/speakers?focus=unconfirmed',
       dot: '#b08800',

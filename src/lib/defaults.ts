@@ -90,7 +90,7 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSeed[] = [
     subject: 'Reminder: {{remaining}} evaluations due {{deadline}}',
     body:
       'Hi {{first_name}},\n\n' +
-      'A quick nudge from the {{event_name}} program team: you have {{remaining}} evaluations left in your queue, due {{deadline}}.\n\n' +
+      'A quick reminder from the {{event_name}} program team: you have {{remaining}} evaluations left in your queue, due {{deadline}}.\n\n' +
       'Open your queue: {{evaluate_link}}\n\n' +
       'Thanks for the time you’re putting in,\n{{organizer_name}}',
   },

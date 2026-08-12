@@ -227,9 +227,9 @@ async function evaluatorReminders(env: Bindings, ev: EventRow, budget: { left: n
   }
 }
 
-/* ------------------------------------------ 3 · CFP-closing draft nudges */
+/* --------------------------------------- 3 · CFP-closing draft reminders */
 
-const CFP_NUDGE_DAYS = [7, 2];
+const CFP_REMINDER_DAYS = [7, 2];
 
 async function cfpClosingReminders(env: Bindings, ev: EventRow, budget: { left: number }): Promise<void> {
   const forms = await all<{ id: string; name: string; slug: string; closes_at: string }>(
@@ -241,7 +241,7 @@ async function cfpClosingReminders(env: Bindings, ev: EventRow, budget: { left: 
   for (const form of forms) {
     if (budget.left <= 0) return;
     const daysLeft = daysBetween(today, form.closes_at.slice(0, 10));
-    if (!CFP_NUDGE_DAYS.includes(daysLeft)) continue;
+    if (!CFP_REMINDER_DAYS.includes(daysLeft)) continue;
     const drafts = await all<{ id: string; title: string; email: string; name: string | null }>(
       env.DB,
       `SELECT s.id, s.title, u.email, u.name FROM submissions s JOIN users u ON u.id = s.owner_user_id

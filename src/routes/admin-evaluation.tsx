@@ -407,7 +407,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;">
           <span>
             Showing <b>{`${rows.length} submission${rows.length === 1 ? '' : 's'} with no evaluations yet`}</b>. Assign
-            evaluators or nudge the ones already assigned.
+            evaluators or remind the ones already assigned.
           </span>
           <a
             href="/app/evaluation"
@@ -891,7 +891,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
                 </span>
                 <span style="font-size:12.5px;color:#686b74;line-height:1.45;">
                   <strong style="color:#16171d;font-size:13px;">Automatic reminders.</strong> Reviewers with work left will
-                  be nudged automatically based on reminders you set.
+                  be reminded automatically on the schedule you set.
                 </span>
               </label>
             </div>
@@ -1213,7 +1213,7 @@ async function buildReminders(
     `SELECT subject, body FROM email_templates WHERE event_id = ? AND key = 'reminder'`,
     event.id
   );
-  const nudges = await all<{ to_email: string; last: string }>(
+  const reminders = await all<{ to_email: string; last: string }>(
     c.env.DB,
     planId
       ? `SELECT to_email, MAX(created_at) AS last FROM emails
@@ -1222,7 +1222,7 @@ async function buildReminders(
           WHERE event_id = ? AND template_key = 'reminder' GROUP BY to_email`,
     ...(planId ? [event.id, planId] : [event.id])
   );
-  const lastByEmail = new Map(nudges.map((n) => [n.to_email.toLowerCase(), n.last]));
+  const lastByEmail = new Map(reminders.map((n) => [n.to_email.toLowerCase(), n.last]));
 
   const perUser = new Map<
     string,
@@ -1362,7 +1362,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                 <div>EVALUATOR</div>
                 <div>REMAINING</div>
                 <div>DUE</div>
-                <div>LAST NUDGE</div>
+                <div>LAST REMINDER</div>
               </div>
               {r.rows.map((row) => {
                 const dis = row.remaining === 0;
@@ -1528,7 +1528,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                   <div style={`${MICRO}margin-bottom:4px;`}>WHEN</div>
                   {[
                     { k: 'd14', label: '14 days before plan deadline', sub: 'Early heads-up' },
-                    { k: 'd7', label: '7 days before deadline', sub: 'Main nudge' },
+                    { k: 'd7', label: '7 days before deadline', sub: 'Main reminder' },
                     { k: 'd3', label: '3 days before deadline', sub: 'Final call' },
                     { k: 'over', label: '1 day after deadline', sub: 'Overdue — plan chair CC’d' },
                   ].map((s) => {
@@ -1553,7 +1553,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                 </div>
                 <div>
                   <div style="display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap;">
-                    <span>Never nudge the same person twice within</span>
+                    <span>Never remind the same person twice within</span>
                     <select id="auto-cooldown" style="padding:5px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;cursor:pointer;outline-color:#4c5fd5;">
                       {[1, 2, 3, 5, 7].map((n) => (
                         <option value={String(n)} selected={r.automation.cooldown === n}>
