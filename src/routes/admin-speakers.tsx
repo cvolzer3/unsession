@@ -492,6 +492,8 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
               ＋ Add clause
             </button>
           </div>
+          {/* Live rule-match count (speakers.js) — a clause typo shows up here, not weeks later. */}
+          <div id="ed-match" hidden style={`font-family:${MONO};font-size:11px;color:#686b74;margin-top:8px;`}></div>
         </div>
         <div id="ed-due-wrap">
           <div style={`${LABEL}margin-bottom:6px;`}>DUE</div>
@@ -603,10 +605,12 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
       </div>
     </div>
 
-    {/* bulk assign */}
+    {/* bulk assign — also reused as the post-create “assign now?” step (speakers.js) */}
     <div id="dlg-bulk" data-dialog hidden style={DIALOG}>
       <div style="background:#fff;width:480px;max-width:100%;padding:24px;">
-        <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Assign a template to the current view</div>
+        <div id="bulk-title" style="font-size:16px;font-weight:700;margin-bottom:4px;">
+          Assign a template to the current view
+        </div>
         <div id="bulk-view" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-bottom:14px;`}></div>
         <select id="bulk-tpl" style={`${INPUT}margin-bottom:12px;`}></select>
         <div id="bulk-preview" style="background:#f4f4f6;padding:11px 13px;font-size:12.5px;color:#33343c;margin-bottom:16px;line-height:1.5;"></div>
@@ -1224,6 +1228,21 @@ app.post('/app/api/speakers/template', requireOrgRole('admin'), async (c) => {
   });
 });
 
+/**
+ * Who does an assignment rule reach right now? Read-only preview behind the
+ * editor drawer's live match line and the post-create "assign now?" offer.
+ */
+app.post('/app/api/speakers/template/match', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No event' }, 400);
+  const body = await c.req.json<{ trigger: T.TemplateTrigger; clauses: T.ClauseSpec[] }>();
+  const preview = await T.previewTemplateMatch(c.env, event.id, {
+    trigger: body.trigger,
+    clauses: Array.isArray(body.clauses) ? body.clauses : [],
+  });
+  return c.json({ ok: true, ...preview });
+});
+
 app.post('/app/api/speakers/template/archive', requireOrgRole('admin'), async (c) => {
   const event = c.var.event;
   if (!event) return c.json({ ok: false, error: 'No event' }, 400);
@@ -1333,7 +1352,8 @@ app.post('/app/api/speakers/bulk-assign', requireOrgRole('collaborator'), async 
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
 
   let created = 0;
-  let skipped = 0;
+  let skippedNoSession = 0;
+  let skippedOther = 0; // already assigned (or unknown speaker id)
   for (const speakerId of body.speakerIds ?? []) {
     const profile = await one<{ id: string; name: string }>(
       c.env.DB,
@@ -1342,7 +1362,7 @@ app.post('/app/api/speakers/bulk-assign', requireOrgRole('collaborator'), async 
       event.id
     );
     if (!profile) {
-      skipped++;
+      skippedOther++;
       continue;
     }
     let sessionId: string | null = null;
@@ -1353,7 +1373,7 @@ app.post('/app/api/speakers/bulk-assign', requireOrgRole('collaborator'), async 
         profile.id
       );
       if (!s) {
-        skipped++;
+        skippedNoSession++;
         continue;
       }
       sessionId = s.session_id;
@@ -1367,17 +1387,27 @@ app.post('/app/api/speakers/bulk-assign', requireOrgRole('collaborator'), async 
       detail: profile.name,
     });
     if (res) created++;
-    else skipped++;
+    else skippedOther++;
   }
+  // Report every skip honestly — a silently missing task is a speaker who
+  // shows up without slides.
+  const parts = [`Created ${created} “${tpl.name}” task${created === 1 ? '' : 's'}`];
+  if (skippedNoSession) {
+    parts.push(`skipped ${skippedNoSession} speaker${skippedNoSession === 1 ? '' : 's'} with no session`);
+  }
+  if (skippedOther) parts.push(`skipped ${skippedOther} already assigned`);
+  const skipped = skippedNoSession + skippedOther;
   await logActivity(c.env.DB, {
     eventId: event.id,
     subjectType: 'task',
     subjectId: tpl.id,
     actor,
     action: 'Bulk assignment',
-    detail: `“${tpl.name}” · ${created} created, ${skipped} skipped`,
+    detail: `“${tpl.name}” · ${created} created${
+      skippedNoSession ? `, ${skippedNoSession} skipped (no session)` : ''
+    }${skippedOther ? `, ${skippedOther} skipped (already assigned)` : ''}`,
   });
-  return c.json({ ok: true, created, skipped, message: `${created} “${tpl.name}” tasks created · logged` });
+  return c.json({ ok: true, created, skipped, skippedNoSession, message: `${parts.join(' · ')} · logged` });
 });
 
 /* ------------------------------------------------------------ task ops */

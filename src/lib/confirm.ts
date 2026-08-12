@@ -37,12 +37,15 @@ export async function confirmParticipation(
 
   // The built-in "Confirm participation" checkbox task (tasks-spec §8 Q7: the
   // documented on-acceptance exception) completes itself the moment the speaker
-  // actually confirms — never leave it dangling in the portal.
+  // actually confirms — never leave it dangling in the portal. Matched by the
+  // stable `builtin_key` (migration 0008) so renaming the template can't break
+  // it; the name fallback covers templates created before the key existed.
   await run(
     env.DB,
     `UPDATE tasks SET status = 'done', completed_by = ?, completed_at = ?
      WHERE event_id = ? AND status = 'open'
-       AND template_id IN (SELECT id FROM task_templates WHERE event_id = ? AND type = 'checkbox' AND name LIKE 'Confirm participation%')
+       AND template_id IN (SELECT id FROM task_templates WHERE event_id = ?
+         AND (builtin_key = 'confirm_participation' OR (type = 'checkbox' AND name LIKE 'Confirm participation%')))
        AND speaker_profile_id IN (
          SELECT sp.id FROM speaker_profiles sp
          JOIN submission_speakers ss ON ss.email = sp.email COLLATE NOCASE
@@ -56,13 +59,20 @@ export async function confirmParticipation(
     sub.id
   );
 
+  const skipNote = tasks.skippedNoSession
+    ? `${tasks.skippedNoSession} session task template${tasks.skippedNoSession === 1 ? '' : 's'} skipped (no session)`
+    : '';
   await logActivity(env.DB, {
     eventId: sub.event_id,
     subjectType: 'submission',
     subjectId: sub.id,
     actor,
     action: 'Speaker confirmed participation',
-    detail: tasks.created ? `${tasks.created} onboarding tasks generated` : null,
+    detail: tasks.created
+      ? `${tasks.created} onboarding tasks generated${skipNote ? ` · ${skipNote}` : ''}`
+      : skipNote
+        ? `No tasks created — ${skipNote}`
+        : null,
   });
 
   return { ok: true, already: false, submissionId: sub.id, eventId: sub.event_id, title: sub.title };

@@ -458,6 +458,7 @@ function openEditor(tpl) {
 function closeEditor() {
   $('#editor').hidden = true;
   ed = null;
+  clearTimeout(matchTimer);
 }
 
 function openCount(id) {
@@ -570,6 +571,67 @@ function renderEditor() {
   $('#ed-save').textContent = ed.id ? 'Save template' : 'Create template';
   $('#ed-archive').hidden = !ed.id;
   $('#ed-archive').textContent = ed.archived ? 'Restore template' : 'Archive template';
+  scheduleMatch();
+}
+
+/* ------------------------------------------------- live rule-match line */
+
+/** Last preview fetched for the editor's rule — reused by the create flow. */
+let matchPreview = null;
+let matchKey = '';
+let matchTimer = null;
+let matchSeq = 0;
+
+function scheduleMatch() {
+  clearTimeout(matchTimer);
+  matchTimer = setTimeout(refreshMatch, 250);
+}
+
+async function refreshMatch() {
+  const el = $('#ed-match');
+  if (!el) return;
+  if (!ed || ed.trigger === 'manual') {
+    el.hidden = true;
+    matchPreview = null;
+    matchKey = '';
+    return;
+  }
+  const key = JSON.stringify({ trigger: ed.trigger, clauses: ed.clauses });
+  if (key === matchKey && matchPreview) {
+    renderMatchLine();
+    return;
+  }
+  const seq = ++matchSeq;
+  el.hidden = false;
+  el.style.color = '#9a9da6';
+  el.textContent = 'Checking who matches…';
+  try {
+    const res = await api('/app/api/speakers/template/match', { trigger: ed.trigger, clauses: ed.clauses });
+    if (seq !== matchSeq || !ed) return;
+    matchKey = key;
+    matchPreview = res;
+    renderMatchLine();
+  } catch {
+    if (seq === matchSeq && el) el.hidden = true;
+  }
+}
+
+function renderMatchLine() {
+  const el = $('#ed-match');
+  if (!el || !ed || ed.trigger === 'manual' || !matchPreview) return;
+  el.hidden = false;
+  const who = ed.trigger === 'acceptance' ? 'accepted' : 'confirmed';
+  if (!matchPreview.speakers && !matchPreview.sessions) {
+    el.style.color = '#b08800';
+    el.textContent = ed.clauses.length
+      ? 'Matches nothing right now — check the clauses'
+      : `Matches nothing right now — no ${who} speakers yet`;
+    return;
+  }
+  el.style.color = '#686b74';
+  el.textContent = `Matches ${matchPreview.speakers} ${who} speaker${matchPreview.speakers === 1 ? '' : 's'} · ${
+    matchPreview.sessions
+  } session${matchPreview.sessions === 1 ? '' : 's'} right now`;
 }
 
 $('#new-tpl').addEventListener('click', () => openEditor(null));
@@ -662,7 +724,10 @@ $('#editor').addEventListener('input', (e) => {
   else if (id === 'ed-gracen') ed.grace.days = Number(e.target.value) || 0;
   else if (id === 'ed-rem-subj') ed.reminders.subject = e.target.value;
   else if (id === 'ed-rem-body-text') ed.reminders.body = e.target.value;
-  else if (e.target.dataset.clauseVal !== undefined) ed.clauses[Number(e.target.dataset.clauseVal)].value = e.target.value;
+  else if (e.target.dataset.clauseVal !== undefined) {
+    ed.clauses[Number(e.target.dataset.clauseVal)].value = e.target.value;
+    scheduleMatch(); // clause typing skips renderEditor to keep focus — refresh the match line directly
+  }
   else if (id === 'ed-formname' || e.target.dataset.mfLabel !== undefined) collectMiniForm();
 });
 
@@ -752,6 +817,42 @@ async function saveTemplate(applyMode) {
     applyMode,
   };
   const res = await api('/app/api/speakers/template', payload);
+  // Create ≠ apply: a new rule stamps zero instances (never retroactive). If
+  // people already match it right now, surface the assign decision instead of
+  // leaving a silent rule-only template — declining keeps it rule-only.
+  if (!payload.id && payload.trigger !== 'manual') {
+    let preview = null;
+    try {
+      preview = await api('/app/api/speakers/template/match', {
+        trigger: payload.trigger,
+        clauses: payload.clauses,
+      });
+    } catch {
+      preview = null;
+    }
+    if (preview && preview.speakerIds && preview.speakerIds.length) {
+      DATA.templates.push({
+        id: res.id,
+        name: payload.name.trim(),
+        desc: payload.desc,
+        type: payload.type,
+        target: payload.target,
+        required: payload.required,
+        lock: payload.lock,
+        trigger: payload.trigger,
+        archived: false,
+        settings: payload.settings,
+        due: payload.due,
+        grace: payload.grace,
+        clauses: payload.clauses,
+        reminders: payload.reminders,
+        typeLabel: TYPE_LABEL[payload.type],
+      });
+      closeEditor();
+      openBulkForNewTemplate(res.id, preview, res.message);
+      return;
+    }
+  }
   reload(res.message);
 }
 
@@ -865,8 +966,24 @@ function activeTemplates() {
   return DATA.templates.filter((t) => !t.archived);
 }
 
+/**
+ * Post-create "assign now?" offer: the candidate set is the rule-matching
+ * speakers (from /template/match), not the current filtered view. Declining
+ * (any way the dialog closes without assigning) keeps the template rule-only.
+ */
+let bulkPreset = null; // { ids: Set, noSession: Set, declineMessage }
+
+function fillBulkTemplates() {
+  $('#bulk-tpl').innerHTML = activeTemplates()
+    .map((t) => `<option value="${t.id}">${esc(t.name)} · ${TYPE_LABEL[t.type]}${t.target === 'session' ? ' · session' : ''}</option>`)
+    .join('');
+}
+
 function renderBulk() {
-  const list = filtered();
+  const preset = bulkPreset;
+  const list = preset
+    ? [...preset.ids].map((id) => rows.find((r) => r.id === id) || { id, name: '', session: '', cells: {} })
+    : filtered();
   const tplId = $('#bulk-tpl').value;
   const tpl = activeTemplates().find((t) => t.id === tplId) || activeTemplates()[0];
   if (!tpl) {
@@ -874,31 +991,63 @@ function renderBulk() {
     $('#bulk-go').disabled = true;
     return;
   }
-  const create = list.filter((r) => (r.cells[tpl.id] || '-') === '-');
-  const skipped = list.length - create.length;
-  const label =
-    (state.task ? activeTemplates().find((t) => t.id === state.task)?.name || 'All speakers' : 'All speakers') +
-    (state.state ? ` · ${TIPS[state.state]}` : '') +
-    (state.review ? ' · Pending review' : '') +
-    (state.q.trim() ? ` · “${state.q.trim()}”` : '');
-  $('#bulk-view').textContent = `VIEW: ${label.toUpperCase()} — ${list.length} SPEAKERS`;
-  $('#bulk-preview').textContent = create.length
-    ? `This will create ${create.length} “${tpl.name}” tasks${
-        skipped ? ` · ${skipped} in this view already have it and are skipped` : ''
+  const candidates = list.filter((r) => (r.cells[tpl.id] || '-') === '-');
+  const already = list.length - candidates.length;
+  const noSess = preset && tpl.target === 'session' ? candidates.filter((r) => preset.noSession.has(r.id)).length : 0;
+  const create = candidates.length - noSess;
+  if (preset) {
+    const who = tpl.trigger === 'acceptance' ? 'ACCEPTED' : 'CONFIRMED';
+    $('#bulk-view').textContent = `RULE MATCH: ${list.length} ${who} SPEAKER${list.length === 1 ? '' : 'S'} RIGHT NOW`;
+  } else {
+    const label =
+      (state.task ? activeTemplates().find((t) => t.id === state.task)?.name || 'All speakers' : 'All speakers') +
+      (state.state ? ` · ${TIPS[state.state]}` : '') +
+      (state.review ? ' · Pending review' : '') +
+      (state.q.trim() ? ` · “${state.q.trim()}”` : '');
+    $('#bulk-view').textContent = `VIEW: ${label.toUpperCase()} — ${list.length} SPEAKERS`;
+  }
+  const skips = [
+    already ? `${already} already have it and are skipped` : '',
+    noSess ? `${noSess} speaker${noSess === 1 ? '' : 's'} with no session are skipped` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  $('#bulk-preview').textContent = create
+    ? `This will create ${create} “${tpl.name}” task${create === 1 ? '' : 's'}${
+        skips ? ` · ${skips}` : ''
       }. Speakers see them in their portals immediately; assignment email follows the digest schedule.`
-    : 'Everyone in this view already has this task — nothing to create.';
-  $('#bulk-go').textContent = `Create ${create.length} tasks`;
+    : noSess
+      ? `Nothing to create — ${noSess} matching speaker${noSess === 1 ? '' : 's'} have no session yet; session tasks need one.`
+      : 'Everyone in this view already has this task — nothing to create.';
+  $('#bulk-go').textContent = `Create ${create} tasks`;
   $('#bulk-go').style.cssText = `padding:9px 16px;border:none;font-size:13px;font-weight:600;${
-    create.length ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'
+    create ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'
   }`;
-  $('#bulk-go').dataset.ids = create.map((r) => r.id).join(',');
+  // Send every unassigned candidate — the server reports no-session skips honestly.
+  $('#bulk-go').dataset.ids = create ? candidates.map((r) => r.id).join(',') : '';
   $('#bulk-go').dataset.tpl = tpl.id;
 }
 
+function openBulkForNewTemplate(tplId, preview, createdMessage) {
+  bulkPreset = {
+    ids: new Set(preview.speakerIds),
+    noSession: new Set(preview.noSessionIds || []),
+    declineMessage: createdMessage,
+  };
+  const n = preview.speakerIds.length;
+  $('#bulk-title').textContent = `${n} existing speaker${n === 1 ? '' : 's'} match — assign now?`;
+  fillBulkTemplates();
+  $('#bulk-tpl').value = tplId;
+  $('#bulk-tpl').disabled = true; // the offer is about the template just created
+  renderBulk();
+  openDialog('#dlg-bulk');
+}
+
 $('#bulk-open').addEventListener('click', () => {
-  $('#bulk-tpl').innerHTML = activeTemplates()
-    .map((t) => `<option value="${t.id}">${esc(t.name)} · ${TYPE_LABEL[t.type]}${t.target === 'session' ? ' · session' : ''}</option>`)
-    .join('');
+  bulkPreset = null;
+  $('#bulk-title').textContent = 'Assign a template to the current view';
+  $('#bulk-tpl').disabled = false;
+  fillBulkTemplates();
   renderBulk();
   openDialog('#dlg-bulk');
 });
@@ -908,11 +1057,23 @@ $('#bulk-go').addEventListener('click', async () => {
   if (!ids.length) return;
   try {
     const res = await api('/app/api/speakers/bulk-assign', { templateId: $('#bulk-go').dataset.tpl, speakerIds: ids });
+    bulkPreset = null; // assigned — the decline path must not fire
     reload(res.message);
   } catch (err) {
     toast(err.message, false);
   }
 });
+
+// Declining the post-create offer (Cancel, backdrop, Escape) leaves the
+// template rule-only — but the page still reloads so the new template card
+// and grid column appear.
+new MutationObserver(() => {
+  if ($('#dlg-bulk').hidden && bulkPreset) {
+    const msg = bulkPreset.declineMessage;
+    bulkPreset = null;
+    reload(msg);
+  }
+}).observe($('#dlg-bulk'), { attributes: true, attributeFilter: ['hidden'] });
 
 /* -------------------------------------------------------------- deep link */
 

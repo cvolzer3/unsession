@@ -76,6 +76,8 @@ export type TaskTemplateRow = {
   reminders_json: string;
   archived: number;
   created_at: string;
+  /** Stable machine key for built-ins (migration 0008) — e.g. 'confirm_participation'. */
+  builtin_key?: string | null;
 };
 
 export type TaskRow = {
@@ -373,28 +375,33 @@ function looseMatch(actual: string, expected: string): boolean {
   return stripped === b || a.includes(b) || b.includes(a);
 }
 
+type TaxOption = { name: string; taxonomy: string };
+
+/** First answer that loosely matches one of the taxonomy's options. */
+function pickOption(options: TaxOption[], taxonomy: string, answers: Record<string, unknown>): string | null {
+  const pool = options.filter((o) => o.taxonomy === taxonomy);
+  for (const value of Object.values(answers)) {
+    const s = textOf(value);
+    if (!s) continue;
+    const hit = pool.find((o) => looseMatch(s, o.name));
+    if (hit) return hit.name;
+  }
+  return null;
+}
+
 async function submissionFacts(
   env: Bindings,
   sub: { id: string; event_id: string; answers_json: string; form_version_id: string | null }
 ): Promise<SubmissionFacts> {
   const answers = jsonParse<Record<string, unknown>>(sub.answers_json, {});
-  const options = await all<{ name: string; taxonomy: string }>(
+  const options = await all<TaxOption>(
     env.DB,
     `SELECT o.name AS name, t.name AS taxonomy
        FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
       WHERE t.event_id = ?`,
     sub.event_id
   );
-  const pick = (taxonomy: string): string | null => {
-    const pool = options.filter((o) => o.taxonomy === taxonomy);
-    for (const value of Object.values(answers)) {
-      const s = textOf(value);
-      if (!s) continue;
-      const hit = pool.find((o) => looseMatch(s, o.name));
-      if (hit) return hit.name;
-    }
-    return null;
-  };
+  const pick = (taxonomy: string): string | null => pickOption(options, taxonomy, answers);
   // A session (created on accept) carries the resolved options — prefer them.
   const session = await one<{ track: string | null; format: string | null; level: string | null }>(
     env.DB,
@@ -454,6 +461,139 @@ export function clauseMatches(clause: ClauseSpec, facts: SubmissionFacts): boole
 
 export function templateMatches(t: TaskTemplateRow, facts: SubmissionFacts): boolean {
   return parseClauses(t).every((c) => clauseMatches(c, facts));
+}
+
+/* ------------------------------------------------------ rule match preview */
+
+export type TemplateMatchPreview = {
+  /** Distinct existing speaker profiles on matching submissions. */
+  speakers: number;
+  /** Distinct sessions on matching submissions. */
+  sessions: number;
+  speakerIds: string[];
+  /** Matching speakers with no session — session-target assignment skips them. */
+  noSessionIds: string[];
+};
+
+const EMPTY_MATCH: TemplateMatchPreview = { speakers: 0, sessions: 0, speakerIds: [], noSessionIds: [] };
+
+/**
+ * Who would an assignment rule reach if its trigger fired for everyone right
+ * now? Powers the editor's live match line and the post-create "N existing
+ * speakers match — assign now?" offer. Read-only: never creates profiles or
+ * instances, and loads everything in a fixed handful of queries (the free
+ * plan meters subrequests, so no per-submission lookups here).
+ */
+export async function previewTemplateMatch(
+  env: Bindings,
+  eventId: string,
+  spec: { trigger: TemplateTrigger; clauses: ClauseSpec[] }
+): Promise<TemplateMatchPreview> {
+  if (spec.trigger === 'manual') return EMPTY_MATCH;
+  const statuses = spec.trigger === 'acceptance' ? ['accepted', 'confirmed'] : ['confirmed'];
+  const subs = await all<{ id: string; answers_json: string; form_version_id: string | null }>(
+    env.DB,
+    `SELECT id, answers_json, form_version_id FROM submissions
+      WHERE event_id = ? AND status IN (${statuses.map(() => '?').join(',')})`,
+    eventId,
+    ...statuses
+  );
+  if (!subs.length) return EMPTY_MATCH;
+
+  const clauses = (spec.clauses ?? []).filter((c) => c && typeof c.field === 'string');
+  const options = await all<TaxOption>(
+    env.DB,
+    `SELECT o.name AS name, t.name AS taxonomy
+       FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
+      WHERE t.event_id = ?`,
+    eventId
+  );
+  const sessions = await all<{
+    id: string;
+    submission_id: string | null;
+    track: string | null;
+    format: string | null;
+    level: string | null;
+  }>(
+    env.DB,
+    `SELECT s.id, s.submission_id, tr.name AS track, fo.name AS format, s.level AS level
+       FROM sessions s
+       LEFT JOIN taxonomy_options tr ON tr.id = s.track_option_id
+       LEFT JOIN taxonomy_options fo ON fo.id = s.format_option_id
+      WHERE s.event_id = ?`,
+    eventId
+  );
+  const sessionBySub = new Map<string, (typeof sessions)[number]>();
+  for (const s of sessions) if (s.submission_id) sessionBySub.set(s.submission_id, s);
+
+  const speakerRows = await all<{ submission_id: string; profile_id: string }>(
+    env.DB,
+    `SELECT ss.submission_id AS submission_id, sp.id AS profile_id
+       FROM submission_speakers ss
+       JOIN submissions s ON s.id = ss.submission_id
+       JOIN speaker_profiles sp ON sp.event_id = s.event_id AND sp.email = ss.email COLLATE NOCASE
+      WHERE s.event_id = ?`,
+    eventId
+  );
+  const speakersBySub = new Map<string, string[]>();
+  for (const r of speakerRows) {
+    const list = speakersBySub.get(r.submission_id) ?? [];
+    list.push(r.profile_id);
+    speakersBySub.set(r.submission_id, list);
+  }
+
+  // Form-field labels only matter to "Form answer = …" clauses with a label part.
+  const needsLabels = clauses.some((c) => c.field !== 'Track' && c.field !== 'Format' && c.field !== 'Level');
+  const fvIds = [...new Set(subs.map((s) => s.form_version_id).filter(Boolean))] as string[];
+  const labelsByFv = new Map<string, Record<string, string>>();
+  if (needsLabels && fvIds.length) {
+    const fvs = await all<{ id: string; schema_json: string }>(
+      env.DB,
+      `SELECT id, schema_json FROM form_versions WHERE id IN (${fvIds.map(() => '?').join(',')})`,
+      ...fvIds
+    );
+    for (const fv of fvs) {
+      const schema = jsonParse<{ fields?: { id: string; label: string }[] }>(fv.schema_json, {});
+      const labels: Record<string, string> = {};
+      for (const f of schema.fields ?? []) labels[f.id] = f.label ?? '';
+      labelsByFv.set(fv.id, labels);
+    }
+  }
+
+  const linked = new Set(
+    (
+      await all<{ speaker_profile_id: string }>(
+        env.DB,
+        `SELECT DISTINCT ss.speaker_profile_id FROM session_speakers ss
+           JOIN sessions s ON s.id = ss.session_id WHERE s.event_id = ?`,
+        eventId
+      )
+    ).map((r) => r.speaker_profile_id)
+  );
+
+  const speakerIds = new Set<string>();
+  const sessionIds = new Set<string>();
+  for (const sub of subs) {
+    const answers = jsonParse<Record<string, unknown>>(sub.answers_json, {});
+    const session = sessionBySub.get(sub.id);
+    const facts: SubmissionFacts = {
+      track: session?.track ?? pickOption(options, 'Track', answers),
+      format: session?.format ?? pickOption(options, 'Format', answers),
+      level: session?.level ?? pickOption(options, 'Level', answers),
+      answers,
+      labels: (sub.form_version_id && labelsByFv.get(sub.form_version_id)) || {},
+    };
+    if (!clauses.every((c) => clauseMatches(c, facts))) continue;
+    if (session) sessionIds.add(session.id);
+    for (const pid of speakersBySub.get(sub.id) ?? []) speakerIds.add(pid);
+  }
+  const ids = [...speakerIds];
+  return {
+    speakers: ids.length,
+    sessions: sessionIds.size,
+    speakerIds: ids,
+    noSessionIds: ids.filter((id) => !linked.has(id)),
+  };
 }
 
 /* ------------------------------------------------------- instance stamping */
@@ -575,20 +715,21 @@ type EventRow = { id: string; name: string; slug: string; start_date: string };
 export async function generateTasksOnTrigger(
   env: Bindings,
   opts: { submissionId: string; trigger: TaskTrigger; actor?: string }
-): Promise<{ created: number }> {
+): Promise<{ created: number; skippedNoSession: number }> {
+  const none = { created: 0, skippedNoSession: 0 };
   const actor = opts.actor || 'System';
   const sub = await one<SubRow>(
     env.DB,
     `SELECT id, event_id, status, title, answers_json, form_version_id FROM submissions WHERE id = ?`,
     opts.submissionId
   );
-  if (!sub) return { created: 0 };
+  if (!sub) return none;
   const event = await one<EventRow>(
     env.DB,
     `SELECT id, name, slug, start_date FROM events WHERE id = ?`,
     sub.event_id
   );
-  if (!event) return { created: 0 };
+  if (!event) return none;
 
   const templates = await all<TaskTemplateRow>(
     env.DB,
@@ -596,11 +737,11 @@ export async function generateTasksOnTrigger(
     sub.event_id,
     opts.trigger
   );
-  if (!templates.length) return { created: 0 };
+  if (!templates.length) return none;
 
   const facts = await submissionFacts(env, sub);
   const matching = templates.filter((t) => templateMatches(t, facts));
-  if (!matching.length) return { created: 0 };
+  if (!matching.length) return none;
 
   const speakers = await all<{
     id: string;
@@ -627,6 +768,8 @@ export async function generateTasksOnTrigger(
   );
 
   let created = 0;
+  /** Session-target templates that matched but had no session to attach to. */
+  let skippedNoSession = 0;
   /** profile id → task names created in this batch (for the assignment digest) */
   const digest = new Map<string, string[]>();
   const noteFor = (pid: string, name: string) => {
@@ -637,7 +780,10 @@ export async function generateTasksOnTrigger(
 
   for (const template of matching) {
     if (template.target === 'session') {
-      if (!session) continue;
+      if (!session) {
+        skippedNoSession++;
+        continue;
+      }
       const res = await stampInstance(env, {
         template,
         eventStart: event.start_date,
@@ -672,7 +818,22 @@ export async function generateTasksOnTrigger(
       if (names?.length) await sendAssignmentDigest(env, event, p, names, sub.title);
     }
   }
-  return { created };
+  if (!created && skippedNoSession) {
+    // A trigger that fires and assigns nothing must not be silent — the
+    // organizer would otherwise only notice weeks later that a checklist
+    // never materialized.
+    await logActivity(env.DB, {
+      eventId: sub.event_id,
+      subjectType: 'submission',
+      subjectId: sub.id,
+      actor,
+      action: 'Task trigger skipped',
+      detail: `On ${opts.trigger}: ${skippedNoSession} session task template${
+        skippedNoSession === 1 ? '' : 's'
+      } matched “${sub.title}” but it has no session — no tasks created`,
+    });
+  }
+  return { created, skippedNoSession };
 }
 
 /** One email per speaker per generation batch, listing the new tasks (§4.8.7). */
