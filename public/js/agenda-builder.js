@@ -1253,6 +1253,25 @@ function boot(D) {
     await place(s.id, s.roomId || autoRoom(start, dur, day), start, day);
   });
 
+  /* ---------------------------------------------------------- embed dialog */
+  // The transparent-background checkbox rewrites both iframe snippets (and
+  // their data-copy payloads — ui.js reads the attribute at click time).
+  const embedDlg = document.getElementById('embed-dialog');
+  if (embedDlg) {
+    const chk = embedDlg.querySelector('#embed-transparent');
+    const renderSnippets = () => {
+      const q = chk && chk.checked ? '?transparent=1' : '';
+      for (const kind of ['agenda', 'speakers']) {
+        const code = `<iframe src="${embedDlg.dataset.embedBase}/${kind}${q}" style="width:100%;height:800px;border:0;" title="${embedDlg.dataset.eventName} ${kind}"></iframe>`;
+        const codeEl = document.getElementById(`embed-${kind}-code`);
+        const copyBtn = document.getElementById(`embed-${kind}-copy`);
+        if (codeEl) codeEl.textContent = code;
+        if (copyBtn) copyBtn.setAttribute('data-copy', code);
+      }
+    };
+    if (chk) chk.addEventListener('change', renderSnippets);
+  }
+
   wireNewSession();
   render();
 }

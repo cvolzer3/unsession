@@ -26,6 +26,7 @@ import adminSessions from './routes/admin-sessions';
 import adminSpeakers from './routes/admin-speakers';
 import adminAgenda from './routes/admin-agenda';
 import publicAgenda from './routes/public-agenda';
+import publicEmbed from './routes/public-embed';
 import publicPortal from './routes/public-portal';
 import publicEvaluate from './routes/public-evaluate';
 import publicSpeaker from './routes/public-speaker';
@@ -62,6 +63,7 @@ app.route('/', adminAgenda);
 app.route('/', publicPortal);
 app.route('/', publicEvaluate);
 app.route('/', publicSpeaker);
+app.route('/', publicEmbed);
 app.route('/', publicAgenda);
 app.route('/', publicForm);
 

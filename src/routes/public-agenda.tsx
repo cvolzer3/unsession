@@ -67,7 +67,8 @@ function edgeCache(): CacheLike | null {
   }
 }
 
-async function withCache(c: Context<Ctx>, key: string, build: () => Promise<Response>): Promise<Response> {
+/** Cache a 200 response for ~60s under a `published_rev`-scoped key (also used by the `/embed/*` routes). */
+export async function withCache(c: Context<Ctx>, key: string, build: () => Promise<Response>): Promise<Response> {
   const cache = edgeCache();
   const cacheKey = new Request(new URL(`/__agenda/${key}`, new URL(c.req.url).origin).toString());
   if (cache) {

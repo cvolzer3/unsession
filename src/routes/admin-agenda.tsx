@@ -12,6 +12,7 @@
  * OWNER: B4.
  */
 import { Hono } from 'hono';
+import type { FC } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
@@ -44,6 +45,15 @@ const app = new Hono<Ctx>();
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`;
 
+/* Dialog chrome — same values as `admin-sessions.tsx`. */
+const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
+const DIALOG_CARD =
+  'background:#fff;width:560px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);max-height:calc(100vh - 60px);display:flex;flex-direction:column;';
+const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
+const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:14px;overflow-y:auto;';
+const CODE_BLOCK = `display:block;font-family:${MONO};font-size:11px;line-height:1.55;background:#f4f5f9;border:1px solid #e2e3e8;padding:10px 12px;color:#16171d;word-break:break-all;white-space:pre-wrap;margin-bottom:6px;`;
+const COPY_LINK = 'background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;';
+
 function tabBtn(on: boolean): string {
   return `padding:7px 13px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${
     on ? '#16171d' : '#fff'
@@ -57,6 +67,81 @@ function jsonBlock(id: string, value: unknown) {
     </script>
   );
 }
+
+/* ---------------------------------------------------------- embed dialog */
+
+/**
+ * Copy-paste `<iframe>` snippets for `/{event}/embed/agenda` and
+ * `/{event}/embed/speakers`. The transparent-background checkbox is wired in
+ * `agenda-builder.js` (it rewrites the snippets and their copy buttons).
+ */
+const EmbedDialog: FC<{ event: Event; origin: string }> = ({ event, origin }) => {
+  const snippet = (kind: 'agenda' | 'speakers') =>
+    `<iframe src="${origin}/${event.slug}/embed/${kind}" style="width:100%;height:800px;border:0;" title="${event.name} ${kind}"></iframe>`;
+  return (
+    <div
+      id="embed-dialog"
+      data-dialog
+      hidden
+      style={DIALOG_WRAP}
+      data-embed-base={`${origin}/${event.slug}/embed`}
+      data-event-name={event.name}
+    >
+      <div style={DIALOG_CARD}>
+        <div style={DIALOG_HEAD}>
+          <div style="font-size:15px;font-weight:700;">Embed on your website</div>
+          <button
+            type="button"
+            data-dialog-close="#embed-dialog"
+            style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+          >
+            ×
+          </button>
+        </div>
+        <div style={DIALOG_BODY}>
+          <div style="font-size:12.5px;color:#686b74;line-height:1.55;">
+            Paste a snippet into any page on your site. Embeds show the published agenda and update live whenever you
+            re-publish — no need to touch the snippet again.
+          </div>
+          <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;">
+            <input id="embed-transparent" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;" />
+            Transparent background (sits on your site’s own background)
+          </label>
+          <div>
+            <div style={`${MICRO}margin-bottom:6px;`}>AGENDA</div>
+            <code id="embed-agenda-code" style={CODE_BLOCK}>
+              {snippet('agenda')}
+            </code>
+            <button
+              type="button"
+              id="embed-agenda-copy"
+              data-copy={snippet('agenda')}
+              data-copy-msg="Agenda embed snippet copied"
+              style={COPY_LINK}
+            >
+              Copy snippet
+            </button>
+          </div>
+          <div>
+            <div style={`${MICRO}margin-bottom:6px;`}>SPEAKERS</div>
+            <code id="embed-speakers-code" style={CODE_BLOCK}>
+              {snippet('speakers')}
+            </code>
+            <button
+              type="button"
+              id="embed-speakers-copy"
+              data-copy={snippet('speakers')}
+              data-copy-msg="Speakers embed snippet copied"
+              style={COPY_LINK}
+            >
+              Copy snippet
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ------------------------------------------------------------------ page */
 
@@ -114,6 +199,13 @@ app.get('/app/agenda', async (c) => {
       </div>
       <button
         type="button"
+        data-dialog-open="#embed-dialog"
+        style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
+      >
+        Embed
+      </button>
+      <button
+        type="button"
         id="publish-btn"
         style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
       >
@@ -165,6 +257,7 @@ app.get('/app/agenda', async (c) => {
       </div>
       <div id="cards"></div>
       <NewSessionDialog tracks={bundle.tracks} formats={bundle.formats} />
+      <EmbedDialog event={event} origin={c.env.APP_ORIGIN} />
     </AdminLayout>
   );
 });
