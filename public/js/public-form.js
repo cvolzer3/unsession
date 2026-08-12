@@ -592,7 +592,9 @@ function init() {
       e.preventDefault();
       welcome.hidden = true;
       body.hidden = false;
-      body.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Land at the top of the page, the way the no-JS `?start=1` navigation
+      // does — scrolling down to the form body would skip the heading.
+      window.scrollTo({ top: 0 });
     });
   }
   if (back && welcome && body) {
