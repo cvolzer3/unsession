@@ -20,10 +20,13 @@ import {
   verifyMagicToken,
 } from '../lib/auth';
 import { now, one, run } from '../lib/db';
+import { deleteCookie } from 'hono/cookie';
+import { SANDBOX_COOKIE } from '../lib/seed-data';
 
 const app = new Hono<Ctx>();
 
-const Shell: FC<{ title: string; toast?: string | null; children?: unknown }> = (props) => (
+/** Centered auth-page frame — also used by the sandbox role picker (routes/sandbox.tsx). */
+export const Shell: FC<{ title: string; toast?: string | null; width?: number; children?: unknown }> = (props) => (
   <html>
     <head>
       <meta charset="utf-8" />
@@ -35,7 +38,7 @@ const Shell: FC<{ title: string; toast?: string | null; children?: unknown }> = 
     </head>
     <body>
       <div style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;">
-        <div style="width:400px;max-width:100%;">
+        <div style={`width:${props.width ?? 400}px;max-width:100%;`}>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px;justify-content:center;">
             <div style={`width:30px;height:30px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:15px;font-weight:600;`}>
               U
@@ -224,10 +227,12 @@ app.get('/auth/google/callback', async (c) => {
 
 app.get('/auth/signout', async (c) => {
   await destroySession(c);
+  deleteCookie(c, SANDBOX_COOKIE, { path: '/' }); // drop the sandbox role-switcher chip too
   return c.redirect('/');
 });
 app.post('/auth/signout', async (c) => {
   await destroySession(c);
+  deleteCookie(c, SANDBOX_COOKIE, { path: '/' });
   return c.redirect('/');
 });
 

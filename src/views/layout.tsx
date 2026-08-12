@@ -8,6 +8,7 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Event, Theme, User } from '../types';
 import { pairingFor, themeStyleVars, initialsOf } from '../lib/theme';
+import { SANDBOX_PERSONAS, SANDBOX_PERSONA_KEYS, type SandboxPersonaKey } from '../lib/seed-data';
 
 export const MONO = "'IBM Plex Mono',monospace";
 export const GOOGLE_FONTS =
@@ -20,6 +21,7 @@ export const ADMIN_BASE_CSS = `
   [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  #sandbox-switcher summary::-webkit-details-marker{display:none;}
 `;
 
 export function initials(nameOrEmail: string): string {
@@ -77,6 +79,75 @@ export const Toast: FC<{ message?: string | null }> = ({ message }) => {
   );
 };
 
+/* -------------------------------------------------------- sandbox switcher */
+
+/** What the bottom-right "Viewing as …" chip needs (sandbox orgs only). */
+export type SandboxWidget = {
+  orgId: string;
+  /** e.g. "Marta (Organizer)" */
+  personaLabel: string;
+  personaKey: SandboxPersonaKey | null;
+};
+
+/**
+ * Fixed bottom-right role chip for sandbox orgs: "SANDBOX · Viewing as … ▾"
+ * opening a three-persona menu. Pure `<details>` — no island. Each row is a
+ * real form POST to `/sandbox/switch`, which re-signs the visitor in as that
+ * persona (routes/sandbox.tsx verifies the org really is a sandbox).
+ */
+const SandboxSwitcher: FC<{ sandbox: SandboxWidget; hidden?: boolean }> = ({ sandbox, hidden }) => (
+  <details id="sandbox-switcher" hidden={hidden} style="position:fixed;bottom:18px;right:18px;z-index:70;font-family:'Space Grotesk',sans-serif;">
+    <summary style="list-style:none;display:flex;align-items:center;gap:9px;background:#16171d;color:#fff;padding:9px 14px;font-size:12.5px;cursor:pointer;user-select:none;box-shadow:0 8px 24px rgba(22,23,29,0.35);">
+      <span style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;font-weight:600;color:#ffd43b;`}>SANDBOX</span>
+      <span>
+        Viewing as <b id="sandbox-persona-label">{sandbox.personaLabel}</b>
+      </span>
+      <span style="color:#9a9da6;font-size:10px;">▾</span>
+    </summary>
+    <div style="position:absolute;bottom:calc(100% + 8px);right:0;width:280px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.16);">
+      <div style={`padding:10px 14px 6px;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:#9a9da6;`}>
+        SWITCH ROLE
+      </div>
+      {SANDBOX_PERSONA_KEYS.map((key) => {
+        const p = SANDBOX_PERSONAS[key];
+        const current = key === sandbox.personaKey;
+        return (
+          <form method="post" action="/sandbox/switch">
+            <input type="hidden" name="org" value={sandbox.orgId} />
+            <input type="hidden" name="persona" value={key} />
+            <button
+              type="submit"
+              data-persona={key}
+              style={`display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;width:100%;padding:9px 14px;cursor:pointer;background:${current ? '#eef0fb' : '#fff'};border:none;border-top:1px solid #eceded;`}
+            >
+              <span style="font-size:13px;font-weight:600;color:#16171d;">{`${p.name} — ${p.title}${current ? ' ✓' : ''}`}</span>
+              <span style="font-size:11.5px;color:#686b74;">{p.blurb}</span>
+            </button>
+          </form>
+        );
+      })}
+    </div>
+  </details>
+);
+
+/**
+ * PublicLayout fallback when the route didn't pass a `sandbox` prop: a hidden
+ * widget plus an inline script that fills it from the `us_sandbox` cookie set
+ * by routes/sandbox.tsx — zero extra queries on public pages. The slug check
+ * keeps the chip off real events even while a sandbox cookie exists, and
+ * `/sandbox/switch` re-verifies everything server-side anyway.
+ */
+const SANDBOX_COOKIE_SCRIPT = `<script>(function(){
+var el=document.getElementById('sandbox-switcher');if(!el||!el.hidden)return;
+var m=document.cookie.match(/(?:^|; )us_sandbox=([^;]*)/);if(!m){el.remove();return;}
+var d;try{d=JSON.parse(decodeURIComponent(m[1]));}catch(e){}
+if(!d||!d.o||!d.s||(location.pathname+'/').indexOf('/'+d.s+'/')!==0){el.remove();return;}
+var l=document.getElementById('sandbox-persona-label');if(l)l.textContent=d.n||'…';
+el.querySelectorAll('input[name=org]').forEach(function(i){i.value=d.o;});
+var b=el.querySelector('button[data-persona="'+d.p+'"]');if(b)b.style.background='#eef0fb';
+el.hidden=false;
+})();</script>`;
+
 /* ------------------------------------------------------------------ admin */
 
 export type NavItem = { label: string; href: string; external?: boolean };
@@ -97,6 +168,8 @@ export type AdminLayoutProps = PropsWithChildren<{
   toast?: string | null;
   scripts?: string[];
   origin?: string;
+  /** Set (by adminProps) when the active org is a sandbox — renders the role switcher. */
+  sandbox?: SandboxWidget | null;
 }>;
 
 function navLink(href: string, label: string, active: boolean, external = false) {
@@ -245,6 +318,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
           </main>
         </div>
         <Toast message={props.toast} />
+        {props.sandbox ? <SandboxSwitcher sandbox={props.sandbox} /> : null}
         <script type="module" src="/js/ui.js"></script>
         {(props.scripts ?? []).map((s) => (
           <script type="module" src={s}></script>
@@ -264,6 +338,12 @@ export type PublicLayoutProps = PropsWithChildren<{
   scripts?: string[];
   maxWidth?: number;
   kicker?: string;
+  /**
+   * Pass when the route already knows the event's org is a sandbox (renders
+   * the role switcher server-side). When omitted, a cookie-driven fallback
+   * still shows the chip on the sandbox event's own pages — no extra query.
+   */
+  sandbox?: SandboxWidget | null;
 }>;
 
 export const PublicLayout: FC<PublicLayoutProps> = (props) => {
@@ -278,6 +358,7 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
   [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  #sandbox-switcher summary::-webkit-details-marker{display:none;}
 `;
   return (
     <html style={vars}>
@@ -305,6 +386,14 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
         </div>
         {props.children}
         <Toast message={props.toast} />
+        {props.sandbox ? (
+          <SandboxSwitcher sandbox={props.sandbox} />
+        ) : (
+          <>
+            <SandboxSwitcher sandbox={{ orgId: '', personaLabel: '…', personaKey: null }} hidden />
+            {raw(SANDBOX_COOKIE_SCRIPT)}
+          </>
+        )}
         <script type="module" src="/js/ui.js"></script>
         {(props.scripts ?? []).map((s) => (
           <script type="module" src={s}></script>

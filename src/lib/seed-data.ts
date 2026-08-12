@@ -379,3 +379,52 @@ export const TASK_TEMPLATES: SeedTaskTemplate[] = [
     description: 'Flights and hotel — assigned because you requested travel support.',
   }),
 ];
+
+/* --------------------------------------------------- sandbox personas (spec §4.13) */
+
+/**
+ * The three seats a sandbox visitor can occupy. The picker (`/sandbox/:org`),
+ * the bottom-right role switcher and the seeding all key off this table.
+ * `email` is the base address — every sandbox plus-suffixes it (see
+ * `suffixEmail`), so personas never collide across sandboxes.
+ */
+export type SandboxPersonaKey = 'organizer' | 'speaker' | 'evaluator';
+
+export const SANDBOX_PERSONA_KEYS: SandboxPersonaKey[] = ['organizer', 'speaker', 'evaluator'];
+
+export const SANDBOX_PERSONAS: Record<
+  SandboxPersonaKey,
+  { name: string; first: string; email: string; title: string; blurb: string; color: string }
+> = {
+  organizer: {
+    name: 'Marta Keller', first: 'Marta', email: 'marta@devconf.org', title: 'Organizer',
+    blurb: 'Run the program: submissions, decisions, agenda.', color: '#4c5fd5',
+  },
+  speaker: {
+    name: 'Sofia Rossi', first: 'Sofia', email: 'sofia@syncable.app', title: 'Speaker',
+    blurb: 'The speaker portal: tasks, profile, schedule.', color: '#e8590c',
+  },
+  evaluator: {
+    name: 'Deniz Aksoy', first: 'Deniz', email: 'deniz@aksoy.dev', title: 'Evaluator',
+    blurb: 'The review queue.', color: '#2b8a3e',
+  },
+};
+
+/** Client-readable cookie the public layout's role-switcher widget keys off. */
+export const SANDBOX_COOKIE = 'us_sandbox';
+
+/** `local@domain` + suffix → `local+suffix@domain` — one identity per sandbox. */
+export function suffixEmail(email: string, suffix: string): string {
+  const [local, domain] = email.split('@');
+  return `${local}+${suffix}@${domain}`;
+}
+
+/** Which sandbox persona (if any) an email belongs to, across any sandbox suffix. */
+export function personaKeyForEmail(email: string | null | undefined): SandboxPersonaKey | null {
+  if (!email) return null;
+  for (const key of SANDBOX_PERSONA_KEYS) {
+    const [local, domain] = SANDBOX_PERSONAS[key].email.split('@');
+    if (email.startsWith(`${local}+`) && email.endsWith(`@${domain}`)) return key;
+  }
+  return null;
+}

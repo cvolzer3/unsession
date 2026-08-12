@@ -3,9 +3,7 @@ import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { MONO, GOOGLE_FONTS } from '../views/layout';
-import { createSession, findOrCreateUserByEmail } from '../lib/auth';
 import { seedSandbox } from '../lib/seed';
-import { shortCode } from '../lib/ids';
 
 const app = new Hono<Ctx>();
 
@@ -115,17 +113,10 @@ app.get('/', (c) => {
   );
 });
 
-/** Provisions a sandbox org + event and signs the visitor in as its organizer. */
+/** Provisions a sandbox org + event, then hands the visitor the role picker. */
 app.post('/sandbox', async (c) => {
-  const code = shortCode(6);
-  const user = await findOrCreateUserByEmail(
-    c.env.DB,
-    `sandbox-${code}@sandbox.unsession.dev`,
-    'Marta Keller'
-  );
-  const { eventId } = await seedSandbox(c.env.DB, user.id);
-  await createSession(c, user.id, eventId);
-  return c.redirect('/app?ok=' + encodeURIComponent('Sandbox ready — DevConf 2027, mid-lifecycle'));
+  const { orgId } = await seedSandbox(c.env.DB);
+  return c.redirect(`/sandbox/${orgId}`);
 });
 
 export default app;

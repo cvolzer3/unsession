@@ -12,6 +12,7 @@ import { runScheduledJobs } from './lib/jobs';
 
 import landing from './routes/landing';
 import auth from './routes/auth';
+import sandbox from './routes/sandbox';
 import confirm from './routes/confirm';
 import files from './routes/files';
 import adminDashboard from './routes/admin-dashboard';
@@ -43,6 +44,7 @@ app.get('/healthz', (c) => c.json({ ok: true, service: 'unsession' }));
 // Landing + auth
 app.route('/', landing);
 app.route('/', auth);
+app.route('/', sandbox);
 app.route('/', confirm);
 app.route('/', files);
 

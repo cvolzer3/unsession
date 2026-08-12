@@ -6,6 +6,11 @@
  * with schemas, ~30 submissions in every state, part-done evaluations whose
  * averages match the prototype, an agenda that still contains the deliberate
  * Ines Kovač double-booking, speaker profiles, and the speakers × tasks grid.
+ *
+ * The visitor is never a throwaway user: the three picker personas (Marta
+ * Keller the org owner, Sofia Rossi the speaker, Deniz Aksoy the evaluator)
+ * are real seeded users whose emails are plus-suffixed per sandbox, and
+ * `routes/sandbox.tsx` signs the visitor in as one of them.
  */
 import { batch, now, run } from './db';
 import { newId, shortCode } from './ids';
@@ -15,7 +20,16 @@ import * as D from './seed-data';
 
 type Stmt = [string, unknown[]];
 
-export type SandboxResult = { orgId: string; eventId: string; slug: string; suffix: string };
+export type SandboxPersonaUser = { userId: string; email: string; name: string };
+
+export type SandboxResult = {
+  orgId: string;
+  eventId: string;
+  slug: string;
+  suffix: string;
+  /** The three picker seats — real users the visitor signs in as (spec §4.13). */
+  personas: Record<D.SandboxPersonaKey, SandboxPersonaUser>;
+};
 
 /** Split "A, B" speaker strings from the agenda seed. */
 function names(s: string | undefined): string[] {
@@ -54,7 +68,7 @@ function daysFromNow(n: number): string {
   return new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 }
 
-export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<SandboxResult> {
+export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
   const suffix = shortCode(4);
   const stamp = now();
   const orgId = newId('org');
@@ -62,14 +76,6 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
   const slug = `${D.EVENT.slug}-${suffix}`;
 
   await run(db, `INSERT INTO orgs (id, name, is_sandbox, created_at) VALUES (?,?,1,?)`, orgId, 'DevConf (sandbox)', stamp);
-  await run(
-    db,
-    `INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (?,?,?,?)`,
-    orgId,
-    ownerUserId,
-    'owner',
-    stamp
-  );
   await run(
     db,
     `INSERT INTO events (id, org_id, name, slug, start_date, end_date, timezone, venue, mode, description,
@@ -199,18 +205,35 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
     ]);
   }
 
-  /* --------------------------------------------------------- reviewer users */
-  // Plus-addressed so several sandboxes can coexist (users.email is globally unique).
-  const reviewerUserId = new Map<string, string>();
+  /* ---------------------------------------------------------- seeded people */
+  // Every seeded person's email is plus-addressed per sandbox so several
+  // sandboxes can coexist (users.email is globally unique, and the speaker
+  // portal / evaluate queue match people by email).
+  const personUserId = new Map<string, string>();
   D.PEOPLE.forEach((p) => {
-    const [local, domain] = p.email.split('@');
     const id = newId('usr');
-    reviewerUserId.set(p.id, id);
+    personUserId.set(p.id, id);
     stmts.push([
       `INSERT INTO users (id, email, name, google_id, created_at) VALUES (?,?,?,NULL,?)`,
-      [id, `${local}+${suffix}@${domain}`, p.name, stamp],
+      [id, D.suffixEmail(p.email, suffix), p.name, stamp],
     ]);
   });
+
+  // Speaker persona — Sofia Rossi gets a real user so the picker can sign the
+  // visitor in as her; her speaker profile links back via user_id below.
+  const speakerPersonaEmail = D.suffixEmail(D.SANDBOX_PERSONAS.speaker.email, suffix);
+  const speakerPersonaUserId = newId('usr');
+  stmts.push([
+    `INSERT INTO users (id, email, name, google_id, created_at) VALUES (?,?,?,NULL,?)`,
+    [speakerPersonaUserId, speakerPersonaEmail, D.SANDBOX_PERSONAS.speaker.name, stamp],
+  ]);
+
+  // Organizer persona — Marta Keller owns the sandbox org. The visitor's
+  // session IS Marta; there is no throwaway owner user.
+  stmts.push([
+    `INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (?,?,?,?)`,
+    [orgId, personUserId.get('marta')!, 'owner', stamp],
+  ]);
 
   /* ---------------------------------------------------------- submissions */
   const submissionId = new Map<string, string>(); // 'SUB-147' -> row id
@@ -267,10 +290,11 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
       ],
     ]);
     s.speakers.forEach((sp, i) => {
+      const email = D.suffixEmail(sp.email, suffix);
       stmts.push([
         `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, headshot_file_id, user_id)
-         VALUES (?,?,?,?,?,?,NULL,NULL)`,
-        [newId('ssp'), id, i, sp.name, sp.email, sp.bio],
+         VALUES (?,?,?,?,?,?,NULL,?)`,
+        [newId('ssp'), id, i, sp.name, email, sp.bio, email === speakerPersonaEmail ? speakerPersonaUserId : null],
       ]);
     });
   });
@@ -281,8 +305,9 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
   ]);
 
   /* ------------------------------------------------------- speaker profiles */
+  // Profile emails are the plus-suffixed ones — the portal finds a speaker's
+  // profile, submissions and tasks by the signed-in user's email.
   const profileId = new Map<string, string>(); // speaker name -> profile id
-  const profileEmail = new Map<string, string>();
   const seenSlugs = new Set<string>();
   const addProfile = (name: string, email: string, bio: string) => {
     if (profileId.has(name)) return;
@@ -292,14 +317,13 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
     seenSlugs.add(s);
     const id = newId('spk');
     profileId.set(name, id);
-    profileEmail.set(name, email);
     stmts.push([
       `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, headshot_file_id, slug, created_at)
-       VALUES (?,?,NULL,?,?,?,NULL,?,?)`,
-      [id, eventId, email, name, bio, s, stamp],
+       VALUES (?,?,?,?,?,?,NULL,?,?)`,
+      [id, eventId, email === speakerPersonaEmail ? speakerPersonaUserId : null, email, name, bio, s, stamp],
     ]);
   };
-  D.SUBMISSIONS.forEach((s) => s.speakers.forEach((sp) => addProfile(sp.name, sp.email, sp.bio)));
+  D.SUBMISSIONS.forEach((s) => s.speakers.forEach((sp) => addProfile(sp.name, D.suffixEmail(sp.email, suffix), sp.bio)));
 
   /* ------------------------------------------------------------- sessions */
   const sessionIdBySub = new Map<string, string>();
@@ -437,7 +461,7 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
       ],
     ]);
     p.reviewers.forEach((r) => {
-      const uid = reviewerUserId.get(r.id);
+      const uid = personUserId.get(r.id);
       if (!uid) return;
       stmts.push([
         `INSERT INTO eval_plan_reviewers (plan_id, user_id, role) VALUES (?,?,?)`,
@@ -455,7 +479,7 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
     const key = s.form === 'sponsor' ? 'sponsor' : 'main';
     const plan = D.EVAL_PLANS.find((p) => p.id === key)!;
     const pid = planId.get(key)!;
-    const reviewers = plan.reviewers.filter((r) => reviewerUserId.has(r.id));
+    const reviewers = plan.reviewers.filter((r) => personUserId.has(r.id));
     const matrix = scoreMatrix(s.avg, s.evalDone, plan.criteria.length);
     matrix.forEach((row, i) => {
       const reviewer = reviewers[i % reviewers.length];
@@ -470,7 +494,7 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
           newId('evl'),
           pid,
           submissionId.get(s.id)!,
-          reviewerUserId.get(reviewer.id)!,
+          personUserId.get(reviewer.id)!,
           JSON.stringify(scores),
           '',
           stamp,
@@ -541,5 +565,25 @@ export async function seedSandbox(db: D1Database, ownerUserId: string): Promise<
   });
 
   await batch(db, stmts);
-  return { orgId, eventId, slug, suffix };
+
+  // Marta and Deniz come from D.PEOPLE ('marta' owns the org above; 'deniz'
+  // sits on the Main CFP + AI second-opinion reviewer rosters via EVAL_PLANS).
+  const personas: SandboxResult['personas'] = {
+    organizer: {
+      userId: personUserId.get('marta')!,
+      email: D.suffixEmail(D.SANDBOX_PERSONAS.organizer.email, suffix),
+      name: D.SANDBOX_PERSONAS.organizer.name,
+    },
+    speaker: {
+      userId: speakerPersonaUserId,
+      email: speakerPersonaEmail,
+      name: D.SANDBOX_PERSONAS.speaker.name,
+    },
+    evaluator: {
+      userId: personUserId.get('deniz')!,
+      email: D.suffixEmail(D.SANDBOX_PERSONAS.evaluator.email, suffix),
+      name: D.SANDBOX_PERSONAS.evaluator.name,
+    },
+  };
+  return { orgId, eventId, slug, suffix, personas };
 }
