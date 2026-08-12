@@ -17,7 +17,9 @@ export const ADMIN_BASE_CSS = `
   html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
   a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
   *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
 `;
 
 export function initials(nameOrEmail: string): string {
@@ -275,7 +277,9 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);}
   a{color:var(--primary);text-decoration:none;} a:hover{color:var(--primary-hover);text-decoration:underline;}
   *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
+  [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
 `;
   return (
     <html style={vars}>
