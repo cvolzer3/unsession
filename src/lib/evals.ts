@@ -12,6 +12,7 @@
 import { all, jsonParse, now, one, run } from './db';
 import { newId } from './ids';
 import { logActivity } from './activity';
+import { roleLabel } from './speaker-roles';
 import type { Bindings } from '../types';
 
 /* ------------------------------------------------------------------ types */
@@ -76,7 +77,7 @@ export type EvalPlan = {
   pins: Record<string, string[]>;
 };
 
-export type EvalSpeaker = { name: string; email: string; bio: string };
+export type EvalSpeaker = { name: string; email: string; bio: string; role: string };
 
 export type EvalSubmission = {
   id: string;
@@ -326,9 +327,9 @@ export async function loadSubmissions(db: D1Database, eventId: string): Promise<
          FROM submissions WHERE event_id = ? AND status <> 'draft' ORDER BY seq DESC`,
       eventId
     ),
-    all<{ submission_id: string; name: string; email: string; bio: string }>(
+    all<{ submission_id: string; name: string; email: string; bio: string; role: string; position: number }>(
       db,
-      `SELECT sp.submission_id, sp.name, sp.email, sp.bio
+      `SELECT sp.submission_id, sp.name, sp.email, sp.bio, sp.role, sp.position
          FROM submission_speakers sp JOIN submissions s ON s.id = sp.submission_id
         WHERE s.event_id = ? ORDER BY sp.position`,
       eventId
@@ -367,7 +368,9 @@ export async function loadSubmissions(db: D1Database, eventId: string): Promise<
       format,
       level,
       submittedAt: r.submitted_at,
-      speakers: speakers.filter((s) => s.submission_id === r.id).map((s) => ({ name: s.name, email: s.email, bio: s.bio })),
+      speakers: speakers
+        .filter((s) => s.submission_id === r.id)
+        .map((s) => ({ name: s.name, email: s.email, bio: s.bio, role: roleLabel(s.role, s.position) })),
       answers,
     };
   });

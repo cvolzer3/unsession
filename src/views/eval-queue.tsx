@@ -310,6 +310,11 @@ function ReviewCard(opts: {
             {submission.speakers.map((p) => (
               <div style="display:flex;gap:12px;align-items:baseline;">
                 <div style="font-size:13.5px;font-weight:600;">{p.name}</div>
+                <div
+                  style={`font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;`}
+                >
+                  {p.role.toUpperCase()}
+                </div>
                 <div style={`font-size:12px;color:#4c5fd5;font-family:${MONO};`}>{p.email}</div>
                 <div style="font-size:12.5px;color:#686b74;">{p.bio}</div>
               </div>
@@ -428,6 +433,11 @@ function ReviewedCard(opts: {
             {submission.speakers.map((p) => (
               <div style="display:flex;gap:12px;align-items:baseline;">
                 <div style="font-size:13.5px;font-weight:600;">{p.name}</div>
+                <div
+                  style={`font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;`}
+                >
+                  {p.role.toUpperCase()}
+                </div>
                 <div style={`font-size:12px;color:#4c5fd5;font-family:${MONO};`}>{p.email}</div>
                 <div style="font-size:12.5px;color:#686b74;">{p.bio}</div>
               </div>

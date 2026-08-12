@@ -31,6 +31,8 @@ export type SpeakerInput = {
   email: string;
   bio?: string;
   tagline?: string;
+  /** SPEAKER_ROLES key; '' or missing falls back to the position default. */
+  role?: string;
   links?: SpeakerLinks;
   headshotFileId?: string | null;
 };

@@ -160,6 +160,20 @@ export function validate(fields, answers, speakers, cap) {
 const INPUT = (bad) =>
   `width:100%;padding:11px 12px;border:1px solid ${bad ? '#e03131' : 'var(--border-strong)'};font-size:14px;background:var(--card);outline-color:var(--primary);font-family:inherit;resize:vertical;`;
 
+// Mirrors SPEAKER_ROLES in src/lib/speaker-roles.ts — keep both in step.
+const SPEAKER_ROLES = [
+  ['speaker', 'Speaker'],
+  ['co_speaker', 'Co-speaker'],
+  ['co_author', 'Co-author'],
+  ['moderator', 'Moderator'],
+  ['panelist', 'Panelist'],
+];
+
+/** Card 1 speaks, every later card co-speaks, until the speaker says otherwise. */
+function defaultRole(i) {
+  return i === 0 ? 'speaker' : 'co_speaker';
+}
+
 export function speakerCardHtml(i, s, opts) {
   const label =
     opts.agentMode && i === 0
@@ -182,6 +196,12 @@ export function speakerCardHtml(i, s, opts) {
       <div><input name="sp_name[]" value="${escapeHtml(s.name || '')}" placeholder="Full name *" style="${INPUT(false)}"></div>
       <div><input name="sp_email[]" type="email" inputmode="email" value="${escapeHtml(s.email || '')}" placeholder="Email *" style="${INPUT(false)}"></div>
     </div>
+    <select name="sp_role[]" aria-label="Role on this submission" style="${INPUT(false)}">
+      ${SPEAKER_ROLES.map(
+        ([value, label]) =>
+          `<option value="${value}"${(s.role || defaultRole(i)) === value ? ' selected' : ''}>Role — ${label}</option>`
+      ).join('')}
+    </select>
     <textarea name="sp_bio[]" rows="2" placeholder="Short bio (shown on the public agenda)" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);font-size:13.5px;resize:vertical;font-family:inherit;background:var(--card);">${escapeHtml(s.bio || '')}</textarea>
     <input type="hidden" name="sp_headshot[]" value="${escapeHtml(s.headshotFileId || '')}">
     ${slot}
@@ -260,6 +280,7 @@ function init() {
       name: (card.querySelector('[name="sp_name[]"]') || {}).value || '',
       email: (card.querySelector('[name="sp_email[]"]') || {}).value || '',
       bio: (card.querySelector('[name="sp_bio[]"]') || {}).value || '',
+      role: (card.querySelector('[name="sp_role[]"]') || {}).value || '',
       headshotFileId: (card.querySelector('[name="sp_headshot[]"]') || {}).value || null,
     }));
   }

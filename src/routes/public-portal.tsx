@@ -22,6 +22,7 @@ import { filesEnabled, saveUpload } from '../lib/files';
 import { addFileComment, fmtDateTime, listFileComments, type FileCommentRow } from '../lib/file-comments';
 import * as T from '../lib/tasks';
 import { LINK_FIELDS, normalizeLink, type SpeakerLinks } from '../lib/speaker-links';
+import { roleLabel } from '../lib/speaker-roles';
 
 const app = new Hono<Ctx>();
 
@@ -71,6 +72,8 @@ type SubmissionCard = {
   title: string;
   formSlug: string;
   coSpeakers: string[];
+  /** Everyone credited on the proposal, in card order, with their role label. */
+  participants: { name: string; role: string; you: boolean }[];
   session: SessionRow | null;
   slot: string | null;
   /** Speaker confirmed their session (migration 0011: lives on the session, not the submission). */
@@ -155,9 +158,9 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
       drafts.push({ id: s.id, title: s.title, formSlug: s.form_slug });
       continue;
     }
-    const co = await all<{ name: string; email: string }>(
+    const co = await all<{ name: string; email: string; role: string; position: number }>(
       env.DB,
-      `SELECT name, email FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
+      `SELECT name, email, role, position FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
       s.id
     );
     const session = await one<SessionRow>(
@@ -176,6 +179,13 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
       title: s.title,
       formSlug: s.form_slug,
       coSpeakers: co.filter((x) => x.email.toLowerCase() !== email.toLowerCase()).map((x) => x.name),
+      participants: co
+        .filter((x) => x.name || x.email)
+        .map((x) => ({
+          name: x.name || x.email,
+          role: roleLabel(x.role, x.position),
+          you: x.email.toLowerCase() === email.toLowerCase(),
+        })),
       session: session ?? null,
       slot: session ? slotLine(event, session, room?.name ?? null) : null,
       confirmed: session?.status === 'confirmed',
@@ -583,10 +593,24 @@ app.get('/:event/portal', async (c) => {
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
               <StatusBadge status={s.status} confirmed={s.confirmed} />
               <span style={`font-family:${MONO};font-size:10.5px;color:var(--muted);`}>
-                {`SUB-${s.seq}${s.coSpeakers.length ? ` · WITH ${s.coSpeakers.join(', ').toUpperCase()}` : ''}`}
+                {`SUB-${s.seq}`}
               </span>
             </div>
             <div style="font-size:16.5px;font-weight:700;letter-spacing:-0.01em;">{s.title}</div>
+            {s.participants.length ? (
+              <div style="margin-top:10px;display:flex;gap:16px;flex-wrap:wrap;">
+                {s.participants.map((p) => (
+                  <span style="font-size:13px;color:var(--text-secondary);">
+                    {p.name}
+                    <span
+                      style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:var(--muted);margin-left:7px;`}
+                    >
+                      {`${p.role.toUpperCase()}${p.you ? ' · YOU' : ''}`}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {s.confirmed && s.slot ? (
               <>
                 <div style="margin-top:18px;border:1px solid var(--border);background:var(--bg);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">

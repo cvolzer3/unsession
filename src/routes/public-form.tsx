@@ -41,6 +41,7 @@ import {
 } from '../lib/forms';
 import { richMessageHtml } from '../lib/rich';
 import { linksJson, normalizeLinks, sanitizeLinks, type SpeakerLinks } from '../lib/speaker-links';
+import { SPEAKER_ROLES, defaultRole, normalizeRole } from '../lib/speaker-roles';
 import {
   normalizeUrl,
   requiredWhenVisible,
@@ -107,6 +108,7 @@ type SpeakerRow = {
   email: string;
   bio: string;
   tagline: string;
+  role: string;
   links_json: string | null;
   headshot_file_id: string | null;
 };
@@ -466,7 +468,7 @@ function SpeakerCard({
 }) {
   const label =
     state.agentMode && i === 0
-      ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)'
+      ? 'SPEAKER 1 · THE ACTUAL SPEAKER'
       : `SPEAKER ${i + 1}${i === 0 && !state.agentMode ? ' · YOU' : ''}`;
   const nameErr = state.errors[`sp${i}.name`];
   const emailErr = state.errors[`sp${i}.email`];
@@ -501,6 +503,13 @@ function SpeakerCard({
           />
         </div>
       </div>
+      <select name="sp_role[]" aria-label="Role on this submission" style={inputStyle(false)}>
+        {SPEAKER_ROLES.map(([value, label]) => (
+          <option value={value} selected={(normalizeRole(s.role) || defaultRole(i)) === value}>
+            {`Role — ${label}`}
+          </option>
+        ))}
+      </select>
       <input
         name="sp_tagline[]"
         value={s.tagline ?? ''}
@@ -600,7 +609,7 @@ function SpeakerBlock({
             style="accent-color:var(--primary);margin-top:2px;"
           />
           <span>
-            I’m submitting on behalf of someone else — I manage this submission, the speaker gets speaker-facing emails.
+            I’m submitting on behalf of someone else.
           </span>
         </label>
         {state.errors.speakers ? (
@@ -730,19 +739,17 @@ function renderPage(opts: {
           {kicker}
         </div>
         <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">{heading}</h1>
-        <p style="margin:0 0 6px;font-size:15px;color:var(--text-secondary);line-height:1.55;">{fmtEventLine(event)}</p>
-        <p style="margin:0 0 26px;font-size:12.5px;color:var(--muted);">
-          {opts.user ? (
-            <>
-              {'Signed in as '}
-              <span style={`font-family:${MONO_VAR};`}>{opts.user.email}</span>
-            </>
-          ) : settings.allowDrafts ? (
-            'No password, ever — leave your email and we’ll send a link so you can pick this up on any device. Your draft autosaves.'
-          ) : (
-            'No password, ever — we’ll email you a confirmation once you submit.'
-          )}
+        <p
+          style={`margin:0 0 ${opts.user ? '6px' : '26px'};font-size:15px;color:var(--text-secondary);line-height:1.55;`}
+        >
+          {fmtEventLine(event)}
         </p>
+        {opts.user ? (
+          <p style="margin:0 0 26px;font-size:12.5px;color:var(--muted);">
+            {'Signed in as '}
+            <span style={`font-family:${MONO_VAR};`}>{opts.user.email}</span>
+          </p>
+        ) : null}
 
         {hasWelcome ? (
           <div
@@ -807,9 +814,6 @@ function renderPage(opts: {
                 {opts.state.errors.email ? (
                   <div style="font-size:12px;color:#c92a2a;margin-top:4px;">{opts.state.errors.email}</div>
                 ) : null}
-                <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
-                  We create your speaker account automatically — no password to remember.
-                </div>
                 {state.simulatedLink ? (
                   <div style={`margin-top:10px;font-family:${MONO_VAR};font-size:11px;background:var(--chip);padding:8px 10px;word-break:break-all;`}>
                     {'Email sending is simulated in this environment — your draft link: '}
@@ -871,6 +875,7 @@ async function speakersOf(db: D1Database, submissionId: string): Promise<Speaker
     email: r.email,
     bio: r.bio,
     tagline: r.tagline ?? '',
+    role: r.role ?? '',
     links: jsonParse<SpeakerLinks>(r.links_json, {}),
     headshotFileId: r.headshot_file_id,
   }));
@@ -909,6 +914,7 @@ app.post('/p/api/draft', async (c) => {
     email: String(s.email ?? ''),
     bio: String(s.bio ?? ''),
     tagline: String(s.tagline ?? ''),
+    role: normalizeRole(s.role),
     links: sanitizeLinks(s.links),
     headshotFileId: s.headshotFileId ?? null,
   }));
@@ -995,8 +1001,8 @@ async function writeSpeakers(db: D1Database, submissionId: string, speakers: Spe
     if (!s.name?.trim() && !s.email?.trim() && !s.bio?.trim() && !s.tagline?.trim() && !links && !s.headshotFileId) continue;
     await run(
       db,
-      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, tagline, links_json, headshot_file_id, user_id)
-       VALUES (?,?,?,?,?,?,?,?,?,NULL)`,
+      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, tagline, role, links_json, headshot_file_id, user_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,NULL)`,
       newId('ssp'),
       submissionId,
       i,
@@ -1004,6 +1010,7 @@ async function writeSpeakers(db: D1Database, submissionId: string, speakers: Spe
       (s.email ?? '').trim(),
       (s.bio ?? '').trim(),
       (s.tagline ?? '').trim(),
+      normalizeRole(s.role),
       links,
       s.headshotFileId || null
     );
@@ -1259,6 +1266,7 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
   const emails = vals(body, 'sp_email');
   const bios = vals(body, 'sp_bio');
   const taglines = vals(body, 'sp_tagline');
+  const roles = vals(body, 'sp_role');
   const heads = vals(body, 'sp_headshot');
   const linkCols = {
     linkedin: vals(body, 'sp_link_linkedin'),
@@ -1274,6 +1282,7 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
       email: (emails[i] ?? '').trim(),
       bio: (bios[i] ?? '').trim(),
       tagline: (taglines[i] ?? '').trim(),
+      role: normalizeRole(roles[i]),
       links: sanitizeLinks({
         linkedin: linkCols.linkedin[i],
         x: linkCols.x[i],
