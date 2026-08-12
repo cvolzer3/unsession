@@ -944,15 +944,20 @@ app.get('/app/speakers', async (c) => {
                     <div style="min-width:0;">
                       <a
                         href={`/app/speakers?open=${q.speaker_profile_id}`}
-                        style="font-size:12.5px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                        style="font-size:13px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                       >
-                        {q.task_name}
+                        {q.speaker_name || 'No speaker on file'}
                       </a>
+                      <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                        {q.speaker_email || 'no email on file'}
+                      </div>
+                    </div>
+                    <div style="min-width:0;">
+                      <div style="font-size:12.5px;color:#33343c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {q.task_name}
+                      </div>
                       <div style="font-size:11px;color:#9a9da6;">{q.due_date ? `Due ${q.due_date}` : 'No due date'}</div>
                     </div>
-                    <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
-                      {q.speaker_email ? `${q.speaker_name ?? ''} · ${q.speaker_email}` : 'no speaker email on file'}
-                    </span>
                     {canWrite ? (
                       <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
                         <input type="hidden" name="id" value={q.id} />
