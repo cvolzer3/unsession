@@ -1,0 +1,101 @@
+/**
+ * Unsession — worker entry point.
+ *
+ * Route order matters: the public event surfaces (`/:event/...`) are the
+ * catch-all and must be registered last. Static assets are served by the
+ * ASSETS binding before the worker runs.
+ */
+import { Hono } from 'hono';
+import type { Ctx } from './types';
+import { getSession, requireUser } from './lib/auth';
+import { runScheduledJobs } from './lib/jobs';
+
+import landing from './routes/landing';
+import auth from './routes/auth';
+import confirm from './routes/confirm';
+import files from './routes/files';
+import adminDashboard from './routes/admin-dashboard';
+import adminEvents from './routes/admin-events';
+import adminSetup from './routes/admin-setup';
+import adminTeam from './routes/admin-team';
+import adminEmails from './routes/admin-emails';
+import adminSubmissions from './routes/admin-submissions';
+import adminForms from './routes/admin-forms';
+import adminEvaluation from './routes/admin-evaluation';
+import adminSessions from './routes/admin-sessions';
+import adminSpeakers from './routes/admin-speakers';
+import adminAgenda from './routes/admin-agenda';
+import publicAgenda from './routes/public-agenda';
+import publicPortal from './routes/public-portal';
+import publicEvaluate from './routes/public-evaluate';
+import publicSpeaker from './routes/public-speaker';
+import publicForm from './routes/public-form';
+
+const app = new Hono<Ctx>();
+
+app.use('*', getSession);
+app.use('/app', requireUser);
+app.use('/app/*', requireUser);
+
+app.get('/healthz', (c) => c.json({ ok: true, service: 'unsession' }));
+
+// Landing + auth
+app.route('/', landing);
+app.route('/', auth);
+app.route('/', confirm);
+app.route('/', files);
+
+// Admin (indigo, never themed)
+app.route('/', adminDashboard);
+app.route('/', adminEvents);
+app.route('/', adminSetup);
+app.route('/', adminTeam);
+app.route('/', adminEmails);
+app.route('/', adminSubmissions);
+app.route('/', adminForms);
+app.route('/', adminEvaluation);
+app.route('/', adminSessions);
+app.route('/', adminSpeakers);
+app.route('/', adminAgenda);
+
+// Public, event-themed surfaces — order-sensitive, `/:event/:form` last.
+app.route('/', publicPortal);
+app.route('/', publicEvaluate);
+app.route('/', publicSpeaker);
+app.route('/', publicAgenda);
+app.route('/', publicForm);
+
+app.notFound((c) =>
+  c.html(
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Unsession — not found</title>
+      </head>
+      <body style="margin:0;background:#f4f4f6;color:#16171d;font-family:system-ui,sans-serif;">
+        <div style="min-height:100vh;display:grid;place-items:center;">
+          <div style="text-align:center;">
+            <div style="font-family:ui-monospace,monospace;font-size:11px;letter-spacing:0.14em;color:#9a9da6;">404</div>
+            <div style="font-size:18px;font-weight:700;margin-top:6px;">Nothing here</div>
+            <div style="margin-top:10px;font-size:13px;">
+              <a href="/" style="color:#4c5fd5;">Back to Unsession</a>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>,
+    404
+  )
+);
+
+app.onError((err, c) => {
+  console.error('[unsession]', err);
+  return c.text('Something went wrong', 500);
+});
+
+export default {
+  fetch: app.fetch,
+  async scheduled(event: ScheduledController, env: Ctx['Bindings'], ctx: ExecutionContext) {
+    ctx.waitUntil(runScheduledJobs(env, event));
+  },
+};

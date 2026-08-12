@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "unsession",
+  "account_id": "9bbf4e4369014eae4329711aced8e0ae",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-08-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "unsession-files"
+    }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "unsession-db",
+      "database_id": "4002bb95-1ebd-4aa8-8164-0b83acaeb86b",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // Email sending — enable after unsession.dev finishes Email Service domain onboarding.
+  // Until then `env.EMAIL` is undefined and src/lib/email.ts records rows with
+  // status 'simulated' and surfaces magic links in the UI. Flip EMAIL_ENABLED to "1"
+  // at the same time you uncomment this block.
+  // "send_email": [{ "name": "EMAIL" }],
+
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  "vars": {
+    // Single source for absolute URLs in emails and magic links. Must match the
+    // origin the worker is actually reachable on — switch to https://unsession.dev
+    // once the custom domain route is attached.
+    "APP_ORIGIN": "https://unsession.unsession.workers.dev",
+    "EMAIL_FROM": "no-reply@unsession.dev",
+    "EMAIL_ENABLED": "0"
+  }
+}

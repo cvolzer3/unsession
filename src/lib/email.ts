@@ -1,0 +1,178 @@
+/**
+ * Email abstraction (DECISIONS D6).
+ *
+ * Every send writes an `emails` row first, so the log is the source of truth.
+ * When `env.EMAIL` is bound AND `EMAIL_ENABLED === '1'` we send through the
+ * Cloudflare Email Service binding and flip the row to sent/failed. Otherwise
+ * the row stays `simulated` and callers surface the link in the UI.
+ */
+import { newId } from './ids';
+import { now, one, run } from './db';
+import type { Bindings, Theme } from '../types';
+import { DEFAULT_THEME, derive, parseTheme } from './theme';
+
+export type SendEmailInput = {
+  eventId?: string | null;
+  to: string;
+  toName?: string | null;
+  templateKey?: string | null;
+  subject: string;
+  text: string;
+  subjectType?: string | null;
+  subjectId?: string | null;
+};
+
+export type SendEmailResult = {
+  id: string;
+  status: 'sent' | 'failed' | 'simulated';
+  error?: string;
+};
+
+export const EMAIL_FROM_NAME = 'Unsession';
+
+export function renderTemplate(str: string, vars: Record<string, string | number | null | undefined>): string {
+  return (str || '').replace(/\{\{\s*([\w.]+)\s*\}\}/g, (whole, key: string) => {
+    const v = vars[key];
+    return v === undefined || v === null ? whole : String(v);
+  });
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function linkify(s: string): string {
+  return s.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:inherit;">${u}</a>`);
+}
+
+/** Minimal themed HTML shell: accent bar in the event primary, logo name, footer. */
+export function wrapHtml(text: string, opts: { subject: string; theme?: Theme; eventName?: string }): string {
+  const theme = opts.theme ?? DEFAULT_THEME;
+  const d = derive(theme.primary);
+  const body = linkify(escapeHtml(text))
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin:0 0 14px;">${p.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f4f6;">
+<div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e2e3e8;">
+  <div style="height:4px;background:${d.primary};"></div>
+  <div style="padding:22px 26px;">
+    <div style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.14em;color:#9a9da6;text-transform:uppercase;margin-bottom:14px;">${escapeHtml(
+      opts.eventName || EMAIL_FROM_NAME
+    )}</div>
+    <div style="font-family:-apple-system,'Space Grotesk',Segoe UI,sans-serif;font-size:14px;line-height:1.55;color:#16171d;">${body}</div>
+  </div>
+  <div style="padding:14px 26px;border-top:1px solid #eceded;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;color:#9a9da6;">Unsession</div>
+</div>
+</body></html>`;
+}
+
+/** MIME message — Email Service's send binding takes a raw RFC-5322 message. */
+function buildMime(opts: {
+  from: string;
+  fromName: string;
+  to: string;
+  toName?: string | null;
+  subject: string;
+  text: string;
+  html: string;
+}): string {
+  const boundary = `unsession-${crypto.randomUUID()}`;
+  const toHeader = opts.toName ? `${mimeWord(opts.toName)} <${opts.to}>` : opts.to;
+  return [
+    `From: ${mimeWord(opts.fromName)} <${opts.from}>`,
+    `To: ${toHeader}`,
+    `Subject: ${mimeWord(opts.subject)}`,
+    `Message-ID: <${crypto.randomUUID()}@unsession.dev>`,
+    `MIME-Version: 1.0`,
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="utf-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    opts.text,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="utf-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    opts.html,
+    '',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+}
+
+function mimeWord(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x20-\x7e]*$/.test(s)) return s;
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return `=?UTF-8?B?${btoa(bin)}?=`;
+}
+
+export async function sendEmail(env: Bindings, input: SendEmailInput): Promise<SendEmailResult> {
+  const id = newId('eml');
+  const created = now();
+  const enabled = env.EMAIL_ENABLED === '1' && !!env.EMAIL;
+
+  await run(
+    env.DB,
+    `INSERT INTO emails (id, event_id, to_email, to_name, template_key, subject, body, status, error, subject_type, subject_id, created_at, sent_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL)`,
+    id,
+    input.eventId ?? null,
+    input.to,
+    input.toName ?? null,
+    input.templateKey ?? null,
+    input.subject,
+    input.text,
+    enabled ? 'queued' : 'simulated',
+    input.subjectType ?? null,
+    input.subjectId ?? null,
+    created
+  );
+
+  if (!enabled) return { id, status: 'simulated' };
+
+  let theme: Theme | undefined;
+  let eventName: string | undefined;
+  if (input.eventId) {
+    const ev = await one<{ name: string; theme_json: string }>(
+      env.DB,
+      `SELECT name, theme_json FROM events WHERE id = ?`,
+      input.eventId
+    );
+    if (ev) {
+      theme = parseTheme(ev.theme_json);
+      eventName = ev.name;
+    }
+  }
+
+  const html = wrapHtml(input.text, { subject: input.subject, theme, eventName });
+  const raw = buildMime({
+    from: env.EMAIL_FROM,
+    fromName: EMAIL_FROM_NAME,
+    to: input.to,
+    toName: input.toName,
+    subject: input.subject,
+    text: input.text,
+    html,
+  });
+
+  try {
+    await env.EMAIL!.send({ from: env.EMAIL_FROM, to: input.to, raw });
+    await run(env.DB, `UPDATE emails SET status = 'sent', sent_at = ? WHERE id = ?`, now(), id);
+    return { id, status: 'sent' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await run(env.DB, `UPDATE emails SET status = 'failed', error = ? WHERE id = ?`, message, id);
+    return { id, status: 'failed', error: message };
+  }
+}
