@@ -1,4 +1,4 @@
-/** `/app/team` — members, email invites (magic-link accept), pending invites (spec §5.7). */
+/** `/app/team` — members + pending invites in one paginated, filterable table (spec §5.7). */
 import { Hono } from 'hono';
 import type { Ctx, Role } from '../types';
 import { AdminLayout, MONO, StatusChip, fmtDate, initials } from '../views/layout';
@@ -12,7 +12,30 @@ const app = new Hono<Ctx>();
 const CARD = 'background:#fff;border:1px solid #e2e3e8;';
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;';
+const FILTER_INPUT = 'padding:7px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;background:#fff;';
+const FILTER_SELECT = 'padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;';
+const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
+const DIALOG_CARD = 'background:#fff;width:420px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);';
+const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
+const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:12px;';
+const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex;gap:8px;align-items:center;justify-content:flex-end;';
+const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:4px;';
+const CANCEL_BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
+const PRIMARY_BTN = 'padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
+const PG_ON = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#33343c;cursor:pointer;text-decoration:none;';
+const PG_OFF = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;';
+const COLS = 'minmax(170px,1fr) minmax(210px,1fr) 130px 90px 130px 60px';
 const ROLES: Role[] = ['owner', 'admin', 'collaborator'];
+const PAGE_SIZE = 20;
+
+type TeamRow = {
+  kind: 'member' | 'invite';
+  id: string;
+  name: string | null;
+  email: string;
+  role: string;
+  date: string;
+};
 
 app.get('/app/team', async (c) => {
   const event = c.var.event;
@@ -35,100 +58,210 @@ app.get('/app/team', async (c) => {
   const canManage = c.var.role === 'owner' || c.var.role === 'admin';
   const inviteLink = c.req.query('link');
 
-  return c.html(
-    <AdminLayout {...props}>
-      <div style="padding:24px 28px;display:grid;grid-template-columns:minmax(0,620px) minmax(300px,380px);gap:24px;align-items:start;max-width:1160px;">
-        <div style="display:grid;gap:18px;">
-          <div style={CARD}>
-            <div style={`padding:12px 16px;border-bottom:1px solid #eceded;${MICRO}`}>
-              {`MEMBERS · ${members.length}`}
-            </div>
-            <div style={`display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) 130px 110px;gap:0;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;`}>
-              <div>NAME</div>
-              <div>EMAIL</div>
-              <div>ROLE</div>
-              <div>JOINED</div>
-            </div>
-            {members.map((m) => (
-              <div style="display:grid;grid-template-columns:minmax(160px,1fr) minmax(180px,1fr) 130px 110px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                <div style="display:flex;align-items:center;gap:9px;min-width:0;">
-                  <div style={`width:26px;height:26px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}>
-                    {initials(m.name || m.email)}
-                  </div>
-                  <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    {m.name || '—'}
-                  </div>
-                </div>
-                <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
-                  {m.email}
-                </div>
-                <div>
-                  {canManage && m.id !== c.var.user?.id ? (
-                    <form method="post" action="/app/team/role" style="display:flex;gap:6px;align-items:center;">
-                      <input type="hidden" name="user_id" value={m.id} />
-                      <select
-                        name="role"
-                        onchange="this.form.submit()"
-                        style="padding:5px 6px;border:1px solid #e2e3e8;font-size:12px;background:#fff;"
-                      >
-                        {ROLES.map((r) => (
-                          <option value={r} selected={r === m.role}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </form>
-                  ) : (
-                    <StatusChip status="pending" label={m.role} />
-                  )}
-                </div>
-                <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{fmtDate(m.created_at, true)}</div>
-              </div>
-            ))}
-          </div>
+  /* ------------------------------------------------ filters + pagination */
+  const q = (c.req.query('q') ?? '').trim();
+  const roleParam = c.req.query('role') ?? 'all';
+  const roleFilter = ['owner', 'admin', 'collaborator', 'pending'].includes(roleParam) ? roleParam : 'all';
 
-          <div style={CARD}>
-            <div style={`padding:12px 16px;border-bottom:1px solid #eceded;${MICRO}`}>
-              {`PENDING INVITES · ${invites.length}`}
+  let rows: TeamRow[] = [
+    ...members.map((m) => ({ kind: 'member' as const, id: m.id, name: m.name, email: m.email, role: m.role, date: m.created_at })),
+    ...invites.map((i) => ({ kind: 'invite' as const, id: i.id, name: null, email: i.email, role: i.role, date: i.created_at })),
+  ];
+  if (roleFilter === 'pending') rows = rows.filter((r) => r.kind === 'invite');
+  else if (roleFilter !== 'all') rows = rows.filter((r) => r.role === roleFilter);
+  if (q) {
+    const needle = q.toLowerCase();
+    rows = rows.filter((r) => `${r.name ?? ''} ${r.email}`.toLowerCase().includes(needle));
+  }
+
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const cur = Math.min(Math.max(0, Number(c.req.query('page') ?? '0') || 0), pages - 1);
+  const pageRows = rows.slice(cur * PAGE_SIZE, cur * PAGE_SIZE + PAGE_SIZE);
+  const hasFilters = !!(q || roleFilter !== 'all');
+  const pageLink = (p: number) => {
+    const sp = new URLSearchParams();
+    if (q) sp.set('q', q);
+    if (roleFilter !== 'all') sp.set('role', roleFilter);
+    if (p > 0) sp.set('page', String(p));
+    const s = sp.toString();
+    return s ? `/app/team?${s}` : '/app/team';
+  };
+
+  const headerActions = canManage ? (
+    <button type="button" data-dialog-open="#invite-dialog" style={PRIMARY_BTN}>
+      ＋ Invite teammate
+    </button>
+  ) : (
+    <div style="font-size:12.5px;color:#686b74;">Owners and admins manage the team.</div>
+  );
+
+  return c.html(
+    <AdminLayout {...props} headerActions={headerActions}>
+      <div style="padding:24px 28px;max-width:1160px;">
+        {inviteLink ? (
+          <div style="border:1px solid #b08800;background:#fdf5dc;padding:12px 14px;margin-bottom:16px;">
+            <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#b08800;margin-bottom:6px;`}>
+              DEV MODE — EMAIL SENDING NOT YET ENABLED
             </div>
-            {invites.length ? (
-              invites.map((i) => (
-                <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #f2f3f5;">
-                  <div style={`font-family:${MONO};font-size:12px;color:#16171d;`}>{i.email}</div>
-                  <StatusChip status="pending" label={i.role} />
-                  <div style={`margin-left:auto;font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
-                    {fmtDate(i.created_at, true)}
-                  </div>
-                  {canManage ? (
-                    <form method="post" action="/app/team/revoke">
-                      <input type="hidden" name="invite_id" value={i.id} />
-                      <button
-                        type="submit"
-                        style="background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;"
-                      >
-                        Revoke
-                      </button>
-                    </form>
-                  ) : null}
+            <div style="font-size:12.5px;color:#686b74;margin-bottom:8px;">
+              Send this invite link to your teammate directly:
+            </div>
+            <a href={inviteLink} style="font-size:12px;word-break:break-all;">
+              {inviteLink}
+            </a>
+          </div>
+        ) : null}
+
+        <form method="get" action="/app/team" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+          <input name="q" value={q} placeholder="Search name or email…" style={`width:250px;${FILTER_INPUT}`} />
+          <select name="role" onchange="this.form.submit()" style={FILTER_SELECT}>
+            <option value="all" selected={roleFilter === 'all'}>
+              All roles
+            </option>
+            {ROLES.map((r) => (
+              <option value={r} selected={roleFilter === r}>
+                {r}
+              </option>
+            ))}
+            <option value="pending" selected={roleFilter === 'pending'}>
+              pending invites
+            </option>
+          </select>
+          <button type="submit" style="padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;">
+            Apply
+          </button>
+          {hasFilters ? (
+            <a href="/app/team" style="padding:7px 10px;color:#4c5fd5;font-size:12.5px;font-weight:600;text-decoration:none;">
+              Clear ×
+            </a>
+          ) : null}
+        </form>
+
+        <div style={CARD}>
+          <div style={`padding:12px 16px;border-bottom:1px solid #eceded;${MICRO}`}>
+            {`TEAM · ${members.length} MEMBER${members.length === 1 ? '' : 'S'} · ${invites.length} PENDING`}
+          </div>
+          <div
+            style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;`}
+          >
+            <div>NAME</div>
+            <div>EMAIL</div>
+            <div>ROLE</div>
+            <div>STATUS</div>
+            <div>JOINED / INVITED</div>
+            <div></div>
+          </div>
+          {pageRows.map((r) => (
+            <div style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;`}>
+              <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+                <div
+                  style={`width:26px;height:26px;border-radius:50%;${
+                    r.kind === 'member' ? 'background:#4c5fd5;color:#fff;' : 'background:#e2e3e8;color:#686b74;'
+                  }display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}
+                >
+                  {initials(r.name || r.email)}
                 </div>
-              ))
-            ) : (
-              <div style="padding:14px 16px;font-size:12.5px;color:#9a9da6;">No invites waiting.</div>
-            )}
+                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  {r.name || '—'}
+                </div>
+              </div>
+              <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                {r.email}
+              </div>
+              <div>
+                {r.kind === 'member' && canManage && r.id !== c.var.user?.id ? (
+                  <form method="post" action="/app/team/role">
+                    <input type="hidden" name="user_id" value={r.id} />
+                    <select
+                      name="role"
+                      onchange="this.form.submit()"
+                      style="padding:5px 6px;border:1px solid #e2e3e8;font-size:12px;background:#fff;"
+                    >
+                      {ROLES.map((x) => (
+                        <option value={x} selected={x === r.role}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
+                  </form>
+                ) : (
+                  <StatusChip status="pending" label={r.role} />
+                )}
+              </div>
+              <div>{r.kind === 'member' ? <StatusChip status="open" label="active" /> : <StatusChip status="pending" />}</div>
+              <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{fmtDate(r.date, true)}</div>
+              <div style="text-align:right;">
+                {r.kind === 'invite' && canManage ? (
+                  <form method="post" action="/app/team/revoke">
+                    <input type="hidden" name="invite_id" value={r.id} />
+                    <button
+                      type="submit"
+                      style="background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;"
+                    >
+                      Revoke
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          {rows.length === 0 ? (
+            <div style="padding:28px 16px;text-align:center;font-size:13px;color:#9a9da6;">
+              No teammates match —{' '}
+              <a href="/app/team" style="color:#4c5fd5;font-weight:600;">
+                clear filters
+              </a>
+            </div>
+          ) : null}
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #eceded;">
+            <div style={`font-family:${MONO};font-size:11px;color:#686b74;`}>
+              {rows.length === 0
+                ? 'Showing 0 of 0'
+                : `Showing ${cur * PAGE_SIZE + 1}–${Math.min(rows.length, (cur + 1) * PAGE_SIZE)} of ${rows.length}`}
+            </div>
+            {pages > 1 ? (
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                {cur > 0 ? (
+                  <a href={pageLink(cur - 1)} style={PG_ON}>
+                    ← Prev
+                  </a>
+                ) : (
+                  <span style={PG_OFF}>← Prev</span>
+                )}
+                {cur < pages - 1 ? (
+                  <a href={pageLink(cur + 1)} style={PG_ON}>
+                    Next →
+                  </a>
+                ) : (
+                  <span style={PG_OFF}>Next →</span>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
+      </div>
 
-        <div style="display:grid;gap:18px;position:sticky;top:20px;">
-          <div style="background:#fff;border:1px solid #e2e3e8;padding:18px 20px;">
-            <div style={`${MICRO}margin-bottom:12px;`}>INVITE A TEAMMATE</div>
-            {canManage ? (
-              <form method="post" action="/app/team/invite" style="display:grid;gap:12px;">
+      {canManage ? (
+        <div id="invite-dialog" data-dialog hidden style={DIALOG_WRAP}>
+          <div style={DIALOG_CARD}>
+            <div style={DIALOG_HEAD}>
+              <div style="font-size:15px;font-weight:700;">Invite a teammate</div>
+              <button
+                type="button"
+                data-dialog-close="#invite-dialog"
+                style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+              >
+                ×
+              </button>
+            </div>
+            <form method="post" action="/app/team/invite">
+              <div style={DIALOG_BODY}>
                 <div>
-                  <div style="font-size:12px;color:#686b74;margin-bottom:4px;">Email *</div>
+                  <div style={FIELD_LABEL}>Email *</div>
                   <input name="email" type="email" required placeholder="teammate@example.com" style={INPUT} />
                 </div>
                 <div>
-                  <div style="font-size:12px;color:#686b74;margin-bottom:4px;">Role</div>
+                  <div style={FIELD_LABEL}>Role</div>
                   <select name="role" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;background:#fff;">
                     {ROLES.filter((r) => r !== 'owner' || c.var.role === 'owner').map((r) => (
                       <option value={r} selected={r === 'collaborator'}>
@@ -140,33 +273,19 @@ app.get('/app/team', async (c) => {
                 <div style="font-size:11.5px;color:#9a9da6;line-height:1.5;">
                   Invites are magic links — no password to set.
                 </div>
-                <button
-                  type="submit"
-                  style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
-                >
+              </div>
+              <div style={DIALOG_FOOT}>
+                <button type="button" data-dialog-close="#invite-dialog" style={CANCEL_BTN}>
+                  Cancel
+                </button>
+                <button type="submit" style={PRIMARY_BTN}>
                   Send invite
                 </button>
-              </form>
-            ) : (
-              <div style="font-size:12.5px;color:#686b74;">Owners and admins manage the team.</div>
-            )}
+              </div>
+            </form>
           </div>
-
-          {inviteLink ? (
-            <div style="border:1px solid #b08800;background:#fdf5dc;padding:12px 14px;">
-              <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#b08800;margin-bottom:6px;`}>
-                DEV MODE — EMAIL SENDING NOT YET ENABLED
-              </div>
-              <div style="font-size:12.5px;color:#686b74;margin-bottom:8px;">
-                Send this invite link to your teammate directly:
-              </div>
-              <a href={inviteLink} style="font-size:12px;word-break:break-all;">
-                {inviteLink}
-              </a>
-            </div>
-          ) : null}
         </div>
-      </div>
+      ) : null}
     </AdminLayout>
   );
 });
