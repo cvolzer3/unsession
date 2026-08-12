@@ -46,11 +46,14 @@ import { agendaIcs } from '../lib/ics';
 import { publicSessions, withCache } from './public-agenda';
 import {
   EmbedShell,
+  draftConfig,
+  embedCacheControl,
   embedHeaders,
   hides,
   loadEmbedConfig,
   notReady,
   trackFiltered,
+  withEmbedCache,
   type EmbedConfig,
 } from './public-embed';
 
@@ -812,7 +815,7 @@ for (const [key, w] of Object.entries(WIDGETS)) {
     if (!found) return c.notFound();
     const { event, theme } = found;
     const eid = c.req.query('eid');
-    const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, eid);
+    const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(c.env.DB, event.id, eid, c.req.query('cfg'));
     if (disabled) return embedHeaders(await c.html(notReady(w.title.toUpperCase(), event, theme, false), 404));
     const transparent = c.req.query('transparent') === '1' || !!config.transparent;
     const basic = c.req.query('basic') === '1';
@@ -820,11 +823,11 @@ for (const [key, w] of Object.entries(WIDGETS)) {
       return embedHeaders(await c.html(notReady(w.title.toUpperCase(), event, theme, transparent), 404));
     }
     const cacheKey = `${event.slug}/${publishedRev(event)}/embed/${key}${transparent ? '~t' : ''}${basic ? '~b' : ''}${cacheSuffix}`;
-    return withCache(c, cacheKey, async () => {
+    return withEmbedCache(c, noStore, cacheKey, async () => {
       const x = await widgetCtx(c, event, theme, config);
       if (basic) {
         const res = new Response(basicHtml(x, key, c.env.APP_ORIGIN), {
-          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=60' },
+          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': embedCacheControl(noStore) },
         });
         return embedHeaders(res);
       }
@@ -840,7 +843,7 @@ for (const [key, w] of Object.entries(WIDGETS)) {
           {w.render(x, { embed: true })}
         </EmbedShell>
       );
-      res.headers.set('cache-control', 'public, max-age=60');
+      res.headers.set('cache-control', embedCacheControl(noStore));
       return embedHeaders(res);
     });
   });
@@ -848,13 +851,51 @@ for (const [key, w] of Object.entries(WIDGETS)) {
 
 /* ------------------------------------------------------------------ feeds */
 
+/**
+ * Draft-preview shim in front of `/{event}/agenda.json`, which is built in
+ * public-agenda.tsx. It runs first only because this file is mounted before
+ * that one; it lets the real handler produce the body, then applies the draft
+ * track filter and drops the response out of every cache. Saved embeds (`eid`)
+ * and plain reads fall straight through, so the feed body stays in one place.
+ */
+app.get('/:event/agenda.json', async (c, next) => {
+  const draft = draftConfig(c.req.query('cfg'));
+  if (!draft || c.req.query('eid')) return next();
+  await next();
+  const upstream = c.res;
+  if (upstream.status !== 200) return;
+  const body = (await upstream.json()) as { sessions?: { id: string }[] };
+  const tracks = draft.tracks?.filter(Boolean) ?? [];
+  if (tracks.length && body.sessions) {
+    // Track ids only exist in the database, so resolve which sessions survive
+    // the filter here rather than matching on the feed's track names.
+    const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
+    if (found) {
+      const bundle = await loadAgenda(c.env.DB, found.event.id);
+      const keep = new Set(trackFiltered(publicSessions(found.event, bundle), draft).map((s) => s.id));
+      body.sessions = body.sessions.filter((s) => keep.has(s.id));
+    }
+  }
+  // A handler that already ran `next()` replaces the response through `c.res`;
+  // Hono merges the upstream headers into it, so `no-store` is set afterwards.
+  c.res = new Response(JSON.stringify(body, null, 2), {
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+  c.res.headers.set('cache-control', 'no-store');
+});
+
 /** Whole-agenda (or `?ids=`-selected) calendar feed — anonymous, no emails. */
 app.get('/:event/agenda.ics', async (c) => {
   const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
   if (!found) return c.notFound();
   const { event } = found;
   if (!event.published) return c.text('Agenda not published yet', 404);
-  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, c.req.query('eid'));
+  const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(
+    c.env.DB,
+    event.id,
+    c.req.query('eid'),
+    c.req.query('cfg')
+  );
   if (disabled) return c.text('This embed is disabled', 404);
   const idsParam = (c.req.query('ids') ?? '').trim();
   const ids = idsParam ? new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean)) : null;
@@ -877,13 +918,13 @@ app.get('/:event/agenda.ics', async (c) => {
       headers: {
         'content-type': 'text/calendar; charset=utf-8',
         'content-disposition': `attachment; filename="${event.slug}${ids ? '-my-schedule' : '-agenda'}.ics"`,
-        'cache-control': ids ? 'no-store' : 'public, max-age=60',
+        'cache-control': ids ? 'no-store' : embedCacheControl(noStore),
       },
     });
   };
   // Personal selections vary per visitor — never cache those.
   if (ids) return build();
-  return withCache(c, `${event.slug}/${publishedRev(event)}/agenda.ics${cacheSuffix}`, build);
+  return withEmbedCache(c, noStore, `${event.slug}/${publishedRev(event)}/agenda.ics${cacheSuffix}`, build);
 });
 
 app.get('/:event/agenda.xml', async (c) => {
@@ -891,9 +932,14 @@ app.get('/:event/agenda.xml', async (c) => {
   if (!found) return c.notFound();
   const { event } = found;
   if (!event.published) return c.text('Agenda not published yet', 404);
-  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, c.req.query('eid'));
+  const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(
+    c.env.DB,
+    event.id,
+    c.req.query('eid'),
+    c.req.query('cfg')
+  );
   if (disabled) return c.text('This embed is disabled', 404);
-  return withCache(c, `${event.slug}/${publishedRev(event)}/agenda.xml${cacheSuffix}`, async () => {
+  return withEmbedCache(c, noStore, `${event.slug}/${publishedRev(event)}/agenda.xml${cacheSuffix}`, async () => {
     const x = await widgetCtx(c, event, found.theme, config);
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -926,7 +972,7 @@ app.get('/:event/agenda.xml', async (c) => {
     }
     lines.push('  </sessions>', '</agenda>');
     return new Response(lines.join('\n'), {
-      headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=60' },
+      headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': embedCacheControl(noStore) },
     });
   });
 });
@@ -936,9 +982,14 @@ app.get('/:event/speakers.json', async (c) => {
   if (!found) return c.json({ ok: false, error: 'Event not found' }, 404);
   const { event } = found;
   if (!event.published) return c.json({ ok: false, error: 'Not published yet' }, 404);
-  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, c.req.query('eid'));
+  const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(
+    c.env.DB,
+    event.id,
+    c.req.query('eid'),
+    c.req.query('cfg')
+  );
   if (disabled) return c.json({ ok: false, error: 'This embed is disabled' }, 404);
-  return withCache(c, `${event.slug}/${publishedRev(event)}/speakers.json${cacheSuffix}`, async () => {
+  return withEmbedCache(c, noStore, `${event.slug}/${publishedRev(event)}/speakers.json${cacheSuffix}`, async () => {
     const x = await widgetCtx(c, event, found.theme, config);
     const body = {
       event: { name: event.name, slug: event.slug, start_date: event.start_date, end_date: event.end_date },
@@ -962,7 +1013,7 @@ app.get('/:event/speakers.json', async (c) => {
       })),
     };
     return new Response(JSON.stringify(body, null, 2), {
-      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=60' },
+      headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': embedCacheControl(noStore) },
     });
   });
 });
@@ -972,9 +1023,14 @@ app.get('/:event/speakers.xml', async (c) => {
   if (!found) return c.notFound();
   const { event } = found;
   if (!event.published) return c.text('Not published yet', 404);
-  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, c.req.query('eid'));
+  const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(
+    c.env.DB,
+    event.id,
+    c.req.query('eid'),
+    c.req.query('cfg')
+  );
   if (disabled) return c.text('This embed is disabled', 404);
-  return withCache(c, `${event.slug}/${publishedRev(event)}/speakers.xml${cacheSuffix}`, async () => {
+  return withEmbedCache(c, noStore, `${event.slug}/${publishedRev(event)}/speakers.xml${cacheSuffix}`, async () => {
     const x = await widgetCtx(c, event, found.theme, config);
     const lines = [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -998,7 +1054,7 @@ app.get('/:event/speakers.xml', async (c) => {
     }
     lines.push('</speakers>');
     return new Response(lines.join('\n'), {
-      headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': 'public, max-age=60' },
+      headers: { 'content-type': 'application/xml; charset=utf-8', 'cache-control': embedCacheControl(noStore) },
     });
   });
 });

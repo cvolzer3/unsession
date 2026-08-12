@@ -10,7 +10,8 @@
  * refreshes every embed within a minute. `?transparent=1` drops the themed
  * page background; `?eid=<embed id>` applies a saved embed's config from
  * `/app/embeds` (track filter, hidden fields, accent, transparent) and 404s
- * when that embed is disabled.
+ * when that embed is disabled. `?cfg=<url-encoded JSON>` carries the same
+ * config inline for the live preview on `/app/embeds/new`, before a row exists.
  *
  * Responses are explicitly frameable: no X-Frame-Options is ever emitted and
  * `Content-Security-Policy: frame-ancestors *` is set on every response.
@@ -18,6 +19,7 @@
  * OWNER: B4.
  */
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
@@ -65,20 +67,76 @@ export type EmbedRow = {
 };
 
 /**
- * Resolve `?eid=` to a saved embed's config. Returns `disabled: true` when the
- * embed exists but is switched off (callers must 404), and an empty config
- * when no eid was passed.
+ * Parse `?cfg=` — a draft config the embed generator's live preview passes
+ * inline, before an embed row exists. Display-only fields (track filter, hidden
+ * card fields, colours), so an unauthenticated caller may set them, but the
+ * shape is validated and capped exactly like `/app/api/embeds/create` and
+ * unknown keys are dropped. Malformed JSON degrades to an empty config rather
+ * than an error; `null` means no draft was passed at all.
+ */
+export function draftConfig(raw: string | undefined): EmbedConfig | null {
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return {};
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const cfg = parsed as EmbedConfig;
+  return {
+    transparent: !!cfg.transparent,
+    accent: typeof cfg.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(cfg.accent) ? cfg.accent : null,
+    tracks: Array.isArray(cfg.tracks) ? cfg.tracks.filter((t) => typeof t === 'string').slice(0, 50) : [],
+    hide: Array.isArray(cfg.hide) ? cfg.hide.filter((h) => typeof h === 'string').slice(0, 50) : [],
+  };
+}
+
+export type EmbedResolution = {
+  config: EmbedConfig;
+  disabled: boolean;
+  cacheSuffix: string;
+  /** A draft preview is per-keystroke — it must never reach a cache. */
+  noStore: boolean;
+};
+
+/**
+ * Resolve `?eid=` to a saved embed's config, or `?cfg=` to a draft one. Returns
+ * `disabled: true` when the embed exists but is switched off (callers must
+ * 404), and an empty config when neither param was passed.
  */
 export async function loadEmbedConfig(
   db: D1Database,
   eventId: string,
-  eid: string | undefined
-): Promise<{ config: EmbedConfig; disabled: boolean; cacheSuffix: string }> {
-  if (!eid) return { config: {}, disabled: false, cacheSuffix: '' };
+  eid: string | undefined,
+  cfg?: string
+): Promise<EmbedResolution> {
+  if (!eid) {
+    const draft = draftConfig(cfg);
+    return { config: draft ?? {}, disabled: false, cacheSuffix: '', noStore: !!draft };
+  }
   const row = await one<EmbedRow>(db, `SELECT * FROM embeds WHERE id = ? AND event_id = ?`, eid, eventId);
-  if (!row) return { config: {}, disabled: false, cacheSuffix: '' };
-  if (!row.enabled) return { config: {}, disabled: true, cacheSuffix: '' };
-  return { config: jsonParse<EmbedConfig>(row.config_json, {}), disabled: false, cacheSuffix: `~${row.id}@${row.updated_at}` };
+  if (!row) return { config: {}, disabled: false, cacheSuffix: '', noStore: false };
+  if (!row.enabled) return { config: {}, disabled: true, cacheSuffix: '', noStore: false };
+  return {
+    config: jsonParse<EmbedConfig>(row.config_json, {}),
+    disabled: false,
+    cacheSuffix: `~${row.id}@${row.updated_at}`,
+    noStore: false,
+  };
+}
+
+/** `cache-control` for an embed response — draft previews opt out entirely. */
+export const embedCacheControl = (noStore: boolean) => (noStore ? 'no-store' : 'public, max-age=60');
+
+/** `withCache`, skipped for draft previews so no cache entry is ever written. */
+export function withEmbedCache(
+  c: Context<Ctx>,
+  noStore: boolean,
+  key: string,
+  build: () => Promise<Response>
+): Promise<Response> {
+  return noStore ? build() : withCache(c, key, build);
 }
 
 /** Keep only sessions whose track survives the saved embed's track filter. */
@@ -188,15 +246,16 @@ app.get('/:event/embed/agenda', async (c) => {
   if (!found) return c.notFound();
   const { event, theme } = found;
   const eid = c.req.query('eid');
-  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, eid);
+  const { config, disabled, cacheSuffix, noStore } = await loadEmbedConfig(c.env.DB, event.id, eid, c.req.query('cfg'));
   if (disabled) return embedHeaders(await c.html(notReady('AGENDA', event, theme, false), 404));
   const transparent = c.req.query('transparent') === '1' || !!config.transparent;
   if (!event.published) {
     return embedHeaders(await c.html(notReady('AGENDA', event, theme, transparent), 404));
   }
 
-  return withCache(
+  return withEmbedCache(
     c,
+    noStore,
     `${event.slug}/${publishedRev(event)}/embed/agenda${transparent ? '?transparent=1' : ''}${cacheSuffix}`,
     async () => {
       const bundle = await loadAgenda(c.env.DB, event.id);
@@ -311,7 +370,7 @@ app.get('/:event/embed/agenda', async (c) => {
       );
 
       const res = await c.html(html);
-      res.headers.set('cache-control', 'public, max-age=60');
+      res.headers.set('cache-control', embedCacheControl(noStore));
       return embedHeaders(res);
     }
   );

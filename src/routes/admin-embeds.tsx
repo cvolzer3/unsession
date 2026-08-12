@@ -10,7 +10,12 @@
  * colour. "Get Code" hands over the copy-paste snippet; the public renderers
  * pick the config up via `?eid=<id>`.
  *
- * Island: public/js/embeds.js (create, toggle, delete, auto-open Get Code).
+ * `/app/embeds/new` is the full-screen create page: the same controls with a
+ * live preview beside them, which renders the unsaved draft by passing the
+ * config inline as `?cfg=` (see `draftConfig` in public-embed.tsx).
+ *
+ * Islands: public/js/embeds.js (list: toggle, delete, auto-open Get Code),
+ * public/js/embed-new.js (create page: live preview + create).
  */
 import { Hono } from 'hono';
 import type { FC } from 'hono/jsx';
@@ -36,6 +41,9 @@ const CODE_BLOCK = `display:block;font-family:${MONO};font-size:11px;line-height
 const COPY_LINK = 'background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;';
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #d8d9de;font-size:13px;';
 const FIELD_LABEL = 'font-size:12px;font-weight:600;color:#16171d;margin-bottom:5px;';
+/** The preview's resolved URL — long, so it wraps rather than pushing the column wide. */
+const URL_LINE = `font-family:${MONO};font-size:10.5px;color:#686b74;word-break:break-all;line-height:1.5;margin-bottom:8px;`;
+const PRE_BLOCK = `margin:0;font-family:${MONO};font-size:11px;line-height:1.55;background:#f4f5f9;color:#16171d;padding:10px 12px;max-height:640px;overflow:auto;white-space:pre-wrap;word-break:break-all;`;
 
 export const WIDGET_TYPES = [
   { key: 'sessions', label: 'List of Sessions', blurb: 'Searchable, filterable session catalog with expandable descriptions.' },
@@ -89,9 +97,8 @@ const formatLabel = (key: string) => FORMATS.find((f) => f.key === key)?.label ?
 
 /* --------------------------------------------------------------- snippets */
 
-/** The URL the embed's format is served from (also the Preview target). */
-export function embedUrl(origin: string, event: Event, widget: string, format: string, eid: string): string {
-  const q = `eid=${eid}`;
+/** Where a widget × format is served from, `q` being the caller's query string. */
+function embedPath(origin: string, event: Event, widget: string, format: string, q: string): string {
   const base = `${origin}/${event.slug}`;
   switch (format) {
     case 'json':
@@ -106,6 +113,24 @@ export function embedUrl(origin: string, event: Event, widget: string, format: s
     default:
       return `${base}/embed/${widget}?${q}`;
   }
+}
+
+/** The URL the embed's format is served from (also the Preview target). */
+export function embedUrl(origin: string, event: Event, widget: string, format: string, eid: string): string {
+  return embedPath(origin, event, widget, format, `eid=${eid}`);
+}
+
+/**
+ * Preview targets for every widget × format, keyed `widget:format`. The island
+ * swaps `__CFG__` for the encoded draft config, so the format → URL mapping
+ * above stays the only copy of that logic.
+ */
+function previewUrls(event: Event): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const w of WIDGET_TYPES) {
+    for (const f of FORMATS) map[`${w.key}:${f.key}`] = embedPath('', event, w.key, f.key, 'cfg=__CFG__');
+  }
+  return map;
 }
 
 export function snippetFor(origin: string, event: Event, row: { id: string; widget: string; format: string }): string {
@@ -181,28 +206,24 @@ app.get('/app/embeds', async (c) => {
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const [rows, bundle] = await Promise.all([
-    all<EmbedRow>(c.env.DB, `SELECT * FROM embeds WHERE event_id = ? ORDER BY created_at DESC`, event.id),
-    loadAgenda(c.env.DB, event.id),
-  ]);
+  const rows = await all<EmbedRow>(c.env.DB, `SELECT * FROM embeds WHERE event_id = ? ORDER BY created_at DESC`, event.id);
   const origin = c.env.APP_ORIGIN;
 
   const headerActions = (
-    <button
-      type="button"
-      data-dialog-open="#new-embed"
-      style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+    <a
+      href="/app/embeds/new"
+      style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;"
     >
       ＋ Add embed
-    </button>
+    </a>
   );
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/embeds.js']}>
       <div style="padding:24px 28px;max-width:1000px;">
         <div style="font-size:13px;color:#686b74;line-height:1.6;max-width:640px;">
-          Export a feed of your agenda, sessions, or speakers to place in your app or website. Each embed is a live view
-          of the published programme — re-publish and every placed embed updates within a minute, no re-embedding needed.
+          Embed your agenda, sessions, or speakers on your website or in your app. Each embed reads from the published
+          program and updates automatically when you publish changes.
         </div>
         {!event.published ? (
           <div style="margin-top:14px;background:#fdf5dc;border:1px solid #f3e3ab;padding:11px 14px;font-size:12.5px;color:#8a6d1a;">
@@ -287,20 +308,32 @@ app.get('/app/embeds', async (c) => {
         </div>
       </div>
 
-      {/* ------------------------------------------------ create dialog */}
-      <div id="new-embed" data-dialog hidden style={DIALOG_WRAP}>
-        <div style={DIALOG_CARD}>
-          <div style={DIALOG_HEAD}>
-            <div style="font-size:15px;font-weight:700;">Add embed</div>
-            <button
-              type="button"
-              data-dialog-close="#new-embed"
-              style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
-            >
-              ×
-            </button>
-          </div>
-          <div style={DIALOG_BODY}>
+      {rows.map((r) => (
+        <CodeDialog row={r} event={event} origin={origin} />
+      ))}
+    </AdminLayout>
+  );
+});
+
+/* -------------------------------------------------------------- new embed */
+
+app.get('/app/embeds/new', async (c) => {
+  const props = await adminProps(c, 'New embed', { headerTitle: 'New embed' });
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+
+  const bundle = await loadAgenda(c.env.DB, event.id);
+  const origin = c.env.APP_ORIGIN;
+  const urls = previewUrls(event);
+  // Without JavaScript the preview still shows the defaults the form starts on.
+  const defaultUrl = urls['sessions:styled'].replace('__CFG__', '');
+
+  return c.html(
+    <AdminLayout {...props} scripts={['/js/embed-new.js']}>
+      <div style="padding:24px 28px;">
+        <div style="display:grid;grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:24px;align-items:start;">
+          {/* ------------------------------------------------------- form */}
+          <div style="background:#fff;border:1px solid #e2e3e8;padding:18px 20px;display:grid;gap:16px;">
             <div>
               <div style={FIELD_LABEL}>Name</div>
               <input id="ne-name" placeholder="e.g. Website sessions list" style={INPUT} />
@@ -385,13 +418,12 @@ app.get('/app/embeds', async (c) => {
               </label>
             </div>
             <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eceded;padding-top:14px;">
-              <button
-                type="button"
-                data-dialog-close="#new-embed"
-                style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
+              <a
+                href="/app/embeds"
+                style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#16171d;text-decoration:none;"
               >
                 Cancel
-              </button>
+              </a>
               <button
                 type="button"
                 id="ne-create"
@@ -401,12 +433,26 @@ app.get('/app/embeds', async (c) => {
               </button>
             </div>
           </div>
+
+          {/* ---------------------------------------------------- preview */}
+          <div id="ne-preview" data-preview-urls={JSON.stringify(urls)} style="position:sticky;top:24px;">
+            <div style={`${MICRO}margin-bottom:6px;`}>LIVE PREVIEW</div>
+            <div id="ne-url" style={URL_LINE}>{`${origin}${defaultUrl}`}</div>
+            <div style="background:#fff;border:1px solid #e2e3e8;">
+              <iframe
+                id="ne-frame"
+                src={defaultUrl}
+                title="Embed preview"
+                style="width:100%;height:640px;border:0;display:block;background:#fff;"
+              ></iframe>
+              <pre id="ne-data" hidden style={PRE_BLOCK}></pre>
+            </div>
+            <div style="font-size:11.5px;color:#9a9da6;line-height:1.6;margin-top:8px;">
+              The preview renders the draft settings above. Nothing is saved until you hit Create embed.
+            </div>
+          </div>
         </div>
       </div>
-
-      {rows.map((r) => (
-        <CodeDialog row={r} event={event} origin={origin} />
-      ))}
     </AdminLayout>
   );
 });
