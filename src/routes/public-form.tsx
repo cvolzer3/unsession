@@ -23,6 +23,7 @@ import { findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
 import { syncPlansForSubmission } from '../lib/evals';
+import { createSessionFromSubmission } from '../lib/sessions-core';
 import {
   coreRoles,
   hydrateSchema,
@@ -133,19 +134,23 @@ function rememberDraft(c: Context<Ctx>, id: string, ids: string[]) {
 
 /* ------------------------------------------------------------------ layout helpers */
 
-type Item = { kind: 'section'; label: string } | { kind: 'field'; field: FormField };
+type Item = { kind: 'section'; label: string; desc?: string } | { kind: 'field'; field: FormField };
 
 /**
- * Sections come from HDR fields. Schemas without any (the seeded sandbox, the
- * prototype's own CFP) get the prototype's rhythm generated for them:
+ * Sections come from HDR fields (label = section title, help = section
+ * description — the B2 copy blocks). Schemas without any (the seeded sandbox,
+ * the prototype's own CFP) get the prototype's rhythm generated for them:
  * 01 · YOUR SESSION → 02 · SPEAKERS → … → CONSENT.
+ *
+ * Mirrored in `public/js/public-form.js` (layoutItems) for the builder preview —
+ * keep the two in sync.
  */
 export function layoutItems(fields: FormField[]): Item[] {
   const hasHdr = fields.some((f) => f.type === 'HDR');
   const items: Item[] = [];
   if (hasHdr) {
     for (const f of fields) {
-      if (f.type === 'HDR') items.push({ kind: 'section', label: f.label.toUpperCase() });
+      if (f.type === 'HDR') items.push({ kind: 'section', label: f.label.toUpperCase(), desc: (f.help ?? '').trim() || undefined });
       else items.push({ kind: 'field', field: f });
     }
   } else {
@@ -166,7 +171,7 @@ export function layoutItems(fields: FormField[]): Item[] {
   }
   let n = 0;
   return items.map((it) =>
-    it.kind === 'section' ? { kind: 'section' as const, label: `${String(++n).padStart(2, '0')} · ${it.label}` } : it
+    it.kind === 'section' ? { ...it, label: `${String(++n).padStart(2, '0')} · ${it.label}` } : it
   );
 }
 
@@ -587,6 +592,10 @@ function renderPage(opts: {
   const vis = visibleIds(fields, state.answers);
   const cap = speakerCap(fields, settings);
   const items = layoutItems(fields);
+  // B1: public name + page heading come from form settings, with the old
+  // hardcoded values as fallbacks. Mirrored in the builder preview.
+  const publicName = settings.externalName.trim() || form.name;
+  const heading = settings.pageHeading.trim() || `Speak at ${event.name}`;
 
   const saveIndicator = (
     <span style="display:flex;align-items:center;gap:6px;">
@@ -595,11 +604,11 @@ function renderPage(opts: {
     </span>
   ) as unknown as string;
 
-  const kicker = `${form.name.toUpperCase()}${form.closes_at ? ` · CLOSES ${monthDay(form.closes_at).toUpperCase()}` : ''}`;
+  const kicker = `${publicName.toUpperCase()}${form.closes_at ? ` · CLOSES ${monthDay(form.closes_at).toUpperCase()}` : ''}`;
 
   return (
     <PublicLayout
-      title={form.name}
+      title={publicName}
       event={event}
       theme={opts.theme}
       maxWidth={620}
@@ -634,7 +643,7 @@ function renderPage(opts: {
         <div style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--primary);margin-bottom:8px;`}>
           {kicker}
         </div>
-        <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">{`Speak at ${event.name}`}</h1>
+        <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">{heading}</h1>
         <p style="margin:0 0 6px;font-size:15px;color:var(--text-secondary);line-height:1.55;">{fmtEventLine(event)}</p>
         <p style="margin:0 0 26px;font-size:12.5px;color:var(--muted);">
           {opts.user ? (
@@ -714,7 +723,12 @@ function renderPage(opts: {
 
             {items.map((it) =>
               it.kind === 'section' ? (
-                <div style={SECTION}>{it.label}</div>
+                <div>
+                  <div style={SECTION}>{it.label}</div>
+                  {it.desc ? (
+                    <div style="font-size:13px;color:var(--muted);line-height:1.5;margin-top:8px;">{it.desc}</div>
+                  ) : null}
+                </div>
               ) : (
                 <FieldBlock
                   f={it.field}
@@ -928,6 +942,7 @@ app.get('/:event/:form', async (c) => {
   const taxonomies = await loadTaxonomies(c.env.DB, found.event.id);
   const schema = hydrateSchema(loaded.schema, taxonomies);
   const settings = loaded.settings;
+  const publicName = settings.externalName.trim() || loaded.form.name;
   const user = c.var.user;
   const cookies = draftIds(c);
 
@@ -938,7 +953,7 @@ app.get('/:event/:form', async (c) => {
     if (sub && sub.form_id === loaded.form.id && canAccess(sub, user, cookies)) {
       const speakers = await speakersOf(c.env.DB, sub.id);
       return c.html(
-        <PublicLayout title={loaded.form.name} event={found.event} theme={found.theme} maxWidth={620}>
+        <PublicLayout title={publicName} event={found.event} theme={found.theme} maxWidth={620}>
           <div style="max-width:620px;margin:0 auto;padding:56px 20px;text-align:center;">
             <div style="width:56px;height:56px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-size:26px;margin:0 auto 18px;">
               ✓
@@ -995,10 +1010,10 @@ app.get('/:event/:form', async (c) => {
   const state = openState(loaded.form, settings, found.event.timezone, c.req.query('key'));
   if (!state.open) {
     return c.html(
-      <PublicLayout title={loaded.form.name} event={found.event} theme={found.theme} maxWidth={620}>
+      <PublicLayout title={publicName} event={found.event} theme={found.theme} maxWidth={620}>
         <div style="max-width:620px;margin:0 auto;padding:64px 20px;text-align:center;">
           <div style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);margin-bottom:10px;`}>
-            {loaded.form.name.toUpperCase()}
+            {publicName.toUpperCase()}
           </div>
           <h1 style="margin:0 0 12px;font-size:26px;letter-spacing:-0.02em;">{state.message}</h1>
           <p style="font-size:14.5px;color:var(--text-secondary);line-height:1.6;max-width:420px;margin:0 auto 24px;">
@@ -1266,12 +1281,44 @@ app.post('/:event/:form', async (c) => {
     detail: `SUB-${seq} · ${loaded.form.name}`,
   });
 
-  // Category routing (spec §4.2): a matching evaluation plan pulls the fresh
-  // submission into review immediately.
-  try {
-    await syncPlansForSubmission(c.env, found.event.id, submissionId);
-  } catch (err) {
-    console.error('[submit] plan sync failed', err);
+  if (settings.submitsAs === 'session') {
+    // B5 (DECISIONS R7): session-intake forms skip the pipeline. The submission
+    // is auto-accepted (Session ≠ Submission stays intact, so the drawer and
+    // history still work) and the sponsor session is created immediately.
+    // No evaluation routing, no decision email — the confirmation email below
+    // still goes out.
+    await run(c.env.DB, `UPDATE submissions SET status = 'accepted', updated_at = ? WHERE id = ?`, now(), submissionId);
+    await logActivity(c.env.DB, {
+      eventId: found.event.id,
+      subjectType: 'submission',
+      subjectId: submissionId,
+      actor: 'System',
+      action: 'Auto-accepted',
+      detail: 'session intake form',
+    });
+    const companyField = fields.find(
+      (f) => f.type === 'TXT' && (f.id === 'f_company' || /company|organi[sz]ation/i.test(f.label))
+    );
+    const company = companyField ? String(cleaned[companyField.id] ?? '').trim() : '';
+    try {
+      await createSessionFromSubmission(c.env, submissionId, 'System', {
+        type: 'sponsor',
+        sponsorName: company || null,
+        sessionStatus: 'confirmed',
+      });
+    } catch (err) {
+      console.error('[submit] session-intake session create failed', err);
+    }
+  } else {
+    // Category routing (spec §4.2): a matching evaluation plan pulls the fresh
+    // submission into review immediately. Session-intake forms never enter
+    // review, so they skip this entirely (and their status is no longer
+    // 'submitted', which also keeps later plan syncs from picking them up).
+    try {
+      await syncPlansForSubmission(c.env, found.event.id, submissionId);
+    } catch (err) {
+      console.error('[submit] plan sync failed', err);
+    }
   }
 
   /* ------------------------------------------------------------ emails */

@@ -92,6 +92,15 @@ export type FormSettings = {
   postSubmitMsg: string;
   notifyEmails: string[];
   audience: string;
+  /** Public-facing form title (B1). Empty = fall back to the internal `forms.name`. */
+  externalName: string;
+  /** Public page H1 (B1). Empty = the default `Speak at {event.name}`. */
+  pageHeading: string;
+  /**
+   * B5 (DECISIONS R7): 'session' forms auto-accept every submission and create
+   * a sponsor Session immediately — no evaluation, no decision email.
+   */
+  submitsAs: 'submission' | 'session';
 };
 
 export type FormRow = {
@@ -327,6 +336,9 @@ export function parseSettings(raw: string | null | undefined): FormSettings {
     postSubmitMsg: typeof s.postSubmitMsg === 'string' ? s.postSubmitMsg : '',
     notifyEmails: Array.isArray(s.notifyEmails) ? s.notifyEmails.map((e) => String(e)).filter(Boolean) : [],
     audience: typeof s.audience === 'string' ? s.audience : 'Public link',
+    externalName: typeof s.externalName === 'string' ? s.externalName : '',
+    pageHeading: typeof s.pageHeading === 'string' ? s.pageHeading : '',
+    submitsAs: s.submitsAs === 'session' ? 'session' : 'submission',
   };
 }
 
@@ -669,7 +681,151 @@ export function defaultSettings(): FormSettings {
     postSubmitMsg: 'Thanks! We review on a rolling basis — you’ll hear from us by email.',
     notifyEmails: [],
     audience: 'Public link',
+    externalName: '',
+    pageHeading: '',
+    submitsAs: 'submission',
   };
+}
+
+/* ------------------------------------------------------------------ presets (B4) */
+
+export type FormPreset = 'cfp' | 'contact' | 'session';
+
+export function parsePreset(v: unknown): FormPreset {
+  return v === 'contact' || v === 'session' ? v : 'cfp';
+}
+
+export const PRESET_NAMES: Record<FormPreset, string> = {
+  cfp: 'Call for proposals',
+  contact: 'Contact form',
+  session: 'Session intake',
+};
+
+function headerField(id: string, label: string, help: string): FormField {
+  return {
+    id,
+    type: 'HDR',
+    label,
+    required: false,
+    help,
+    validation: {},
+    flags: { public: false, speakerEditable: false, evaluatorVisible: true },
+    cond: null,
+  };
+}
+
+/**
+ * The default CFP template: the core fields framed by section headers whose
+ * title + description are the B2 copy blocks (editable per form in the builder).
+ */
+export function cfpFields(coSpeakerCap: number, formatTaxonomyId?: string | null): FormField[] {
+  const core = coreFields(coSpeakerCap, formatTaxonomyId);
+  return [
+    headerField(
+      'h_session',
+      'Your session',
+      'Title, abstract and format. The abstract is what evaluators read first — say what the audience walks away with.'
+    ),
+    ...core.filter((f) => f.role !== 'speakers'),
+    headerField('h_speakers', 'Speakers', 'Who’s on stage. Add co-speakers if you’re presenting together.'),
+    ...core.filter((f) => f.role === 'speakers'),
+  ];
+}
+
+/** Contact form: collect people's info — no session, no abstract, no speakers. */
+export function contactFields(): FormField[] {
+  const flags: FieldFlags = { public: false, speakerEditable: false, evaluatorVisible: true };
+  return [
+    headerField('h_contact', 'Get in touch', 'We read everything and reply by email.'),
+    {
+      id: 'f_name',
+      role: 'title',
+      type: 'TXT',
+      label: 'Name',
+      required: true,
+      placeholder: 'Full name',
+      validation: {},
+      flags,
+      cond: null,
+    },
+    {
+      id: 'f_email',
+      type: 'EML',
+      label: 'Email',
+      required: true,
+      validation: {},
+      flags,
+      cond: null,
+    },
+    {
+      id: 'f_message',
+      role: 'abstract',
+      type: 'LONG',
+      label: 'Message',
+      required: true,
+      placeholder: 'What would you like to tell us?',
+      validation: {},
+      flags,
+      cond: null,
+    },
+  ];
+}
+
+/** Session intake (B5): CFP fields plus a company field, labeled for sponsors. */
+export function sessionIntakeFields(coSpeakerCap: number, formatTaxonomyId?: string | null): FormField[] {
+  const core = coreFields(coSpeakerCap, formatTaxonomyId).map((f) => {
+    if (f.role === 'abstract') {
+      return {
+        ...f,
+        label: 'Session description',
+        placeholder: 'What will attendees learn? No pure product pitches.',
+      };
+    }
+    return f;
+  });
+  const company: FormField = {
+    id: 'f_company',
+    core: true,
+    type: 'TXT',
+    label: 'Company',
+    required: true,
+    placeholder: 'The sponsoring organization',
+    help: 'Shown as the session’s sponsor.',
+    validation: {},
+    flags: { public: true, speakerEditable: false, evaluatorVisible: true },
+    cond: null,
+  };
+  return [
+    headerField(
+      'h_session',
+      'Your session',
+      'This lands on the agenda as your sponsor session — no evaluation round, the program team follows up on scheduling.'
+    ),
+    company,
+    ...core.filter((f) => f.role !== 'speakers'),
+    headerField('h_speakers', 'Speakers', 'Who’s on stage. Add co-speakers if you’re presenting together.'),
+    ...core.filter((f) => f.role === 'speakers'),
+  ];
+}
+
+export function presetFields(preset: FormPreset, coSpeakerCap: number, formatTaxonomyId?: string | null): FormField[] {
+  if (preset === 'contact') return contactFields();
+  if (preset === 'session') return sessionIntakeFields(coSpeakerCap, formatTaxonomyId);
+  return cfpFields(coSpeakerCap, formatTaxonomyId);
+}
+
+export function presetSettings(preset: FormPreset): FormSettings {
+  const s = defaultSettings();
+  if (preset === 'contact') {
+    s.allowDrafts = false;
+    s.pageHeading = 'Get in touch';
+    s.postSubmitMsg = 'Thanks — we’ve got your message and will reply by email.';
+  } else if (preset === 'session') {
+    s.submitsAs = 'session';
+    s.pageHeading = 'Submit your sponsor session';
+    s.postSubmitMsg = 'Thanks — your session is in the program. The team will follow up with scheduling details.';
+  }
+  return s;
 }
 
 export function randomSecret(): string {

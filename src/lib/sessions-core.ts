@@ -75,16 +75,29 @@ export async function ensureSpeakerProfiles(env: Bindings, eventId: string, spea
   return ids;
 }
 
+export type CreateSessionOpts = {
+  /** 'sponsor' for session-intake forms (B5); default 'talk'. */
+  type?: 'talk' | 'sponsor';
+  /** Shown as the session's sponsor (sessions.sponsor_name). */
+  sponsorName?: string | null;
+  /**
+   * Session-intake submissions skip the decision/confirmation emails, so their
+   * sessions start 'confirmed' like manually created sponsor sessions.
+   */
+  sessionStatus?: 'pending' | 'confirmed';
+};
+
 /**
  * Create (or return the existing) session for an accepted submission.
  * Copies title/abstract, resolves track/format/level from answers, links
  * speaker profiles. Session starts unscheduled, status 'pending' until the
- * speaker confirms.
+ * speaker confirms (unless `opts.sessionStatus` says otherwise).
  */
 export async function createSessionFromSubmission(
   env: Bindings,
   submissionId: string,
-  actor: string
+  actor: string,
+  opts: CreateSessionOpts = {}
 ): Promise<{ sessionId: string; created: boolean }> {
   const existing = await one<{ id: string }>(
     env.DB,
@@ -127,17 +140,19 @@ export async function createSessionFromSubmission(
     `INSERT INTO sessions (id, event_id, submission_id, type, title, abstract, track_option_id, format_option_id,
        level, duration_min, room_id, all_rooms, day, start_min, end_min, status, published, sponsor_name,
        stream_url, visibility_json, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,NULL,0,NULL,NULL,NULL,'pending',1,NULL,NULL,NULL,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,NULL,0,NULL,NULL,NULL,?,1,?,NULL,NULL,?,?)`,
     sessionId,
     sub.event_id,
     submissionId,
-    'talk',
+    opts.type ?? 'talk',
     sub.title,
     sub.abstract,
     track?.id ?? null,
     format?.id ?? null,
     level?.name ?? null,
     format?.duration_min ?? 30,
+    opts.sessionStatus ?? 'pending',
+    opts.sponsorName?.trim() || null,
     now(),
     now()
   );

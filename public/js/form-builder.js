@@ -67,7 +67,7 @@ function boot(D) {
     });
   }
 
-  // Settings drawer + setup step: reveal the late link / welcome editor live.
+  // Settings drawer + setup step: reveal the late link / welcome hint live.
   document.querySelectorAll('[data-toggle-key]').forEach((label) => {
     const box = label.querySelector('input[type="checkbox"]');
     const key = label.getAttribute('data-toggle-key');
@@ -83,6 +83,15 @@ function boot(D) {
         scope.querySelectorAll('[data-welcome-block]').forEach((el) => {
           el.hidden = !box.checked;
         });
+        // The builder's PAGE 1 card follows the toggle without a reload, and the
+        // enabled state persists immediately (the copy itself autosaves from the card).
+        const card = document.getElementById('fb-welcome-card');
+        const off = document.getElementById('fb-welcome-off');
+        if (card) card.hidden = !box.checked;
+        if (off) off.hidden = box.checked;
+        api(`/app/api/forms/${D.formId}/settings`, { welcomeEnabled: box.checked }).catch((err) =>
+          toast(err.message, false)
+        );
       }
     });
   });
@@ -419,7 +428,15 @@ function boot(D) {
     const num = (v) => (v === undefined || v === null ? '' : String(v));
 
     let validation = '';
-    if (f.type !== 'HDR') {
+    if (f.type === 'HDR') {
+      // B2 copy blocks: the section header's label is the title, help is the
+      // description rendered under it on the public form.
+      validation = `<div>
+        <div style="font-size:12px;color:#686b74;margin-bottom:4px;">Section description (optional)</div>
+        <textarea data-help rows="3" style="${SMALL_INPUT}resize:vertical;font-family:inherit;">${esc(f.help || '')}</textarea>
+        <div style="font-size:11.5px;color:#9a9da6;margin-top:4px;">Shown under the section header on the public form.</div>
+      </div>`;
+    } else {
       let inner = '';
       if (f.type === 'TXT' || f.type === 'MULTI') {
         const minKey = f.type === 'TXT' ? 'minChars' : 'min';
@@ -590,6 +607,10 @@ function boot(D) {
       patch(f.id, { label: t.value });
       return;
     }
+    if (t.hasAttribute('data-help')) {
+      patch(f.id, { help: t.value });
+      return;
+    }
     if (t.hasAttribute('data-v')) {
       const key = t.getAttribute('data-v');
       const raw = t.value;
@@ -698,12 +719,15 @@ function mountPreview(D) {
   const root = document.getElementById('fb-preview');
   if (!root) return;
   const fields = (D.schema && D.schema.fields ? D.schema.fields : []).map((f) => ({ ...f }));
+  const settings = D.settings || {};
+  // Same heading logic as the public page (public-form.tsx renderPage):
+  // external name falls back to the internal name, the heading to the default.
   const state = {
     fields,
     answers: {},
     eventName: D.eventName,
-    formName: D.formName,
-    title: 'Submit a session',
+    formName: (settings.externalName || '').trim() || D.formName,
+    title: (settings.pageHeading || '').trim() || `Speak at ${D.eventName}`,
     welcomeOn: !!(D.settings && D.settings.welcomeEnabled && D.settings.welcomeMd),
     welcomeHtml: renderMd((D.settings && D.settings.welcomeMd) || ''),
     started: false,

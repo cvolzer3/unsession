@@ -21,9 +21,8 @@ import { requireOrgRole } from '../lib/auth';
 import { parseTheme, themeStyleVars } from '../lib/theme';
 import {
   PALETTE,
-  coreFields,
+  PRESET_NAMES,
   currentVersion,
-  defaultSettings,
   hydrateSchema,
   listForms,
   loadForm,
@@ -31,8 +30,11 @@ import {
   loadTaxonomies,
   monthDay,
   normalizeField,
+  parsePreset,
   parseSchema,
   parseSettings,
+  presetFields,
+  presetSettings,
   randomSecret,
   saveSchema,
   sanitizeConditions,
@@ -40,6 +42,7 @@ import {
   submissionCounts,
   validateSchema,
   type FormField,
+  type FormPreset,
   type FormRow,
   type FormSettings,
 } from '../lib/forms';
@@ -141,6 +144,11 @@ const TOGGLES: { key: string; label: string; hint: string }[] = [
   { key: 'allowDrafts', label: 'Allow saving drafts', hint: 'Submitters can save and return before the deadline' },
   { key: 'lateLink', label: 'Secret late-submission link', hint: 'Private URL that accepts entries after close' },
   { key: 'welcome', label: 'Welcome page', hint: 'Markdown intro shown before the first question' },
+  {
+    key: 'sessionIntake',
+    label: 'Submissions become sessions',
+    hint: 'Session intake: every submission is auto-accepted and lands as a sponsor session — no evaluation, no decision email',
+  },
 ];
 
 function SettingsFields({
@@ -149,23 +157,39 @@ function SettingsFields({
   inputStyle,
   lateLink,
   gap,
+  defaultHeading,
 }: {
   form: FormRow;
   settings: FormSettings;
   inputStyle: string;
   lateLink: string;
   gap: string;
+  defaultHeading: string;
 }) {
   const on: Record<string, boolean> = {
     allowDrafts: settings.allowDrafts,
     lateLink: !!settings.lateLinkSecret,
     welcome: settings.welcomeEnabled,
+    sessionIntake: settings.submitsAs === 'session',
   };
   return (
     <>
       <div>
-        <div style={FIELD_LABEL}>Form name</div>
+        <div style={FIELD_LABEL}>Internal name</div>
         <input name="name" value={form.name} style={inputStyle} />
+        <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Admin-only — lists, picker, activity log</div>
+      </div>
+      <div style={`display:grid;grid-template-columns:1fr 1fr;gap:${gap};`}>
+        <div>
+          <div style={FIELD_LABEL}>Public name</div>
+          <input name="externalName" value={settings.externalName} placeholder={form.name} style={inputStyle} />
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Shown to submitters · empty = internal name</div>
+        </div>
+        <div>
+          <div style={FIELD_LABEL}>Page heading</div>
+          <input name="pageHeading" value={settings.pageHeading} placeholder={defaultHeading} style={inputStyle} />
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">The public page’s H1 · empty = default</div>
+        </div>
       </div>
       <div>
         <div style={FIELD_LABEL}>Status</div>
@@ -208,17 +232,11 @@ function SettingsFields({
         >
           {lateLink}
         </div>
+        {/* The welcome COPY is edited in the builder's PAGE 1 card only — a second
+            textarea here used to clobber builder edits on drawer save. */}
         <div data-welcome-block hidden={!on.welcome} style="margin-left:48px;">
-          <div style="font-size:11.5px;color:#686b74;margin-bottom:4px;">Welcome message · Markdown</div>
-          <textarea
-            name="welcomeMd"
-            rows={6}
-            style={`width:100%;padding:8px 10px;border:1px solid #d8d9de;font-size:12px;font-family:${MONO};line-height:1.5;resize:vertical;`}
-          >
-            {settings.welcomeMd}
-          </textarea>
-          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">
-            Supports # headings, **bold**, and - lists · shown in Preview
+          <div style="font-size:11.5px;color:#686b74;background:#f8f8fa;border:1px solid #eceded;padding:8px 10px;">
+            Write the welcome copy in Build, on the PAGE 1 · WELCOME card
           </div>
         </div>
       </div>
@@ -254,6 +272,58 @@ function SettingsFields({
   );
 }
 
+/* ------------------------------------------------------------------ new-form chooser (B4 presets) */
+
+const PRESET_OPTIONS: { preset: FormPreset; desc: string }[] = [
+  { preset: 'cfp', desc: 'Title, abstract, format and speakers — the standard call for proposals.' },
+  { preset: 'contact', desc: 'Name, email and a message — collect people’s info, no session fields.' },
+  {
+    preset: 'session',
+    desc: 'For sponsors: submissions are auto-accepted and land as sponsor sessions — no evaluation.',
+  },
+];
+
+function NewFormChooser() {
+  return (
+    <div
+      id="new-form-chooser"
+      data-dialog
+      hidden
+      style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:70;display:flex;align-items:center;justify-content:center;padding:20px;"
+    >
+      <div style="width:100%;max-width:440px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 12px 32px rgba(22,23,29,0.14);">
+        <div style="display:flex;align-items:center;padding:16px 20px;border-bottom:1px solid #eceded;">
+          <div>
+            <div style="font-weight:700;font-size:15px;">New form</div>
+            <div style={`${MICRO}margin-top:3px;`}>CHOOSE A STARTING POINT</div>
+          </div>
+          <button
+            type="button"
+            data-dialog-close="#new-form-chooser"
+            style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:4px;"
+          >
+            ×
+          </button>
+        </div>
+        <div style="padding:14px 20px 18px;display:grid;gap:8px;">
+          {PRESET_OPTIONS.map((o) => (
+            <form method="post" action="/app/forms/new" style="margin:0;">
+              <input type="hidden" name="preset" value={o.preset} />
+              <button
+                type="submit"
+                style="width:100%;text-align:left;background:#fff;border:1px solid #e2e3e8;padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:3px;"
+              >
+                <span style="font-size:13.5px;font-weight:600;color:#16171d;">{PRESET_NAMES[o.preset]}</span>
+                <span style="font-size:11.5px;color:#686b74;line-height:1.4;">{o.desc}</span>
+              </button>
+            </form>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ page */
 
 app.get('/app/forms', async (c) => {
@@ -277,18 +347,18 @@ app.get('/app/forms', async (c) => {
               Every submission starts with a form
             </div>
             <div style="font-size:13px;color:#686b74;margin-bottom:20px;">
-              Core fields — title, abstract, format and speakers — are copied in for you.
+              Start from a preset — a call for proposals, a contact form, or sponsor session intake.
             </div>
-            <form method="post" action="/app/forms/new">
-              <button
-                type="submit"
-                style="padding:10px 20px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"
-              >
-                ＋ New form
-              </button>
-            </form>
+            <button
+              type="button"
+              data-dialog-open="#new-form-chooser"
+              style="padding:10px 20px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"
+            >
+              ＋ New form
+            </button>
           </div>
         </div>
+        <NewFormChooser />
       </AdminLayout>
     );
   }
@@ -371,14 +441,13 @@ app.get('/app/forms', async (c) => {
               <span style={statusBadge(active.status)}>{active.status.toUpperCase()}</span>
               <span style="color:#686b74;font-size:11px;border-left:1px solid #d8d9de;padding-left:10px;">▾</span>
             </button>
-            <form method="post" action="/app/forms/new" style="flex:none;margin:0;">
-              <button
-                type="submit"
-                style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;font-size:13px;font-weight:600;color:#4c5fd5;cursor:pointer;"
-              >
-                ＋ New form
-              </button>
-            </form>
+            <button
+              type="button"
+              data-dialog-open="#new-form-chooser"
+              style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;font-size:13px;font-weight:600;color:#4c5fd5;cursor:pointer;"
+            >
+              ＋ New form
+            </button>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:7px;flex-wrap:wrap;">
             <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
@@ -446,7 +515,14 @@ app.get('/app/forms', async (c) => {
             </div>
             <form method="post" action={`/app/forms/${active.id}/settings`} style="display:grid;gap:20px;">
               <input type="hidden" name="next" value="build" />
-              <SettingsFields form={active} settings={settings} inputStyle={SETUP_INPUT} lateLink={lateLink} gap="14px" />
+              <SettingsFields
+                form={active}
+                settings={settings}
+                inputStyle={SETUP_INPUT}
+                lateLink={lateLink}
+                gap="14px"
+                defaultHeading={`Speak at ${event.name}`}
+              />
               <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #eceded;padding-top:20px;">
                 <button
                   type="submit"
@@ -475,30 +551,52 @@ app.get('/app/forms', async (c) => {
             <div style="display:flex;align-items:center;margin-bottom:10px;min-height:14px;">
               <span id="fb-save-state" style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
             </div>
-            {settings.welcomeEnabled ? (
-              <div id="fb-welcome-wrap">
-                <div style={`${MICRO}margin-bottom:8px;`}>WELCOME PAGE · SHOWN BEFORE THE FIRST QUESTION</div>
-                <div style="border:1px solid #e2e3e8;background:#fff;margin-bottom:24px;display:flex;flex-direction:column;">
-                  <textarea
-                    id="fb-welcome"
-                    rows={12}
-                    style={`width:100%;flex:1;border:none;outline:none;font-size:12.5px;font-family:${MONO};line-height:1.55;resize:vertical;padding:14px 16px;box-sizing:border-box;`}
-                  >
-                    {settings.welcomeMd}
-                  </textarea>
-                </div>
+            {/* PAGE 1 · WELCOME — both states render so the settings toggle can flip
+                them live (form-builder.js), and the mental model stays stable. */}
+            <div
+              id="fb-welcome-card"
+              hidden={!settings.welcomeEnabled}
+              style="border:1px solid #e2e3e8;background:#fff;margin-bottom:18px;"
+            >
+              <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
+                <span style={MICRO}>PAGE 1 · WELCOME</span>
+                <span style="font-size:11px;color:#9a9da6;">Shown before the first question · Markdown</span>
               </div>
-            ) : null}
-            <div id="fb-list">
-              {schema.fields.map((f) => (
-                <FieldRow f={f} fields={schema.fields} />
-              ))}
+              <textarea
+                id="fb-welcome"
+                rows={10}
+                style={`display:block;width:100%;border:none;outline:none;font-size:12.5px;font-family:${MONO};line-height:1.55;resize:vertical;padding:14px 16px;box-sizing:border-box;`}
+              >
+                {settings.welcomeMd}
+              </textarea>
             </div>
             <div
-              id="fb-endzone"
-              style={`border:1px dashed #d8d9de;background:transparent;color:#b4b6be;padding:12px;text-align:center;font-family:${MONO};font-size:11px;letter-spacing:0.04em;`}
+              id="fb-welcome-off"
+              hidden={settings.welcomeEnabled}
+              style="border:1px dashed #d8d9de;padding:10px 14px;margin-bottom:18px;display:flex;align-items:baseline;gap:10px;"
             >
-              drop zone
+              <span style={MICRO}>PAGE 1 · WELCOME — OFF</span>
+              <span style="font-size:11px;color:#b4b6be;">Turn it on under Form settings</span>
+            </div>
+            {/* PAGE 2 · FORM — the field list */}
+            <div style="border:1px solid #e2e3e8;background:#fff;">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
+                <span style={MICRO}>PAGE 2 · FORM</span>
+                <span style="font-size:11px;color:#9a9da6;">Drag to reorder · click a field to configure</span>
+              </div>
+              <div style="padding:14px;background:#fafafb;">
+                <div id="fb-list">
+                  {schema.fields.map((f) => (
+                    <FieldRow f={f} fields={schema.fields} />
+                  ))}
+                </div>
+                <div
+                  id="fb-endzone"
+                  style={`border:1px dashed #d8d9de;background:transparent;color:#b4b6be;padding:12px;text-align:center;font-family:${MONO};font-size:11px;letter-spacing:0.04em;`}
+                >
+                  drop zone
+                </div>
+              </div>
             </div>
             <div style={`${MICRO}margin:20px 0 8px;`}>FIELD TYPES · DRAG ONTO THE FORM, OR CLICK TO ADD AT THE END</div>
             <div id="fb-palette" style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -559,7 +657,14 @@ app.get('/app/forms', async (c) => {
               </button>
             </div>
             <div style="flex:1;overflow-y:auto;padding:20px 22px;display:grid;gap:18px;align-content:start;">
-              <SettingsFields form={active} settings={settings} inputStyle={DRAWER_INPUT} lateLink={lateLink} gap="12px" />
+              <SettingsFields
+                form={active}
+                settings={settings}
+                inputStyle={DRAWER_INPUT}
+                lateLink={lateLink}
+                gap="12px"
+                defaultHeading={`Speak at ${event.name}`}
+              />
             </div>
             <div style="padding:14px 22px;border-top:1px solid #eceded;display:flex;justify-content:flex-end;gap:8px;">
               {(counts.get(active.id) ?? 0) === 0 ? (
@@ -582,6 +687,7 @@ app.get('/app/forms', async (c) => {
         </aside>
       </div>
       <form id={`delete-${active.id}`} method="post" action={`/app/forms/${active.id}/delete`} hidden></form>
+      <NewFormChooser />
     </AdminLayout>
   );
 });
@@ -610,13 +716,20 @@ app.post('/app/forms/new', guard, async (c) => {
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
   const db = c.env.DB;
+  const body = (await c.req.parseBody().catch(() => ({}))) as Record<string, unknown>;
+  const preset = parsePreset(body.preset);
+  const settings = presetSettings(preset);
+  const name = PRESET_NAMES[preset];
 
-  // Core fields are copied from the event's first form, exactly like the prototype.
-  const existing = await listForms(db, event.id);
+  // CFP only: core fields are copied from the event's first form, exactly like
+  // the prototype. The other presets always start from their own field set.
   let fields: FormField[] = [];
-  if (existing.length) {
-    const first = await loadFormRow(db, existing[0]);
-    fields = first.schema.fields.filter((f) => f.core);
+  if (preset === 'cfp') {
+    const existing = await listForms(db, event.id);
+    if (existing.length) {
+      const first = await loadFormRow(db, existing[0]);
+      fields = first.schema.fields.filter((f) => f.core);
+    }
   }
   if (!fields.length) {
     const formatTax = await one<{ id: string }>(
@@ -624,19 +737,18 @@ app.post('/app/forms/new', guard, async (c) => {
       `SELECT id FROM taxonomies WHERE event_id = ? AND name = 'Format' LIMIT 1`,
       event.id
     );
-    fields = coreFields(defaultSettings().coSpeakerCap, formatTax?.id ?? null);
+    fields = presetFields(preset, settings.coSpeakerCap, formatTax?.id ?? null);
   }
 
   const id = newId('frm');
-  const slug = await uniqueFormSlug(db, event.id, 'Untitled form');
-  const settings = defaultSettings();
+  const slug = await uniqueFormSlug(db, event.id, name);
   await run(
     db,
     `INSERT INTO forms (id, event_id, name, slug, status, opens_at, closes_at, settings_json, created_at)
      VALUES (?,?,?,?,?,?,?,?,?)`,
     id,
     event.id,
-    'Untitled form',
+    name,
     slug,
     'draft',
     null,
@@ -658,7 +770,7 @@ app.post('/app/forms/new', guard, async (c) => {
     subjectId: id,
     actor: c.var.user?.name || c.var.user?.email || 'System',
     action: 'Form created',
-    detail: 'Untitled form',
+    detail: `${name} preset`,
   });
   return c.redirect(`/app/forms?form=${id}&mode=setup`);
 });
@@ -671,6 +783,8 @@ function settingsFromBody(body: Record<string, unknown>, prev: FormSettings): Fo
     allowDrafts: !!body.allowDrafts,
     lateLinkSecret: lateOn ? prev.lateLinkSecret || randomSecret() : null,
     welcomeEnabled: welcomeOn,
+    // The drawer has no welcomeMd field — the copy is edited in the builder's
+    // PAGE 1 card only, so a drawer save must never clobber it.
     welcomeMd: typeof body.welcomeMd === 'string' ? body.welcomeMd : prev.welcomeMd,
     coSpeakerCap: Number.isFinite(cap) ? Math.max(0, Math.min(5, cap)) : prev.coSpeakerCap,
     postSubmitMsg: typeof body.postSubmitMsg === 'string' ? body.postSubmitMsg : prev.postSubmitMsg,
@@ -679,6 +793,9 @@ function settingsFromBody(body: Record<string, unknown>, prev: FormSettings): Fo
       .map((s) => s.trim())
       .filter((s) => s.includes('@')),
     audience: prev.audience,
+    externalName: typeof body.externalName === 'string' ? body.externalName.trim() : prev.externalName,
+    pageHeading: typeof body.pageHeading === 'string' ? body.pageHeading.trim() : prev.pageHeading,
+    submitsAs: body.sessionIntake ? 'session' : 'submission',
   };
 }
 
@@ -733,7 +850,8 @@ app.post('/app/forms/:id/settings', guard, async (c) => {
   }
 
   const next = String(body.next ?? 'build');
-  const isNew = next === 'build' && loaded.form.name === 'Untitled form';
+  const presetNames = new Set<string>(['Untitled form', ...Object.values(PRESET_NAMES)]);
+  const isNew = next === 'build' && presetNames.has(loaded.form.name);
   const message = isNew
     ? 'Form created — core fields copied in. Drag field types to add more'
     : 'Form settings saved';

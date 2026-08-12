@@ -79,6 +79,41 @@ export function requiredWhenVisible(f) {
   return !!f.required || !!(f.cond && f.cond.alsoReq);
 }
 
+/**
+ * Mirror of `src/routes/public-form.tsx` layoutItems — sections come from HDR
+ * fields (label = title, help = description), schemas without any get the
+ * prototype's auto-sectioning. Keep the two in sync.
+ */
+export function layoutItems(fields) {
+  const hasHdr = fields.some((f) => f.type === 'HDR');
+  const items = [];
+  if (hasHdr) {
+    for (const f of fields) {
+      if (f.type === 'HDR') items.push({ kind: 'section', label: (f.label || '').toUpperCase(), desc: (f.help || '').trim() });
+      else items.push({ kind: 'field', field: f });
+    }
+  } else {
+    let current = '';
+    const open = (label) => {
+      if (current === label) return;
+      current = label;
+      items.push({ kind: 'section', label });
+    };
+    for (const f of fields) {
+      const consent = f.type === 'CHK' && !!(f.validation && f.validation.mustCheck);
+      if (f.type === 'GRP') open('SPEAKERS');
+      else if (consent) open('CONSENT');
+      else if (current === '') open('YOUR SESSION');
+      else if (current === 'SPEAKERS' || current === 'CONSENT') open('MORE DETAIL');
+      items.push({ kind: 'field', field: f });
+    }
+  }
+  let n = 0;
+  return items.map((it) =>
+    it.kind === 'section' ? { ...it, label: `${String(++n).padStart(2, '0')} · ${it.label}` } : it
+  );
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function escapeHtml(s) {
@@ -209,18 +244,29 @@ export function renderPreview(root, state) {
     return;
   }
 
-  const rows = fields
-    .filter((f) => vis.has(f.id))
-    .map((f) => {
+  // Same string as SECTION in src/routes/public-form.tsx — keep them in sync.
+  const SECTION =
+    'font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;';
+
+  // Preview runs the exact auto-sectioning the public page does (layoutItems),
+  // so section rhythm and numbering match production.
+  const rows = layoutItems(fields)
+    .map((it) => {
+      if (it.kind === 'section') {
+        const desc = it.desc
+          ? `<div style="font-size:13px;color:var(--muted);line-height:1.5;margin-top:8px;">${escapeHtml(it.desc)}</div>`
+          : '';
+        return `<div><div style="${SECTION}">${escapeHtml(it.label)}</div>${desc}</div>`;
+      }
+      const f = it.field;
+      if (!vis.has(f.id)) return '';
       const req = requiredWhenVisible(f);
       const star = req ? '<span style="color:#c92a2a;">*</span>' : '';
       const fired = f.cond ? '<span style="font-family:var(--font-mono);font-size:10px;color:#b08800;">← CONDITION FIRED</span>' : '';
       const label = f.type === 'GRP' ? 'Speaker name' : f.label;
       const v = answers[f.id];
       let control = '';
-      if (f.type === 'HDR') {
-        return `<div style="font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;">${escapeHtml(f.label.toUpperCase())}</div>`;
-      } else if (f.type === 'SEL') {
+      if (f.type === 'SEL') {
         const opts = (f.opts || [])
           .map((o) => `<option value="${escapeHtml(o)}"${String(v ?? '') === o ? ' selected' : ''}>${escapeHtml(o)}</option>`)
           .join('');
@@ -263,6 +309,7 @@ export function renderPreview(root, state) {
       }
       return `<div><div style="font-size:13.5px;font-weight:600;margin-bottom:5px;">${escapeHtml(label)} ${star} ${fired}</div>${control}</div>`;
     })
+    .filter(Boolean)
     .join('');
 
   root.innerHTML = `
