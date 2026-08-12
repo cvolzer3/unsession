@@ -95,7 +95,7 @@ app.get('/app/setup', async (c) => {
                         type="button"
                         data-toggle="#slug-info"
                         aria-label="About the slug"
-                        style={`width:14px;height:14px;padding:0;background:#fff;border:1px solid #c9cbd3;color:#686b74;font-family:${MONO};font-size:9px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;`}
+                        style={`width:15px;height:15px;padding:0;background:#eef0fb;border:none;border-radius:50%;color:#4c5fd5;font-family:${MONO};font-size:9px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;`}
                       >
                         i
                       </button>
