@@ -22,6 +22,7 @@ import { logActivity } from '../lib/activity';
 import { findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
+import { syncPlansForSubmission } from '../lib/evals';
 import {
   coreRoles,
   hydrateSchema,
@@ -1264,6 +1265,14 @@ app.post('/:event/:form', async (c) => {
     action: 'Submitted',
     detail: `SUB-${seq} · ${loaded.form.name}`,
   });
+
+  // Category routing (spec §4.2): a matching evaluation plan pulls the fresh
+  // submission into review immediately.
+  try {
+    await syncPlansForSubmission(c.env, found.event.id, submissionId);
+  } catch (err) {
+    console.error('[submit] plan sync failed', err);
+  }
 
   /* ------------------------------------------------------------ emails */
   const tpl = await one<{ subject: string; body: string }>(
