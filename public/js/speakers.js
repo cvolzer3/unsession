@@ -222,6 +222,13 @@ function drawerHtml(d, animate = true) {
         ? '#c92a2a'
         : '#686b74';
 
+  // One click queues a reminder for every open task — they send as ONE email.
+  const remindableUnqueued = d.tasks.filter((t) => t.remindable && !t.reminderQueued);
+  const remindAllBtn =
+    remindableUnqueued.length > 1
+      ? `<button id="remind-all" title="Queues a reminder for each open task — they go out batched, as one email to ${esc(first)}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind all · 1 email</button>`
+      : '';
+
   const taskRows = d.tasks
     .map(
       (t) => `
@@ -317,8 +324,9 @@ function drawerHtml(d, animate = true) {
           : ''
       }
       <div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TASKS</div>
+          ${remindAllBtn}
           <div style="margin-left:auto;font-family:${MONO};font-size:11px;color:${fracColor};font-weight:600;">${d.frac.done}/${d.frac.total} complete</div>
         </div>
         <div style="display:flex;flex-direction:column;">${taskRows || '<div style="font-size:12.5px;color:#9a9da6;padding:6px 0;">No tasks yet.</div>'}</div>
@@ -343,6 +351,20 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (!current) return;
+
+  const remindAll = e.target.closest('#remind-all');
+  if (remindAll) {
+    remindAll.disabled = true;
+    try {
+      const res = await api('/app/api/speakers/task/remind-all', { speakerProfileId: current.speaker.id });
+      toast(res.message);
+      await refreshSpeaker();
+    } catch (err) {
+      remindAll.disabled = false;
+      toast(err.message, false);
+    }
+    return;
+  }
 
   const remind = e.target.closest('[data-remind]');
   if (remind) {

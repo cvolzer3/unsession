@@ -5,8 +5,10 @@
  *
  * Queueing records intent and nothing else: no email, no activity visible to
  * the speaker. Sending from the outbox resolves the reminder wording fresh
- * (template subject/body at send time) through `remindTask` and deletes the
- * row. One pending reminder per (task, speaker): re-queueing replaces it.
+ * (template subject/body at send time) and deletes the row — one email per
+ * speaker: a lone reminder goes through `remindTask`, several batch into a
+ * single combined email via `remindTasksBatch`. One pending reminder per
+ * (task, speaker): re-queueing replaces it.
  */
 import { all, jsonParse, now, one, run } from './db';
 import { logActivity } from './activity';
@@ -14,6 +16,7 @@ import { newId } from './ids';
 import {
   parseReminders,
   remindTask,
+  remindTasksBatch,
   snapshotOf,
   type OneOffSpec,
   type TaskRow,
@@ -141,6 +144,8 @@ export async function removeQueuedReminders(
 export type SendQueuedRemindersResult = {
   processed: number;
   emailed: number;
+  /** Distinct emails sent — every queued reminder for the same speaker batches into one. */
+  emails: number;
   simulated: number;
   skipped: { id: string; reason: string }[];
   /** Rows still queued after this batch (a send processes at most `limit`). */
@@ -149,6 +154,10 @@ export type SendQueuedRemindersResult = {
 
 /**
  * Act on the queue: send up to `limit` queued reminders and delete their rows.
+ * All of a speaker's queued reminders go out as ONE email — a single reminder
+ * keeps its template's custom wording (`remindTask`), two or more become a
+ * combined list (`remindTasksBatch`). A speaker's batch is never split, so
+ * `limit` is checked between speakers, not between rows.
  * Rows whose task or speaker can no longer take a reminder (task completed or
  * cancelled since queueing, speaker gone) are deleted too — a row that can
  * never send must not stick in the outbox — and reported.
@@ -159,7 +168,14 @@ export async function sendQueuedReminders(
   actorName: string,
   limit: number
 ): Promise<SendQueuedRemindersResult> {
-  const result: SendQueuedRemindersResult = { processed: 0, emailed: 0, simulated: 0, skipped: [], remaining: 0 };
+  const result: SendQueuedRemindersResult = {
+    processed: 0,
+    emailed: 0,
+    emails: 0,
+    simulated: 0,
+    skipped: [],
+    remaining: 0,
+  };
   if (limit <= 0) {
     result.remaining = await queuedReminderCount(env, eventId);
     return result;
@@ -175,56 +191,92 @@ export async function sendQueuedReminders(
   const rows = await all<{ id: string; task_id: string; speaker_profile_id: string }>(
     env.DB,
     `SELECT id, task_id, speaker_profile_id FROM task_reminder_queue
-     WHERE event_id = ? ORDER BY created_at, id LIMIT ?`,
-    eventId,
-    limit
+     WHERE event_id = ? ORDER BY created_at, id`,
+    eventId
   );
 
+  // Group by speaker, ordered by each speaker's earliest queued row.
+  const groups = new Map<string, typeof rows>();
   for (const row of rows) {
-    result.processed++;
-    const task = await one<TaskRow>(env.DB, `SELECT * FROM tasks WHERE id = ? AND event_id = ?`, row.task_id, eventId);
-    const template =
-      task?.template_id != null
-        ? await one<TaskTemplateRow>(env.DB, `SELECT * FROM task_templates WHERE id = ?`, task.template_id)
-        : null;
+    const g = groups.get(row.speaker_profile_id);
+    if (g) g.push(row);
+    else groups.set(row.speaker_profile_id, [row]);
+  }
+
+  for (const [speakerProfileId, group] of groups) {
+    if (result.processed >= limit) break;
+
     const profile = await one<{ id: string; name: string; email: string }>(
       env.DB,
       `SELECT id, name, email FROM speaker_profiles WHERE id = ?`,
-      row.speaker_profile_id
+      speakerProfileId
     );
 
-    const reason = !task
-      ? 'task no longer exists'
-      : task.status === 'done'
-        ? 'task already completed'
-        : task.status === 'cancelled'
-          ? 'task was removed'
-          : !profile?.email
-            ? 'speaker no longer on file'
-            : null;
-    if (reason || !task || !profile) {
-      result.skipped.push({ id: row.id, reason: reason ?? 'not sendable' });
-      await run(env.DB, `DELETE FROM task_reminder_queue WHERE id = ?`, row.id);
-      continue;
-    }
+    const sendable: { rowId: string; task: TaskRow; template: TaskTemplateRow | null }[] = [];
+    for (const row of group) {
+      result.processed++;
+      const task = await one<TaskRow>(
+        env.DB,
+        `SELECT * FROM tasks WHERE id = ? AND event_id = ?`,
+        row.task_id,
+        eventId
+      );
+      const template =
+        task?.template_id != null
+          ? await one<TaskTemplateRow>(env.DB, `SELECT * FROM task_templates WHERE id = ?`, task.template_id)
+          : null;
 
-    const session = task.session_id
-      ? await one<{ title: string }>(env.DB, `SELECT title FROM sessions WHERE id = ?`, task.session_id)
-      : null;
-    const rem = template ? parseReminders(template) : null;
-    const res = await remindTask(env, {
-      task,
-      taskName: taskName(task, template),
-      event,
-      profile,
-      sessionTitle: session?.title ?? null,
-      subject: rem?.subject,
-      body: rem?.body,
-      actor: actorName,
-    });
-    result.emailed++;
-    if (res.status === 'simulated') result.simulated++;
-    await run(env.DB, `DELETE FROM task_reminder_queue WHERE id = ?`, row.id);
+      const reason = !task
+        ? 'task no longer exists'
+        : task.status === 'done'
+          ? 'task already completed'
+          : task.status === 'cancelled'
+            ? 'task was removed'
+            : !profile?.email
+              ? 'speaker no longer on file'
+              : null;
+      if (reason || !task || !profile) {
+        result.skipped.push({ id: row.id, reason: reason ?? 'not sendable' });
+        await run(env.DB, `DELETE FROM task_reminder_queue WHERE id = ?`, row.id);
+        continue;
+      }
+      sendable.push({ rowId: row.id, task, template });
+    }
+    if (!sendable.length || !profile) continue;
+
+    let status: string;
+    if (sendable.length === 1) {
+      const { task, template } = sendable[0];
+      const session = task.session_id
+        ? await one<{ title: string }>(env.DB, `SELECT title FROM sessions WHERE id = ?`, task.session_id)
+        : null;
+      const rem = template ? parseReminders(template) : null;
+      status = (
+        await remindTask(env, {
+          task,
+          taskName: taskName(task, template),
+          event,
+          profile,
+          sessionTitle: session?.title ?? null,
+          subject: rem?.subject,
+          body: rem?.body,
+          actor: actorName,
+        })
+      ).status;
+    } else {
+      status = (
+        await remindTasksBatch(env, {
+          event,
+          profile,
+          items: sendable.map(({ task, template }) => ({ task, taskName: taskName(task, template) })),
+          actor: actorName,
+        })
+      ).status;
+    }
+    result.emailed += sendable.length;
+    result.emails++;
+    if (status === 'simulated') result.simulated += sendable.length;
+    for (const { rowId } of sendable) await run(env.DB, `DELETE FROM task_reminder_queue WHERE id = ?`, rowId);
   }
 
   result.remaining = await queuedReminderCount(env, eventId);

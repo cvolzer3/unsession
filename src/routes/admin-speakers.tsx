@@ -838,6 +838,20 @@ app.get('/app/speakers', async (c) => {
   // Same review-and-send panel as /app/submissions, but for queued task
   // reminders — the Remind button queues, this is where the queue shows.
   const reminderQueue = await listReminderQueue(c.env, event.id);
+  // Sending batches per speaker (one email each) — group the panel the same way.
+  const reminderGroups: (typeof reminderQueue)[] = [];
+  {
+    const bySpeaker = new Map<string, typeof reminderQueue>();
+    for (const q of reminderQueue) {
+      const g = bySpeaker.get(q.speaker_profile_id);
+      if (g) g.push(q);
+      else {
+        const fresh = [q];
+        bySpeaker.set(q.speaker_profile_id, fresh);
+        reminderGroups.push(fresh);
+      }
+    }
+  }
   const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
 
   const zipBtn = (href: string, label: string) =>
@@ -910,7 +924,9 @@ app.get('/app/speakers', async (c) => {
             <div style="padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#33343c;flex-wrap:wrap;">
               <span>
                 <strong>{`${reminderQueue.length} queued task reminder${reminderQueue.length === 1 ? '' : 's'}`}</strong>
-                {' — nothing has been sent to speakers yet.'}
+                {` — sends as ${reminderGroups.length} email${
+                  reminderGroups.length === 1 ? '' : 's'
+                } (one per speaker); nothing has been sent to speakers yet.`}
               </span>
               {canWrite ? (
                 <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
@@ -934,51 +950,62 @@ app.get('/app/speakers', async (c) => {
                 REVIEW THE QUEUE
               </summary>
               <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
-                {reminderQueue.map((q) => (
-                  <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                    <span
-                      style={`display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap;color:#b08800;border:1px dashed #b08800;font-family:${MONO};letter-spacing:0.04em;justify-self:start;`}
-                    >
-                      REMIND
-                    </span>
-                    <div style="min-width:0;">
+                {reminderGroups.map((g) => (
+                  <div style="border-bottom:1px solid #eceded;">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fafafb;">
                       <a
-                        href={`/app/speakers?open=${q.speaker_profile_id}`}
-                        style="font-size:13px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                        href={`/app/speakers?open=${g[0].speaker_profile_id}`}
+                        style="font-size:13px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                       >
-                        {q.speaker_name || 'No speaker on file'}
+                        {g[0].speaker_name || 'No speaker on file'}
                       </a>
-                      <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
-                        {q.speaker_email || 'no email on file'}
-                      </div>
+                      <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                        {g[0].speaker_email || 'no email on file'}
+                      </span>
+                      <span
+                        title={
+                          g.length === 1
+                            ? 'This speaker gets one reminder email'
+                            : `These ${g.length} reminders are batched — this speaker gets ONE email listing all of them`
+                        }
+                        style={`margin-left:auto;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap;color:#b08800;border:1px dashed #b08800;font-family:${MONO};letter-spacing:0.04em;flex:none;`}
+                      >
+                        {g.length === 1 ? '1 EMAIL' : `1 EMAIL · ${g.length} REMINDERS`}
+                      </span>
                     </div>
-                    <div style="min-width:0;">
-                      <div style="font-size:12.5px;color:#33343c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                        {q.task_name}
+                    {g.map((q) => (
+                      <div style="display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;padding:6px 14px 6px 28px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                        <div style="min-width:0;">
+                          <div style="font-size:12.5px;color:#33343c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {q.task_name}
+                          </div>
+                          <div style="font-size:11px;color:#9a9da6;">
+                            {q.due_date ? `Due ${q.due_date}` : 'No due date'}
+                          </div>
+                        </div>
+                        {canWrite ? (
+                          <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                            <input type="hidden" name="id" value={q.id} />
+                            <input type="hidden" name="kind" value="reminder" />
+                            <input type="hidden" name="back" value="/app/speakers" />
+                            <button
+                              type="submit"
+                              style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
+                            >
+                              Undo
+                            </button>
+                          </form>
+                        ) : null}
                       </div>
-                      <div style="font-size:11px;color:#9a9da6;">{q.due_date ? `Due ${q.due_date}` : 'No due date'}</div>
-                    </div>
-                    {canWrite ? (
-                      <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
-                        <input type="hidden" name="id" value={q.id} />
-                        <input type="hidden" name="kind" value="reminder" />
-                        <input type="hidden" name="back" value="/app/speakers" />
-                        <button
-                          type="submit"
-                          style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
-                        >
-                          Undo
-                        </button>
-                      </form>
-                    ) : null}
+                    ))}
                   </div>
                 ))}
                 <div style="padding:8px 14px;font-size:11.5px;color:#9a9da6;">
-                  Also lives at{' '}
+                  Reminders for the same speaker are combined into a single email. Also lives at{' '}
                   <a href="/app/emails?tab=outbox" style="color:#4c5fd5;">
                     Emails → Outbox
                   </a>
-                  . Undo removes the reminder before it sends.
+                  . Undo removes a reminder before it sends.
                 </div>
               </div>
             </details>
@@ -1661,9 +1688,75 @@ app.post('/app/api/speakers/task/remind', requireOrgRole('collaborator'), async 
     taskName: ctx.name,
     actorName: c.var.user?.name || c.var.user?.email || 'Organizer',
   });
+  const queued = await one<{ n: number }>(
+    c.env.DB,
+    `SELECT COUNT(*) AS n FROM task_reminder_queue WHERE speaker_profile_id = ?`,
+    profile.id
+  );
+  const others = (queued?.n ?? 1) - 1;
   return c.json({
     ok: true,
-    message: `Reminder to ${profile.name} queued: “${ctx.name}” — send it from Emails → Outbox`,
+    message: others
+      ? `Reminder queued: “${ctx.name}” — goes out with ${others} other${others === 1 ? '' : 's'} as ONE email to ${profile.name}, from Emails → Outbox`
+      : `Reminder to ${profile.name} queued: “${ctx.name}” — send it from Emails → Outbox`,
+  });
+});
+
+/**
+ * Queue a reminder for every open task the speaker still has — the drawer's
+ * "Remind all". Everything queued here goes out as one batched email.
+ */
+app.post('/app/api/speakers/task/remind-all', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No event' }, 400);
+  const { speakerProfileId } = await c.req.json<{ speakerProfileId: string }>();
+  const profile = await one<{ id: string; name: string }>(
+    c.env.DB,
+    `SELECT id, name FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    speakerProfileId,
+    event.id
+  );
+  if (!profile) return c.json({ ok: false, error: 'Speaker not found' }, 404);
+  const first = profile.name.split(' ')[0] || profile.name;
+
+  const sessionIds = (
+    await all<{ session_id: string }>(
+      c.env.DB,
+      `SELECT session_id FROM session_speakers WHERE speaker_profile_id = ?`,
+      profile.id
+    )
+  ).map((r) => r.session_id);
+  const open = T.dedupeTasks(
+    await all<T.TaskRow & { tpl_name: string | null }>(
+      c.env.DB,
+      `SELECT t.*, tt.name AS tpl_name
+         FROM tasks t LEFT JOIN task_templates tt ON tt.id = t.template_id
+        WHERE t.event_id = ? AND t.status NOT IN ('cancelled','done')
+          AND (t.speaker_profile_id = ?${sessionIds.length ? ` OR t.session_id IN (${sessionIds.map(() => '?').join(',')})` : ''})`,
+      event.id,
+      profile.id,
+      ...sessionIds
+    )
+  );
+  if (!open.length) return c.json({ ok: false, error: `Nothing to remind — ${first} has no open tasks` }, 400);
+
+  const actorName = c.var.user?.name || c.var.user?.email || 'Organizer';
+  for (const t of open) {
+    const name =
+      T.snapshotOf(t)?.name ??
+      t.tpl_name ??
+      jsonParse<T.OneOffSpec>(t.one_off_json, { name: 'Task', type: 'checkbox' }).name;
+    await queueTaskReminder(c.env, {
+      eventId: event.id,
+      taskId: t.id,
+      speakerProfileId: profile.id,
+      taskName: name,
+      actorName,
+    });
+  }
+  return c.json({
+    ok: true,
+    message: `${open.length} reminder${open.length === 1 ? '' : 's'} queued for ${first} — they go out as ONE email, from Emails → Outbox`,
   });
 });
 

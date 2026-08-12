@@ -127,6 +127,20 @@ app.get('/app/emails', async (c) => {
   const queuedCount = queuedDecisions + queuedReminders;
   const outboxRows = tab === 'outbox' ? await listDecisionQueue(c.env, event.id) : [];
   const reminderRows = tab === 'outbox' ? await listReminderQueue(c.env, event.id) : [];
+  // Sending batches reminders per speaker (one email each) — show them grouped the same way.
+  const reminderGroups: (typeof reminderRows)[] = [];
+  {
+    const bySpeaker = new Map<string, typeof reminderRows>();
+    for (const r of reminderRows) {
+      const g = bySpeaker.get(r.speaker_profile_id);
+      if (g) g.push(r);
+      else {
+        const fresh = [r];
+        bySpeaker.set(r.speaker_profile_id, fresh);
+        reminderGroups.push(fresh);
+      }
+    }
+  }
 
   const templates =
     tab === 'templates'
@@ -229,15 +243,24 @@ app.get('/app/emails', async (c) => {
         ) : tab === 'outbox' ? (
           <div style="display:grid;gap:14px;max-width:1000px;">
             <div style="background:#fff;border:1px solid #e2e3e8;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-              <div style="min-width:0;font-size:15px;font-weight:700;">
-                {queuedCount > 0
-                  ? `${[
-                      queuedDecisions ? `${queuedDecisions} decision${queuedDecisions === 1 ? '' : 's'}` : '',
-                      queuedReminders ? `${queuedReminders} task reminder${queuedReminders === 1 ? '' : 's'}` : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')} queued`
-                  : 'The outbox is empty'}
+              <div style="min-width:0;">
+                <div style="font-size:15px;font-weight:700;">
+                  {queuedCount > 0
+                    ? `${[
+                        queuedDecisions ? `${queuedDecisions} decision${queuedDecisions === 1 ? '' : 's'}` : '',
+                        queuedReminders ? `${queuedReminders} task reminder${queuedReminders === 1 ? '' : 's'}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')} queued`
+                    : 'The outbox is empty'}
+                </div>
+                {reminderRows.length > reminderGroups.length ? (
+                  <div style="font-size:12px;color:#686b74;margin-top:2px;">
+                    {`Task reminders batch per speaker — the ${reminderRows.length} reminders go out as ${
+                      reminderGroups.length
+                    } email${reminderGroups.length === 1 ? '' : 's'}.`}
+                  </div>
+                ) : null}
               </div>
               {queuedCount > 0 ? (
                 <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
@@ -305,42 +328,62 @@ app.get('/app/emails', async (c) => {
 
             {reminderRows.length ? (
               <div>
-                <div style={`${MICRO}margin-bottom:6px;`}>{`TASK REMINDERS · ${reminderRows.length}`}</div>
+                <div style={`${MICRO}margin-bottom:6px;`}>
+                  {`TASK REMINDERS · ${reminderRows.length} · ${reminderGroups.length} EMAIL${
+                    reminderGroups.length === 1 ? '' : 'S'
+                  } (ONE PER SPEAKER)`}
+                </div>
                 <div style="background:#fff;border:1px solid #e2e3e8;">
-                  {reminderRows.map((r) => (
-                    <div style="display:grid;grid-template-columns:minmax(0,1fr) 220px 170px 80px;gap:12px;padding:11px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                      <div style="min-width:0;">
-                        <a
-                          href={`/app/speakers?open=${r.speaker_profile_id}`}
-                          style="font-size:13.5px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                  {reminderGroups.map((g) => (
+                    <div style="border-bottom:1px solid #eceded;">
+                      <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;background:#fafafb;">
+                        <div style="min-width:0;">
+                          <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {g[0].speaker_name || 'No speaker on file'}
+                          </div>
+                          <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                            {g[0].speaker_email || '—'}
+                          </div>
+                        </div>
+                        <span
+                          title={
+                            g.length === 1
+                              ? 'This speaker gets one reminder email'
+                              : `These ${g.length} reminders are batched — this speaker gets ONE email listing all of them`
+                          }
+                          style={`margin-left:auto;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap;color:#b08800;border:1px dashed #b08800;font-family:${MONO};letter-spacing:0.04em;flex:none;`}
                         >
-                          {r.task_name}
-                        </a>
-                        <div style="font-size:11.5px;color:#9a9da6;">
-                          {r.due_date ? `Due ${r.due_date}` : 'No due date'}
-                        </div>
+                          {g.length === 1 ? '1 EMAIL' : `1 EMAIL · ${g.length} REMINDERS`}
+                        </span>
                       </div>
-                      <div style="min-width:0;">
-                        <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          {r.speaker_name || 'No speaker on file'}
+                      {g.map((r) => (
+                        <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px 80px;gap:12px;padding:8px 14px 8px 28px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                          <div style="min-width:0;">
+                            <a
+                              href={`/app/speakers?open=${r.speaker_profile_id}`}
+                              style="font-size:13px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                            >
+                              {r.task_name}
+                            </a>
+                            <div style="font-size:11.5px;color:#9a9da6;">
+                              {r.due_date ? `Due ${r.due_date}` : 'No due date'}
+                            </div>
+                          </div>
+                          <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
+                            {`${r.queued_by} · ${r.created_at.slice(0, 16).replace('T', ' ')}`}
+                          </div>
+                          <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                            <input type="hidden" name="id" value={r.id} />
+                            <input type="hidden" name="kind" value="reminder" />
+                            <button
+                              type="submit"
+                              style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
+                            >
+                              Undo
+                            </button>
+                          </form>
                         </div>
-                        <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
-                          {r.speaker_email || '—'}
-                        </div>
-                      </div>
-                      <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
-                        {`${r.queued_by} · ${r.created_at.slice(0, 16).replace('T', ' ')}`}
-                      </div>
-                      <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
-                        <input type="hidden" name="id" value={r.id} />
-                        <input type="hidden" name="kind" value="reminder" />
-                        <button
-                          type="submit"
-                          style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
-                        >
-                          Undo
-                        </button>
-                      </form>
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -479,9 +522,11 @@ app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
     parts.push(d);
   }
   if (rem.processed) {
-    parts.push(
-      `${n(rem.emailed, 'task reminder')}${rem.emailed > 0 && rem.simulated === rem.emailed ? ' simulated (see Log)' : ' sent'}`
-    );
+    let r = `${n(rem.emailed, 'task reminder')}${
+      rem.emailed > 0 && rem.simulated === rem.emailed ? ' simulated (see Log)' : ' sent'
+    }`;
+    if (rem.emails && rem.emails < rem.emailed) r += ` in ${n(rem.emails, 'email')} — batched per speaker`;
+    parts.push(r);
   }
   let msg = parts.join(' · ');
   const skippedCount = res.skipped.length + rem.skipped.length;

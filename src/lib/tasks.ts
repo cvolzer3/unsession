@@ -1184,3 +1184,54 @@ export async function remindTask(
   });
   return { status: res.status };
 }
+
+/**
+ * One combined task_nag send for several tasks — the outbox batches every
+ * queued reminder for the same speaker into a single email through this.
+ * Uses generic wording (per-template custom subject/body only applies when a
+ * speaker has exactly one queued reminder, via `remindTask`).
+ */
+export async function remindTasksBatch(
+  env: Bindings,
+  opts: {
+    event: { id: string; name: string; slug: string };
+    profile: { id: string; name: string; email: string };
+    items: { task: TaskRow; taskName: string }[];
+    actor?: string;
+  }
+): Promise<{ status: string }> {
+  const today = todayISO();
+  const lines = opts.items.map(({ task, taskName }) => {
+    if (!task.due_date) return `• “${taskName}”`;
+    const left = Math.max(0, daysBetween(today, task.due_date));
+    return `• “${taskName}” — due ${task.due_date} (${left} day${left === 1 ? '' : 's'} left)`;
+  });
+  const text =
+    `Hi ${opts.profile.name || opts.profile.email},\n\n` +
+    `A quick reminder — you have ${opts.items.length} open tasks for ${opts.event.name}:\n\n` +
+    `${lines.join('\n')}\n\n` +
+    `Everything you need is in your speaker portal:\n${env.APP_ORIGIN}/${opts.event.slug}/portal\n\n` +
+    `Already done some of these? Reminders stop automatically once a task is complete, so you can ignore those.\n\n` +
+    `— The ${opts.event.name} program team`;
+  const res = await sendEmail(env, {
+    eventId: opts.event.id,
+    to: opts.profile.email,
+    toName: opts.profile.name,
+    templateKey: 'task_nag',
+    subject: `Reminder: ${opts.items.length} open tasks for ${opts.event.name}`,
+    text,
+    subjectType: 'speaker',
+    subjectId: opts.profile.id,
+  });
+  for (const { task, taskName } of opts.items) {
+    await logActivity(env.DB, {
+      eventId: opts.event.id,
+      subjectType: 'task',
+      subjectId: task.id,
+      actor: opts.actor || 'Organizer',
+      action: 'Reminder sent',
+      detail: `“${taskName}” → ${opts.profile.email} · batched, one email with ${opts.items.length} reminders`,
+    });
+  }
+  return { status: res.status };
+}
