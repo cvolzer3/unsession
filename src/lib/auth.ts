@@ -42,13 +42,19 @@ export type MagicLinkResult = {
   status: 'sent' | 'failed' | 'simulated';
 };
 
-export async function requestMagicLink(
+/**
+ * Create a magic token row and return the RAW token (only ever returned here —
+ * the DB stores the hash). Used directly when the link must live inside
+ * another email (e.g. `{{confirmation_link}}` in accept emails → /confirm/<raw>)
+ * or needs a non-default TTL.
+ */
+export async function createMagicToken(
   env: Bindings,
   email: string,
   purpose: MagicPurpose,
   payload?: Record<string, unknown>,
-  opts?: { subject?: string; text?: string; eventId?: string | null }
-): Promise<MagicLinkResult> {
+  ttlMinutes: number = MAGIC_MINUTES
+): Promise<{ raw: string; id: string }> {
   const raw = randomToken();
   const id = newId('mtk');
   await run(
@@ -61,8 +67,22 @@ export async function requestMagicLink(
     purpose,
     payload ? JSON.stringify(payload) : null,
     now(),
-    plusMinutes(MAGIC_MINUTES)
+    plusMinutes(ttlMinutes)
   );
+  return { raw, id };
+}
+
+/** 7 days — confirmation links live inside decision emails and must outlast an inbox backlog. */
+export const CONFIRM_TOKEN_MINUTES = 7 * 24 * 60;
+
+export async function requestMagicLink(
+  env: Bindings,
+  email: string,
+  purpose: MagicPurpose,
+  payload?: Record<string, unknown>,
+  opts?: { subject?: string; text?: string; eventId?: string | null }
+): Promise<MagicLinkResult> {
+  const { raw, id } = await createMagicToken(env, email, purpose, payload);
 
   const url = `${env.APP_ORIGIN}/auth/verify?token=${encodeURIComponent(raw)}`;
   const subject = opts?.subject ?? 'Your Unsession sign-in link';
