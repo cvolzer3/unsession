@@ -290,8 +290,9 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
                       hidden
                       style="position:absolute;top:calc(100% + 8px);left:0;width:360px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
                     >
+                      {/* margin:0 — the UA sheet's form margin-block-end would gap each row */}
                       {events.map((e) => (
-                        <form method="post" action="/app/switch-event">
+                        <form method="post" action="/app/switch-event" style="margin:0;">
                           <input type="hidden" name="event_id" value={e.id} />
                           <button
                             type="submit"
