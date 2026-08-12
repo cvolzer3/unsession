@@ -502,6 +502,18 @@ function boot(D) {
       </div>`;
     }
 
+    // The sentence printed next to the box — the public form turns
+    // `[label](https://…)` and bare URLs into links, which is how a
+    // code-of-conduct field points at the actual document.
+    const consent =
+      f.type === 'CHK'
+        ? `<div>
+        <div style="font-size:12px;color:#686b74;margin-bottom:4px;">Checkbox text</div>
+        <textarea data-ph rows="2" placeholder="I have read and agree to the [code of conduct](https://…)." style="${SMALL_INPUT}resize:vertical;font-family:inherit;">${esc(f.placeholder || '')}</textarea>
+        <div style="font-size:11.5px;color:#9a9da6;margin-top:4px;">Shown next to the box. Link out with <code>[code of conduct](https://…)</code>.</div>
+      </div>`
+        : '';
+
     const options =
       (f.type === 'SEL' || f.type === 'MULTI') && !bound
         ? `<div>
@@ -566,6 +578,7 @@ function boot(D) {
         <div style="font-size:12px;color:#686b74;margin-bottom:4px;">Label (display only)</div>
         <input value="${esc(f.label)}" data-label style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;">
       </div>
+      ${consent}
       ${options}
       ${validation}
       <label style="display:flex;gap:8px;font-size:13px;align-items:center;"><input type="checkbox" data-required${
@@ -609,6 +622,10 @@ function boot(D) {
     }
     if (t.hasAttribute('data-help')) {
       patch(f.id, { help: t.value });
+      return;
+    }
+    if (t.hasAttribute('data-ph')) {
+      patch(f.id, { placeholder: t.value });
       return;
     }
     if (t.hasAttribute('data-v')) {

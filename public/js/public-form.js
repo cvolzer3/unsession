@@ -124,6 +124,23 @@ export function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Consent copy with links — `[code of conduct](https://…)` and bare URLs become
+ * anchors, everything else is escaped. Port of `inlineLinks` in
+ * `src/lib/forms.ts` so the builder preview renders CoC links like the public
+ * form does — keep the two in sync.
+ */
+export function inlineLinks(text) {
+  // `u` comes out of the already-escaped string, so it is attribute-safe as is.
+  const safeUrl = (u) => (/^https?:\/\//i.test(u) || u.startsWith('/') ? u : '#');
+  const anchor = (url, label) =>
+    `<a href="${safeUrl(url)}" target="_blank" rel="noreferrer" style="color:var(--primary);">${label}</a>`;
+  let out = escapeHtml(text);
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label, url) => anchor(url, label));
+  out = out.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+)/g, (_m, pre, url) => `${pre}${anchor(url, url)}`);
+  return out;
+}
+
 /** Mirrors `src/lib/conditions.ts` validateSubmission for the hard checks the UI shows. */
 export function validate(fields, answers, speakers, cap) {
   const ids = visibleIds(fields, answers);
@@ -291,9 +308,13 @@ export function renderPreview(root, state) {
               };text-align:right;">${words} / ${f.validation.maxWords} words</div>`
             : '');
       } else if (f.type === 'CHK') {
-        control = `<label style="display:flex;gap:8px;font-size:13px;align-items:center;color:#33343c;"><input type="checkbox" data-pv-check="${f.id}"${
+        // Same text source and link rendering as the public form's CHK branch,
+        // so a code-of-conduct link previews as a link.
+        control = `<label style="display:flex;gap:8px;font-size:13px;align-items:flex-start;color:#33343c;"><input type="checkbox" data-pv-check="${f.id}"${
           v === true || v === 'true' ? ' checked' : ''
-        } style="accent-color:var(--primary);">${escapeHtml(f.placeholder || f.label)}</label>`;
+        } style="accent-color:var(--primary);margin-top:2px;"><span>${inlineLinks(
+          f.placeholder || f.help || f.label
+        )}</span></label>`;
         return `<div><div style="font-size:13.5px;font-weight:600;margin-bottom:5px;">${escapeHtml(label)} ${star} ${fired}</div>${control}</div>`;
       } else if (f.type === 'GRP') {
         control = `<input placeholder="Full name" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:13.5px;">`;

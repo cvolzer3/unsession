@@ -908,7 +908,9 @@ export function shareUrl(origin: string, eventSlug: string, formSlug: string): s
 export function inlineLinks(text: string): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const safeUrl = (u: string) => (/^https?:\/\//i.test(u) || u.startsWith('/') ? esc(u) : '#');
+  // `u` is pulled out of the already-escaped string — re-escaping it here would
+  // turn a `?a=1&b=2` query into `&amp;amp;` and break the link.
+  const safeUrl = (u: string) => (/^https?:\/\//i.test(u) || u.startsWith('/') ? u : '#');
   let out = esc(text || '');
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
     return `<a href="${safeUrl(url)}" target="_blank" rel="noreferrer" style="color:var(--primary);">${label}</a>`;

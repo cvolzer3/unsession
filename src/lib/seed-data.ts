@@ -276,7 +276,7 @@ export const FORMS: SeedForm[] = [
       { id: 'f_av', type: 'LONG', label: 'AV & room requirements', req: false, agenda: false, edit: true, eval: false, ph: 'Power strips, second screen, network…', cond: { src: 'f_format', op: 'is', val: 'Workshop (90 min)', alsoReq: true } },
       { id: 'f_prev', type: 'URL', label: 'Link to a previous recorded talk', req: false, agenda: false, edit: false, eval: true, val: 'auto-prepends https:// on blur' },
       { id: 'f_travel', type: 'SEL', label: 'Do you need travel support?', req: false, agenda: false, edit: false, eval: false, opts: ['No', 'Yes — flights', 'Yes — flights + hotel'] },
-      { id: 'f_coc', type: 'CHK', label: 'Code of conduct agreement', req: true, agenda: false, edit: false, eval: false, ph: 'I have read and agree to the code of conduct.', val: '“must be checked” mode — consent/GDPR' },
+      { id: 'f_coc', type: 'CHK', label: 'Code of conduct agreement', req: true, agenda: false, edit: false, eval: false, ph: 'I have read and agree to the [DevConf 2027 code of conduct](https://berlincodeofconduct.org/).', val: '“must be checked” mode — consent/GDPR' },
     ],
   },
   {
