@@ -14,12 +14,6 @@ const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;';
 const ROLES: Role[] = ['owner', 'admin', 'collaborator'];
 
-const ROLE_HINT: Record<Role, string> = {
-  owner: 'Full control, including billing and deleting the workspace.',
-  admin: 'Everything except workspace deletion — can manage team and events.',
-  collaborator: 'Works inside events: submissions, evaluation, sessions, speakers.',
-};
-
 app.get('/app/team', async (c) => {
   const event = c.var.event;
   const props = await adminProps(c, 'Team');
@@ -144,7 +138,7 @@ app.get('/app/team', async (c) => {
                   </select>
                 </div>
                 <div style="font-size:11.5px;color:#9a9da6;line-height:1.5;">
-                  {ROLE_HINT.collaborator} Invites are magic links — no password to set.
+                  Invites are magic links — no password to set.
                 </div>
                 <button
                   type="submit"

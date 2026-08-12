@@ -93,6 +93,7 @@ export type AdminLayoutProps = PropsWithChildren<{
   headerActions?: unknown;
   cfp?: CfpPill;
   publicFormSlug?: string | null;
+  publicForms?: { slug: string; name: string }[];
   toast?: string | null;
   scripts?: string[];
   origin?: string;
@@ -120,7 +121,6 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
   const events = props.events ?? [];
   const slug = event?.slug ?? '';
   const host = (props.origin || 'https://unsession.dev').replace(/^https?:\/\//, '');
-  const formSlug = props.publicFormSlug || 'cfp';
   const isActive = (p: string) => path === p || (p !== '/app' && path.startsWith(p + '/'));
 
   return (
@@ -157,10 +157,8 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink('/app/speakers', 'Speakers & Tasks', isActive('/app/speakers'))}
             {navLink('/app/agenda', 'Agenda', isActive('/app/agenda'))}
             <div style={SECTION_LABEL}>PUBLIC</div>
-            {navLink(`/${slug}/${formSlug}`, 'Submission Form ↗', false, true)}
+            {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true))}
             {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true)}
-            {navLink(`/${slug}/portal`, 'Speaker Portal ↗', false, true)}
-            {navLink(`/${slug}/evaluate`, 'Evaluator Portal ↗', false, true)}
             <div style="margin-top:auto;padding:14px 20px 0;border-top:1px solid #eceded;">
               <div style="display:flex;align-items:center;gap:9px;">
                 <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>

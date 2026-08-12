@@ -215,7 +215,7 @@ function boot(D) {
           : '') +
         `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(svc ? '' : speakerNames(a))}</div></span>` +
         `<span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">${
-          svc ? '' : `<span style="display:inline-block;width:8px;height:8px;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
+          svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
         }</span>` +
         `<span style="font-family:${MONO};font-size:10px;color:var(--muted);">${esc(roomLabel(a))}</span>` +
         '</div>';
@@ -368,7 +368,7 @@ function boot(D) {
       on ? 'var(--accent)' : 'var(--card)'
     };color:${on ? '#fff' : 'var(--text-secondary)'};font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
   const chipStyle = (on, color) =>
-    `padding:5px 10px;border:1px solid ${on ? color || 'var(--accent)' : 'var(--border-strong)'};background:${
+    `display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid ${on ? color || 'var(--accent)' : 'var(--border-strong)'};background:${
       on ? color || 'var(--accent)' : 'var(--card)'
     };color:${on ? '#fff' : 'var(--text-secondary)'};font-size:11.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
 
@@ -385,7 +385,10 @@ function boot(D) {
     chipsEl.querySelectorAll('[data-track]').forEach((b) => {
       const id = b.dataset.track;
       const color = id === 'all' ? null : trackOf(id).color;
-      b.setAttribute('style', chipStyle(S.track === id, color));
+      const on = S.track === id;
+      b.setAttribute('style', chipStyle(on, color));
+      const dot = b.querySelector('[data-dot]');
+      if (dot) dot.style.background = on ? '#fff' : color || '#adb5bd';
     });
     searchEl.hidden = S.view !== 'list';
     clearEl.hidden = !(S.q || S.track !== 'all');

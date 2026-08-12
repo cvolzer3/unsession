@@ -58,7 +58,6 @@ export const DEFAULT_EMAIL_TEMPLATES: EmailTemplateSeed[] = [
       'Hi {{speaker_name}},\n\n' +
       'Great news — “{{session_title}}” has been accepted for {{event_name}} ({{event_dates}}, {{event_venue}}).\n\n' +
       'Please confirm your participation within 7 days:\n{{confirmation_link}}\n\n' +
-      'Once confirmed, you’ll get a short onboarding checklist in your speaker portal.\n\n' +
       '— The {{event_name}} program team',
   },
   {

@@ -202,7 +202,7 @@ app.get('/:event/agenda', async (c) => {
           <span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">
             {svc ? null : (
               <>
-                <span style={`display:inline-block;width:8px;height:8px;background:${tr?.color ?? '#adb5bd'};flex-shrink:0;`}></span>
+                <span style={`display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr?.color ?? '#adb5bd'};flex-shrink:0;`}></span>
                 {tr?.name ?? '—'}
               </>
             )}
@@ -222,7 +222,7 @@ app.get('/:event/agenda', async (c) => {
     VIEWS.push(['track', 'TRACK'], ['rooms', 'ROOMS']);
 
     const chipStyle = (on: boolean, color: string | null) =>
-      `padding:5px 10px;border:1px solid ${on ? color || 'var(--accent)' : 'var(--border-strong)'};background:${
+      `display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid ${on ? color || 'var(--accent)' : 'var(--border-strong)'};background:${
         on ? color || 'var(--accent)' : 'var(--card)'
       };color:${on ? '#fff' : 'var(--text-secondary)'};font-size:11.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
 
@@ -261,6 +261,10 @@ app.get('/:event/agenda', async (c) => {
                 </button>
                 {bundle.tracks.map((t) => (
                   <button type="button" data-track={t.id} style={chipStyle(false, t.color)}>
+                    <span
+                      data-dot
+                      style={`display:inline-block;width:7px;height:7px;border-radius:50%;background:${t.color ?? '#adb5bd'};flex-shrink:0;`}
+                    ></span>
                     {t.name}
                   </button>
                 ))}
