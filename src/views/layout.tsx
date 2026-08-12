@@ -22,6 +22,10 @@ export const ADMIN_BASE_CSS = `
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
   #sandbox-switcher summary::-webkit-details-marker{display:none;}
+  .sw-input{appearance:none;-webkit-appearance:none;display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:0;background:none;cursor:pointer;}
+  .sw-input::-webkit-color-swatch-wrapper{padding:0;}
+  .sw-input::-webkit-color-swatch{border:none;}
+  .sw-input::-moz-color-swatch{border:none;}
 `;
 
 export function initials(nameOrEmail: string): string {

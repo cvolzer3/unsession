@@ -270,7 +270,7 @@ app.get('/app/setup', async (c) => {
                   </span>
                 </div>
                 <div style="border-top:1px solid #f2f3f5;padding-top:12px;">
-                  <div style="display:flex;align-items:center;margin-bottom:8px;">
+                  <div style="display:flex;align-items:center;margin-bottom:12px;">
                     <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}>
                       DERIVED AUTOMATICALLY · CLICK TO OVERRIDE
                     </div>
@@ -298,7 +298,7 @@ app.get('/app/setup', async (c) => {
                         type="color"
                         name="hover"
                         value={d.hover}
-                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                        class="sw-input"
                       />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">hover</div>
                     </div>
@@ -308,7 +308,7 @@ app.get('/app/setup', async (c) => {
                         type="color"
                         name="border"
                         value={d.border}
-                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                        class="sw-input"
                       />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">border</div>
                     </div>
@@ -318,7 +318,7 @@ app.get('/app/setup', async (c) => {
                         type="color"
                         name="tint"
                         value={d.tint}
-                        style="display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                        class="sw-input"
                       />
                       <div style="font-size:10.5px;color:#9a9da6;margin-top:4px;">tint</div>
                     </div>
