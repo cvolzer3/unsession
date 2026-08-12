@@ -4,6 +4,7 @@
  * the single-use token); POST verifies + confirms + signs the speaker in-page.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { one } from '../lib/db';
 import { verifyMagicToken } from '../lib/auth';
@@ -44,7 +45,7 @@ const Shell = (props: { theme: ReturnType<typeof parseTheme>; eventName: string;
       <title>{props.eventName} — Confirm participation</title>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="stylesheet" href={GOOGLE_FONTS} />
-      <style>{`html,body{margin:0;padding:0;background:${props.theme.bg};color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}`}</style>
+      <style>{raw(`html,body{margin:0;padding:0;background:${props.theme.bg};color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}`)}</style>
     </head>
     <body>
       <div style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;">
