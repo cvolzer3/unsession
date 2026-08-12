@@ -21,6 +21,7 @@ import { apiActor, apiTokenAuth, canWrite, type ApiAuth, type ApiCtx } from '../
 import { all, batch, jsonParse, now, one, run } from '../lib/db';
 import { newId, nextSeq } from '../lib/ids';
 import { logActivity } from '../lib/activity';
+import { recordContentVersion, sessionSnapshotOf, speakerSnapshotOf } from '../lib/content-versions';
 import { applyDecision, isDecision } from '../lib/decisions';
 import { ensureSpeakerProfiles } from '../lib/sessions-core';
 import * as T from '../lib/tasks';
@@ -993,6 +994,19 @@ export async function updateSession(env: Bindings, auth: ApiAuth, id: string, in
   params.push(cur.id);
   await run(env.DB, `UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`, ...params);
 
+  await recordContentVersion(env.DB, {
+    eventId: event.id,
+    subjectType: 'session',
+    subjectId: cur.id,
+    editor: apiActor(auth),
+    before: sessionSnapshotOf(cur),
+    after: {
+      title: typeof input.title === 'string' ? input.title.trim() || cur.title : cur.title,
+      abstract: typeof input.abstract === 'string' ? input.abstract : cur.abstract,
+    },
+    subjectCreatedAt: cur.created_at,
+  });
+
   const wasScheduled = cur.day !== null && cur.start_min !== null;
   const isScheduled = day !== null && start !== null;
   const scheduleChanged =
@@ -1039,10 +1053,12 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  tagline: string | null;
   slug: string;
   headshot_file_id: string | null;
   pronouns: string | null;
   links_json: string | null;
+  created_at: string;
 };
 
 function shapeSpeaker(env: Bindings, event: Event, p: ProfileRow) {
@@ -1166,6 +1182,16 @@ export async function updateSpeaker(env: Bindings, auth: ApiAuth, id: string, in
   await run(env.DB, `UPDATE speaker_profiles SET ${sets.join(', ')} WHERE id = ?`, ...params);
 
   const actor = apiActor(auth);
+  const updated = (await one<ProfileRow>(env.DB, `SELECT * FROM speaker_profiles WHERE id = ?`, profile.id))!;
+  await recordContentVersion(env.DB, {
+    eventId: event.id,
+    subjectType: 'speaker',
+    subjectId: profile.id,
+    editor: actor,
+    before: speakerSnapshotOf(profile),
+    after: speakerSnapshotOf(updated),
+    subjectCreatedAt: profile.created_at,
+  });
   await T.autoCompleteProfileTasks(env, profile.id, actor);
   await logActivity(env.DB, {
     eventId: event.id,
@@ -1176,8 +1202,7 @@ export async function updateSpeaker(env: Bindings, auth: ApiAuth, id: string, in
     detail: 'Updated via API',
   });
 
-  const fresh = (await one<ProfileRow>(env.DB, `SELECT * FROM speaker_profiles WHERE id = ?`, profile.id))!;
-  return shapeSpeaker(env, event, fresh);
+  return shapeSpeaker(env, event, updated);
 }
 
 /* ------------------------------------------------------------------ agenda */

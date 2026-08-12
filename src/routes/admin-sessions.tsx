@@ -17,6 +17,15 @@ import { adminProps } from '../views/chrome';
 import { now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
 import { logActivity } from '../lib/activity';
+import {
+  listContentVersions,
+  recordContentVersion,
+  restoreSummary,
+  sessionSnapshotOf,
+  snapshotOf,
+  type SessionSnapshot,
+  type VersionRow,
+} from '../lib/content-versions';
 import { requireOrgRole } from '../lib/auth';
 import { ensureSpeakerProfiles } from '../lib/sessions-core';
 import {
@@ -522,6 +531,10 @@ app.get('/app/sessions', async (c) => {
             <div style={`${DRAWER_LABEL}margin-bottom:8px;`}>SPEAKERS</div>
             <div id="d-speakers" style="display:flex;flex-direction:column;gap:10px;"></div>
           </div>
+          <div>
+            <div style={`${DRAWER_LABEL}margin-bottom:8px;`}>VERSION HISTORY</div>
+            <div id="d-history" style="display:flex;flex-direction:column;"></div>
+          </div>
         </div>
         <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;align-items:center;gap:8px;">
           <button
@@ -565,7 +578,7 @@ async function patchSession(
   c: { env: Ctx['Bindings']; var: { user: { name: string | null; email: string } | null } },
   event: Event,
   body: PatchBody
-): Promise<{ ok: false; error: string } | { ok: true; session: SessionRow; scheduleChanged: boolean }> {
+): Promise<{ ok: false; error: string } | { ok: true; session: SessionRow; before: SessionRow; scheduleChanged: boolean }> {
   const cur = await one<SessionRow>(c.env.DB, `SELECT * FROM sessions WHERE id = ? AND event_id = ?`, body.id, event.id);
   if (!cur) return { ok: false, error: 'Session not found.' };
   const p = body.patch ?? {};
@@ -620,12 +633,12 @@ async function patchSession(
     cur.start_min !== null &&
     ((roomId ?? null) !== (cur.room_id ?? null) || allRooms !== !!cur.all_rooms || endMin !== cur.end_min);
 
-  if (!sets.length) return { ok: true, session: cur, scheduleChanged: false };
+  if (!sets.length) return { ok: true, session: cur, before: cur, scheduleChanged: false };
   push('updated_at', now());
   params.push(body.id);
   await run(c.env.DB, `UPDATE sessions SET ${sets.join(', ')} WHERE id = ?`, ...params);
   const session = (await one<SessionRow>(c.env.DB, `SELECT * FROM sessions WHERE id = ?`, body.id))!;
-  return { ok: true, session, scheduleChanged };
+  return { ok: true, session, before: cur, scheduleChanged };
 }
 
 app.post('/app/api/sessions/update', requireOrgRole('collaborator'), async (c) => {
@@ -637,6 +650,15 @@ app.post('/app/api/sessions/update', requireOrgRole('collaborator'), async (c) =
   if (!res.ok) return c.json(res, 400);
 
   const actor = c.var.user?.name || c.var.user?.email || 'System';
+  await recordContentVersion(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'session',
+    subjectId: res.session.id,
+    editor: actor,
+    before: sessionSnapshotOf(res.before),
+    after: sessionSnapshotOf(res.session),
+    subjectCreatedAt: res.before.created_at,
+  });
   await logActivity(c.env.DB, {
     eventId: event.id,
     subjectType: 'session',
@@ -654,6 +676,85 @@ app.post('/app/api/sessions/update', requireOrgRole('collaborator'), async (c) =
   const ids = displayIds(bundle.sessions);
   const fresh = bundle.sessions.find((s) => s.id === res.session.id)!;
   return c.json({ ok: true, session: toViewSession(fresh, bundle, ids), scheduleChanged: res.scheduleChanged });
+});
+
+/* -------------------------------------------------- version history + restore */
+
+/** Rows for the drawer's VERSION HISTORY panel; `current` = matches the live content. */
+function versionPayload(versions: VersionRow[], live: SessionSnapshot) {
+  return versions.map((v) => {
+    const snap = snapshotOf<SessionSnapshot>(v, { title: '', abstract: '' });
+    return {
+      id: v.id,
+      editor: v.editor,
+      summary: v.summary,
+      at: v.created_at,
+      title: snap.title,
+      current: snap.title === live.title && snap.abstract === live.abstract,
+    };
+  });
+}
+
+app.get('/app/api/sessions/history', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const id = c.req.query('id') ?? '';
+  const session = await one<SessionRow>(c.env.DB, `SELECT * FROM sessions WHERE id = ? AND event_id = ?`, id, event.id);
+  if (!session) return c.json({ ok: false, error: 'Session not found.' }, 404);
+  const versions = await listContentVersions(c.env.DB, 'session', session.id);
+  return c.json({ ok: true, versions: versionPayload(versions, sessionSnapshotOf(session)) });
+});
+
+app.post('/app/api/sessions/restore', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const body = await c.req.json<{ id?: string; versionId?: string }>();
+  if (!body?.id || !body?.versionId) return c.json({ ok: false, error: 'Missing session or version id.' }, 400);
+  const cur = await one<SessionRow>(c.env.DB, `SELECT * FROM sessions WHERE id = ? AND event_id = ?`, body.id, event.id);
+  if (!cur) return c.json({ ok: false, error: 'Session not found.' }, 404);
+  const version = await one<VersionRow>(
+    c.env.DB,
+    `SELECT id, event_id, editor, summary, snapshot_json, created_at FROM content_versions
+      WHERE id = ? AND subject_type = 'session' AND subject_id = ?`,
+    body.versionId,
+    body.id
+  );
+  if (!version) return c.json({ ok: false, error: 'Version not found.' }, 404);
+
+  const snap = snapshotOf<SessionSnapshot>(version, sessionSnapshotOf(cur));
+  const title = (snap.title ?? '').trim() || cur.title;
+  const abstract = String(snap.abstract ?? '');
+  await run(c.env.DB, `UPDATE sessions SET title = ?, abstract = ?, updated_at = ? WHERE id = ?`, title, abstract, now(), cur.id);
+
+  const actor = c.var.user?.name || c.var.user?.email || 'System';
+  await recordContentVersion(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'session',
+    subjectId: cur.id,
+    editor: actor,
+    before: sessionSnapshotOf(cur),
+    after: { title, abstract },
+    subjectCreatedAt: cur.created_at,
+    summary: restoreSummary(version),
+  });
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'session',
+    subjectId: cur.id,
+    actor,
+    action: 'Version restored',
+    detail: title,
+  });
+
+  const bundle = await loadAgenda(c.env.DB, event.id);
+  const ids = displayIds(bundle.sessions);
+  const fresh = bundle.sessions.find((s) => s.id === cur.id)!;
+  const versions = await listContentVersions(c.env.DB, 'session', cur.id);
+  return c.json({
+    ok: true,
+    session: toViewSession(fresh, bundle, ids),
+    versions: versionPayload(versions, sessionSnapshotOf(fresh)),
+  });
 });
 
 type CreateBody = {

@@ -20,6 +20,15 @@ import { csvHeaders, parseCsvTable, toCsv } from '../lib/csv';
 import { LINK_FIELDS, linksJson, normalizeLink, type LinkKey, type SpeakerLinks } from '../lib/speaker-links';
 import { requireOrgRole } from '../lib/auth';
 import { logActivity } from '../lib/activity';
+import {
+  listContentVersions,
+  recordContentVersion,
+  restoreSummary,
+  snapshotOf,
+  speakerSnapshotOf,
+  type SpeakerSnapshot,
+  type VersionRow,
+} from '../lib/content-versions';
 import { sendEmail, renderTemplate } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
 import { zipHeadshots, zipSlides } from '../lib/zip';
@@ -78,6 +87,32 @@ type ProfileRow = {
   /** Set by the CSV importer (migration 0019) — organizer-added, no CFP trail. */
   imported_at?: string | null;
 };
+
+/** The full row: everything the versioned content snapshot covers, plus drawer extras. */
+type FullProfileRow = ProfileRow & {
+  tagline: string | null;
+  pronouns: string | null;
+  links_json: string | null;
+  travel_notes: string | null;
+  created_at: string;
+};
+
+/** Rows for the drawer's VERSION HISTORY panel; `current` = matches the live profile. */
+function speakerVersionPayload(versions: VersionRow[], live: FullProfileRow) {
+  const liveSnap = speakerSnapshotOf(live);
+  const keys = Object.keys(liveSnap) as (keyof SpeakerSnapshot)[];
+  return versions.map((v) => {
+    const snap = snapshotOf<SpeakerSnapshot>(v, liveSnap);
+    return {
+      id: v.id,
+      editor: v.editor,
+      summary: v.summary,
+      at: v.created_at,
+      name: snap.name,
+      current: keys.every((k) => (snap[k] ?? null) === (liveSnap[k] ?? null)),
+    };
+  });
+}
 
 type GridRow = {
   id: string;
@@ -1223,6 +1258,9 @@ type ImportProfile = {
   links_json: string | null;
   slug: string;
   imported_at: string | null;
+  /** Not importable — carried so recorded version snapshots stay complete. */
+  headshot_file_id?: string | null;
+  created_at?: string;
 };
 
 app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
@@ -1244,7 +1282,7 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
 
   const existing = await all<ImportProfile>(
     c.env.DB,
-    `SELECT id, email, name, bio, tagline, pronouns, links_json, slug, imported_at
+    `SELECT id, email, name, bio, tagline, pronouns, links_json, slug, imported_at, headshot_file_id, created_at
        FROM speaker_profiles WHERE event_id = ?`,
     event.id
   );
@@ -1406,6 +1444,24 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
   }
   await batch(c.env.DB, stmts);
 
+  // Version history for overwritten profiles (new profiles start theirs on
+  // their first later edit). Snapshots are complete: headshot rode along on
+  // the prior row and imports never change it.
+  for (const [key, p] of seen) {
+    const prior = byEmail.get(key);
+    if (!p.dirty || !prior) continue;
+    await recordContentVersion(c.env.DB, {
+      eventId: event.id,
+      subjectType: 'speaker',
+      subjectId: prior.id,
+      editor: actor,
+      before: speakerSnapshotOf({ ...prior, headshot_file_id: prior.headshot_file_id ?? null }),
+      after: speakerSnapshotOf({ ...p, headshot_file_id: prior.headshot_file_id ?? null }),
+      subjectCreatedAt: prior.created_at,
+      summary: 'Updated from CSV import',
+    });
+  }
+
   const warnings: string[] = [];
   if (badEmails.length) {
     warnings.push(
@@ -1462,9 +1518,9 @@ type DrawerTask = {
 app.get('/app/api/speakers/detail/:id', async (c) => {
   const event = c.var.event;
   if (!event) return c.json({ ok: false, error: 'No event' }, 400);
-  const profile = await one<ProfileRow & { travel_notes: string | null }>(
+  const profile = await one<FullProfileRow>(
     c.env.DB,
-    `SELECT id, name, email, bio, slug, headshot_file_id, travel_notes FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    `SELECT * FROM speaker_profiles WHERE id = ? AND event_id = ?`,
     c.req.param('id'),
     event.id
   );
@@ -1593,6 +1649,7 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
   }
 
   const done = rows.filter((r) => r.state === 'c').length;
+  const versions = await listContentVersions(c.env.DB, 'speaker', profile.id);
   // "Confirmed" is the more informative badge when it applies, but it is the
   // session's state now (migration 0011) — the submission stays `accepted`.
   const badge = sub?.session_status === 'confirmed' ? 'confirmed' : (sub?.status ?? '');
@@ -1624,6 +1681,7 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
       : null,
     tasks: rows,
     frac: { done, total: rows.length },
+    versions: speakerVersionPayload(versions, profile),
     assignable: templates
       .filter((t) => !assignedIds.has(t.id))
       .map((t) => ({
@@ -1660,6 +1718,82 @@ app.post('/app/api/speakers/travel', requireOrgRole('collaborator'), async (c) =
     action: travel ? 'Updated travel & logistics notes' : 'Cleared travel & logistics notes',
   });
   return c.json({ ok: true, travel });
+});
+
+/**
+ * Restore a profile-content version from the drawer's VERSION HISTORY panel.
+ * Applies the snapshot (name, tagline, bio, pronouns, links, headshot) and
+ * appends a new version row — history is append-only, so a restore is itself
+ * undoable. Travel notes are organizer CRM data, not versioned content.
+ */
+app.post('/app/api/speakers/restore', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No event' }, 400);
+  const body = await c.req.json<{ id?: string; versionId?: string }>();
+  if (!body?.id || !body?.versionId) return c.json({ ok: false, error: 'Missing speaker or version id.' }, 400);
+  const cur = await one<FullProfileRow>(
+    c.env.DB,
+    `SELECT * FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    body.id,
+    event.id
+  );
+  if (!cur) return c.json({ ok: false, error: 'Speaker not found' }, 404);
+  const version = await one<VersionRow>(
+    c.env.DB,
+    `SELECT id, event_id, editor, summary, snapshot_json, created_at FROM content_versions
+      WHERE id = ? AND subject_type = 'speaker' AND subject_id = ?`,
+    body.versionId,
+    body.id
+  );
+  if (!version) return c.json({ ok: false, error: 'Version not found' }, 404);
+
+  const snap = snapshotOf<SpeakerSnapshot>(version, speakerSnapshotOf(cur));
+  const name = (snap.name ?? '').trim() || cur.name;
+  // Keep the current photo rather than restore a pointer to a file that no longer exists.
+  let headshot = snap.headshot_file_id ?? null;
+  if (headshot && !(await one(c.env.DB, `SELECT 1 FROM files WHERE id = ?`, headshot))) {
+    headshot = cur.headshot_file_id;
+  }
+  const after = {
+    name,
+    tagline: snap.tagline ?? null,
+    bio: String(snap.bio ?? ''),
+    pronouns: snap.pronouns ?? null,
+    links_json: snap.links_json ?? null,
+    headshot_file_id: headshot,
+  };
+  await run(
+    c.env.DB,
+    `UPDATE speaker_profiles SET name = ?, tagline = ?, bio = ?, pronouns = ?, links_json = ?, headshot_file_id = ? WHERE id = ?`,
+    after.name,
+    after.tagline,
+    after.bio,
+    after.pronouns,
+    after.links_json,
+    after.headshot_file_id,
+    cur.id
+  );
+
+  const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
+  await recordContentVersion(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'speaker',
+    subjectId: cur.id,
+    editor: actor,
+    before: speakerSnapshotOf(cur),
+    after,
+    subjectCreatedAt: cur.created_at,
+    summary: restoreSummary(version),
+  });
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'speaker',
+    subjectId: cur.id,
+    actor,
+    action: 'Version restored',
+    detail: after.name,
+  });
+  return c.json({ ok: true, message: `Restored — ${after.name}'s profile reverted` });
 });
 
 /* ------------------------------------------------------- template CRUD */

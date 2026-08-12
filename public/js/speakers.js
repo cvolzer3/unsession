@@ -31,6 +31,12 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
 }
 
+function fmtStamp(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 const seg = (on) =>
   `padding:8px 6px;font-size:12px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${
     on ? '#eef0fb' : '#fff'
@@ -302,6 +308,33 @@ function drawerHtml(d, animate = true) {
       <button id="asg-do" style="justify-self:start;padding:7px 13px;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;">Assign to ${esc(first)}</button>
     </div>`;
 
+  // Profile-content edit trail (migration 0020) — who changed the name / bio /
+  // photo and when, with a Restore that reverts to that saved state.
+  const history = `
+    <div style="border-top:1px solid #f2f3f5;padding-top:14px;">
+      <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">VERSION HISTORY</div>
+      ${
+        d.versions && d.versions.length
+          ? d.versions
+              .map(
+                (v) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f2f3f5;">
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:12.5px;line-height:1.4;"><span style="font-weight:600;">${esc(v.editor)}</span><span style="color:#686b74;"> — ${esc(v.summary)}</span></div>
+            <div style="font-size:11.5px;color:#9a9da6;margin-top:1px;">${esc(fmtStamp(v.at))}</div>
+          </div>
+          ${
+            v.current
+              ? `<span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#2b8a3e;background:#e6f4ea;padding:2px 7px;flex:none;">CURRENT</span>`
+              : `<button data-restore-version="${esc(v.id)}" style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Restore</button>`
+          }
+        </div>`
+              )
+              .join('')
+          : '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet — profile changes appear here with who made them and when.</div>'
+      }
+    </div>`;
+
   return `
   <div data-close-drawer style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></div>
   <div class="us-drawer-panel drawer-speaker" style="animation:${animate ? 'slidein 0.18s ease' : 'none'};">
@@ -346,6 +379,7 @@ function drawerHtml(d, animate = true) {
         <div style="display:flex;flex-direction:column;">${taskRows || '<div style="font-size:12.5px;color:#9a9da6;padding:6px 0;">No tasks yet.</div>'}</div>
       </div>
       ${assign}
+      ${history}
     </div>
     <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;gap:8px;">
       <button id="drawer-email" style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Email speaker</button>
@@ -411,6 +445,24 @@ document.addEventListener('click', async (e) => {
       toast(err.message, false);
     }
     travelSave.disabled = false;
+    return;
+  }
+
+  const restoreVersion = e.target.closest('[data-restore-version]');
+  if (restoreVersion) {
+    restoreVersion.disabled = true;
+    try {
+      const res = await api('/app/api/speakers/restore', {
+        id: current.speaker.id,
+        versionId: restoreVersion.getAttribute('data-restore-version'),
+      });
+      toast(res.message || 'Version restored');
+      await refreshSpeaker();
+      markStale();
+    } catch (err) {
+      restoreVersion.disabled = false;
+      toast(err.message, false);
+    }
     return;
   }
 

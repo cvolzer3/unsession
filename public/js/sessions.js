@@ -173,6 +173,71 @@ if (dataEl) {
   const scrim = document.getElementById('drawer-scrim');
   let editing = null;
 
+  /* ------------------------------------------------------ version history */
+  const esc = (s) =>
+    String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const fmtStamp = (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  };
+
+  function renderHistory(versions) {
+    const box = document.getElementById('d-history');
+    if (!box) return;
+    if (!versions || !versions.length) {
+      box.innerHTML =
+        '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet — saved changes to the title or abstract appear here with who made them and when.</div>';
+      return;
+    }
+    box.innerHTML = versions
+      .map(
+        (v) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f2f3f5;">
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:12.5px;line-height:1.4;"><span style="font-weight:600;">${esc(v.editor)}</span><span style="color:#686b74;"> — ${esc(v.summary)}</span></div>
+          <div style="font-size:11.5px;color:#9a9da6;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(fmtStamp(v.at))}${v.title ? ' · “' + esc(v.title) + '”' : ''}</div>
+        </div>
+        ${
+          v.current
+            ? '<span style="font-family:ui-monospace,monospace;font-size:9.5px;letter-spacing:0.08em;color:#2b8a3e;background:#e6f4ea;padding:2px 7px;flex:none;">CURRENT</span>'
+            : `<button data-restore="${esc(v.id)}" style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Restore</button>`
+        }
+      </div>`
+      )
+      .join('');
+  }
+
+  async function loadHistory(id) {
+    const box = document.getElementById('d-history');
+    if (!box) return;
+    box.innerHTML = '<div style="font-size:12px;color:#9a9da6;">Loading…</div>';
+    try {
+      const res = await api(`/app/api/sessions/history?id=${encodeURIComponent(id)}`, undefined, 'GET');
+      if (editing !== id) return; // drawer moved on while we fetched
+      renderHistory(res.versions);
+    } catch (err) {
+      if (editing === id) box.innerHTML = `<div style="font-size:12px;color:#c92a2a;">${esc(err.message)}</div>`;
+    }
+  }
+
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-restore]');
+    if (!btn || !editing) return;
+    btn.disabled = true;
+    try {
+      const res = await api('/app/api/sessions/restore', { id: editing, versionId: btn.dataset.restore });
+      repaint(res.session);
+      document.getElementById('d-title').value = res.session.title;
+      document.getElementById('d-abstract').value = res.session.abstract || '';
+      renderHistory(res.versions);
+      toast('Version restored — title and abstract reverted');
+    } catch (err) {
+      btn.disabled = false;
+      toast(err.message, false);
+    }
+  });
+
   function openDrawer(id) {
     const s = byId.get(id);
     if (!s) return;
@@ -235,6 +300,7 @@ if (dataEl) {
     }
     drawer.hidden = false;
     scrim.hidden = false;
+    loadHistory(id);
   }
 
   function closeDrawer() {
