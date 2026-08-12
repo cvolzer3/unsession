@@ -650,7 +650,7 @@ app.get('/app/submissions', async (c) => {
                               type="submit"
                               style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
                             >
-                              Remove
+                              Undo
                             </button>
                           </form>
                         ) : null}
@@ -661,7 +661,8 @@ app.get('/app/submissions', async (c) => {
                       <a href="/app/emails?tab=outbox" style="color:#4c5fd5;">
                         Emails → Outbox
                       </a>
-                      . Removing a row undoes the decision; sending flips statuses and emails everyone above.
+                      . Undo takes a decision back as if it never happened; sending flips statuses and emails everyone
+                      above.
                     </div>
                   </div>
                 </details>

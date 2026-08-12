@@ -227,7 +227,8 @@ app.get('/app/emails', async (c) => {
                 </div>
                 <div style="font-size:12.5px;color:#686b74;margin-top:3px;max-width:560px;">
                   Deciding a submission queues it here; speakers see nothing until you send. Sending flips the status,
-                  creates sessions for accepts, and emails every speaker below. Removing a row undoes the decision.
+                  creates sessions for accepts, and emails every speaker below. Undo takes a decision back as if it
+                  never happened.
                 </div>
               </div>
               {queuedCount > 0 ? (
@@ -284,7 +285,7 @@ app.get('/app/emails', async (c) => {
                             type="submit"
                             style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
                           >
-                            Remove
+                            Undo
                           </button>
                         </form>
                       </div>
@@ -427,7 +428,7 @@ app.post('/app/emails/outbox/remove', requireOrgRole('admin'), async (c) => {
   const form = await c.req.parseBody();
   const id = String(form.id ?? '');
   const removed = id ? await removeQueuedDecisions(c.env, event.id, [id], actor) : 0;
-  const msg = removed ? 'Removed from the outbox — nothing was sent, the decision is undone' : 'Already gone';
+  const msg = removed ? 'Decision undone — nothing was sent' : 'Already gone';
   const dest = backTo(form, '/app/emails?tab=outbox');
   return c.redirect(`${dest}${dest.includes('?') ? '&' : '?'}ok=${encodeURIComponent(msg)}`);
 });
