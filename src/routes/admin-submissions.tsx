@@ -5,9 +5,10 @@
  * not cut — see DECISIONS); their endpoints and queries stay live below.
  *
  * Markup and inline styles are ported from
- * `prototype/design_handoff_program/design/Submissions.dc.html`; the decision
- * modal copy is verbatim — it is the one screen where a mistake cannot be
- * unsent.
+ * `prototype/design_handoff_program/design/Submissions.dc.html`. The decision
+ * modal QUEUES decisions (lib/decision-queue) — nothing reaches the speaker
+ * until the organizer sends from Emails → Outbox, so a queued decision is
+ * still revertible.
  *
  * OWNER: B2. JSON endpoints live under `/app/api/submissions/...`.
  */
@@ -21,7 +22,8 @@ import { bumpSeq, newId } from '../lib/ids';
 import { requireOrgRole } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { renderTemplate, sendEmail } from '../lib/email';
-import { applyDecision, isDecision } from '../lib/decisions';
+import { isDecision, type DecisionKind } from '../lib/decisions';
+import { queueDecisions, queuedDecisionMap } from '../lib/decision-queue';
 import { csvHeaders, parseCsvTable, toCsv, type CsvRow } from '../lib/csv';
 import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 
@@ -68,6 +70,12 @@ function statusMeta(status: string) {
 function badgeStyle(status: string): string {
   const c = statusMeta(status);
   return `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:${c.fg};background:${c.bg};font-family:${MONO};`;
+}
+
+/** Dashed chip for a decision sitting in the outbox — pending, not sent. */
+const QUEUED_COLOR: Record<DecisionKind, string> = { accept: '#2b8a3e', decline: '#c92a2a', waitlist: '#9c36b5' };
+function queuedChipStyle(kind: DecisionKind): string {
+  return `display:inline-block;margin-top:3px;padding:2px 7px;font-size:10px;font-weight:600;color:${QUEUED_COLOR[kind]};border:1px dashed ${QUEUED_COLOR[kind]};font-family:${MONO};letter-spacing:0.04em;`;
 }
 
 /* ------------------------------------------------------------------ shapes */
@@ -416,6 +424,8 @@ app.get('/app/submissions', async (c) => {
   const rendered = serverFilter ? matched.slice(0, ROW_CAP) : board.rows;
   const shownCount = serverFilter ? Math.min(matched.length, ROW_CAP) : matched.length;
 
+  const queued = await queuedDecisionMap(c.env, event.id);
+
   const templates = await all<{ key: string; name: string; subject: string; body: string }>(
     c.env.DB,
     `SELECT key, name, subject, body FROM email_templates WHERE event_id = ? ORDER BY key`,
@@ -467,6 +477,7 @@ app.get('/app/submissions', async (c) => {
       num: r.num,
       title: r.title,
       status: r.status,
+      queued: queued.get(r.id) ?? null,
       formId: r.formId,
       speakers: r.speakers.map((s) => ({ name: s.name, email: s.email })),
     })),
@@ -553,6 +564,17 @@ app.get('/app/submissions', async (c) => {
           </div>
         ) : (
           <>
+            {queued.size > 0 ? (
+              <div style="background:#fbf4e2;border:1px solid #e6d29a;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;color:#33343c;">
+                <span>
+                  <strong>{`${queued.size} queued decision${queued.size === 1 ? '' : 's'}`}</strong>
+                  {' — nothing has been sent to speakers yet.'}
+                </span>
+                <a href="/app/emails?tab=outbox" style="margin-left:auto;font-weight:600;color:#4c5fd5;white-space:nowrap;">
+                  Review &amp; send →
+                </a>
+              </div>
+            ) : null}
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
               {chips.map((chip) => {
                 const on = filter.status === chip.key;
@@ -720,6 +742,11 @@ app.get('/app/submissions', async (c) => {
                     </div>
                     <div>
                       <span style={badgeStyle(r.status)}>{statusMeta(r.status).label}</span>
+                      {queued.has(r.id) ? (
+                        <span title="Queued in the outbox — nothing sent yet" style={queuedChipStyle(queued.get(r.id)!)}>
+                          {`${queued.get(r.id)!.toUpperCase()} · QUEUED`}
+                        </span>
+                      ) : null}
                     </div>
                     <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{r.submitted}</div>
                   </div>
@@ -1179,7 +1206,9 @@ app.post('/app/api/submissions/decide', requireOrgRole('admin'), async (c) => {
   if (ids.length > 100) return c.json({ ok: false, error: 'Decide at most 100 submissions per batch.' }, 400);
   if (!isDecision(body.decision)) return c.json({ ok: false, error: 'Unknown decision.' }, 400);
 
-  const result = await applyDecision(c.env, {
+  // Queues only — status, session, tasks and email all happen when the
+  // organizer sends from Emails → Outbox (lib/decision-queue).
+  const result = await queueDecisions(c.env, {
     eventId: event.id,
     ids,
     decision: body.decision,

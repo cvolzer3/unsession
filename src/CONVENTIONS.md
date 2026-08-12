@@ -185,11 +185,14 @@ await sendEmail(c.env, {
 
 - Never call `env.EMAIL` directly. `sendEmail` always writes the `emails` row
   first, so the log is complete whether or not sending is live.
-- `env.EMAIL` is currently **undefined** and `EMAIL_ENABLED` is `"0"`, so every
-  send lands as `simulated`. Flows that depend on a link the user must open
-  (magic links, invites, confirmations) **must surface the URL in the UI** when
-  `status === 'simulated'` — see `/signin` and `/app/team` for the pattern.
-- Bulk sends go through `ctx.waitUntil(...)` so the request returns immediately;
+- Sending is live (`EMAIL_ENABLED=1` + `send_email` binding); sandbox orgs are
+  force-simulated in `lib/email.ts`. Flows that depend on a link the user must
+  open (magic links, invites, confirmations) **must surface the URL in the UI**
+  when `status === 'simulated'` — see `/signin` and `/app/team` for the pattern.
+- Decision emails are never sent from the decision modal. Deciding queues into
+  `decision_queue` (`lib/decision-queue.ts`); an organizer sends from
+  Emails → Outbox, which runs `applyDecision` in batches sized to fit one
+  request's subrequest budget. Other bulk sends stay synchronous per request —
   keep batches under the subrequest limit.
 - Templates are per event, keyed `accept | decline | waitlist | reminder |
   task_nag | schedule_notice | confirm_submission`. Variables are `{{snake_case}}`.

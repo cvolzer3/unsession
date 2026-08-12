@@ -1,9 +1,13 @@
 /**
- * `/app/emails` — Templates + Log tabs (spec §5.8). Templates are grouped by
- * category and edited on a full-page editor (`/app/emails/t/:id`) with the
- * shared rich-lite WYSIWYG island (DECISIONS C3/R3) and a server-rendered
- * themed preview. Multiple templates per key are allowed — Duplicate creates
- * “Copy of X” for the decision dialog's template picker.
+ * `/app/emails` — Templates + Log + Outbox tabs (spec §5.8). Templates are
+ * grouped by category and edited on a full-page editor (`/app/emails/t/:id`)
+ * with the shared rich-lite WYSIWYG island (DECISIONS C3/R3) and a
+ * server-rendered themed preview. Multiple templates per key are allowed —
+ * Duplicate creates “Copy of X” for the decision dialog's template picker.
+ *
+ * The Outbox tab is where queued decisions (lib/decision-queue) are reviewed
+ * and actually sent — deciding a submission queues it here, and nothing
+ * reaches a speaker until an organizer sends from this page.
  */
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
@@ -16,6 +20,13 @@ import { looksRich, sanitizeRich } from '../lib/rich';
 import { newId } from '../lib/ids';
 import { requireOrgRole } from '../lib/auth';
 import { parseTheme } from '../lib/theme';
+import {
+  listDecisionQueue,
+  queuedDecisionCount,
+  removeQueuedDecisions,
+  sendQueuedDecisions,
+} from '../lib/decision-queue';
+import type { DecisionKind } from '../lib/decisions';
 
 const app = new Hono<Ctx>();
 
@@ -41,6 +52,20 @@ const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Evaluation', keys: ['reminder'] },
 ];
 const KNOWN_KEYS = new Set(GROUPS.flatMap((g) => g.keys));
+
+/** Outbox display order + colors — mirrors the queued chips on /app/submissions. */
+const OUTBOX_KINDS: { kind: DecisionKind; label: string; color: string }[] = [
+  { kind: 'accept', label: 'Accept', color: '#2b8a3e' },
+  { kind: 'waitlist', label: 'Waitlist', color: '#9c36b5' },
+  { kind: 'decline', label: 'Decline', color: '#c92a2a' },
+];
+
+/**
+ * Outbox sends per click — each accept fans out (status, session copy, task
+ * generation + digest, confirmation link, email), so a batch must fit one
+ * request's CPU/subrequest budget. The redirect reports what remains.
+ */
+const OUTBOX_SEND_LIMIT = 40;
 
 type TemplateRow = { id: string; key: string; name: string; subject: string; body: string; updated_at: string };
 
@@ -90,9 +115,13 @@ app.get('/app/emails', async (c) => {
   const props = await adminProps(c, 'Emails');
   if (!event) return c.redirect('/app/events/new');
 
-  const tab = c.req.query('tab') === 'log' ? 'log' : 'templates';
+  const tabParam = c.req.query('tab');
+  const tab = tabParam === 'log' ? 'log' : tabParam === 'outbox' ? 'outbox' : 'templates';
   const statusFilter = c.req.query('status') ?? 'all';
   const detailId = c.req.query('id');
+
+  const queuedCount = await queuedDecisionCount(c.env, event.id);
+  const outboxRows = tab === 'outbox' ? await listDecisionQueue(c.env, event.id) : [];
 
   const templates =
     tab === 'templates'
@@ -152,6 +181,9 @@ app.get('/app/emails', async (c) => {
       <a href="/app/emails?tab=log" style={subTab(tab === 'log')}>
         Log
       </a>
+      <a href="/app/emails?tab=outbox" style={subTab(tab === 'outbox')}>
+        {queuedCount > 0 ? `Outbox · ${queuedCount}` : 'Outbox'}
+      </a>
     </div>
   );
 
@@ -188,6 +220,94 @@ app.get('/app/emails', async (c) => {
                 </div>
               </div>
             ))}
+          </div>
+        ) : tab === 'outbox' ? (
+          <div style="display:grid;gap:14px;max-width:1000px;">
+            <div style="background:#fff;border:1px solid #e2e3e8;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+              <div style="min-width:0;">
+                <div style="font-size:15px;font-weight:700;">
+                  {queuedCount > 0
+                    ? `${queuedCount} queued decision${queuedCount === 1 ? '' : 's'} — nothing sent yet`
+                    : 'The outbox is empty'}
+                </div>
+                <div style="font-size:12.5px;color:#686b74;margin-top:3px;max-width:560px;">
+                  Deciding a submission queues it here; speakers see nothing until you send. Sending flips the status,
+                  creates sessions for accepts, and emails every speaker below. Removing a row undoes the decision.
+                </div>
+              </div>
+              {queuedCount > 0 ? (
+                <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
+                  <button
+                    type="submit"
+                    style="padding:10px 20px;background:#2b8a3e;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                  >
+                    {queuedCount > OUTBOX_SEND_LIMIT
+                      ? `Send ${OUTBOX_SEND_LIMIT} of ${queuedCount} now`
+                      : `Send all ${queuedCount} now`}
+                  </button>
+                </form>
+              ) : null}
+            </div>
+
+            {OUTBOX_KINDS.map((k) => {
+              const rows = outboxRows.filter((r) => r.decision === k.kind);
+              if (!rows.length) return null;
+              return (
+                <div>
+                  <div style={`${MICRO}margin-bottom:6px;`}>{`${k.label.toUpperCase()} · ${rows.length}`}</div>
+                  <div style="background:#fff;border:1px solid #e2e3e8;">
+                    {rows.map((r) => (
+                      <div style="display:grid;grid-template-columns:68px minmax(0,1fr) 220px 170px 80px;gap:12px;padding:11px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                        <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`SUB-${r.seq}`}</div>
+                        <div style="min-width:0;">
+                          <a
+                            href={`/app/submissions?open=${r.submission_id}`}
+                            style="font-size:13.5px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                          >
+                            {r.title}
+                          </a>
+                          <div style="font-size:11.5px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {(r.subject || 'Subject from the event template') +
+                              (r.feedback ? ' · individual feedback' : '') +
+                              (k.kind === 'accept' && !r.request_confirmation ? ' · no confirmation requested' : '')}
+                          </div>
+                        </div>
+                        <div style="min-width:0;">
+                          <div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {r.speaker_name || 'No speaker on file'}
+                          </div>
+                          <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                            {r.speaker_email || 'status will change without an email'}
+                          </div>
+                        </div>
+                        <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
+                          {`${r.queued_by} · ${r.created_at.slice(0, 16).replace('T', ' ')}`}
+                        </div>
+                        <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                          <input type="hidden" name="id" value={r.id} />
+                          <button
+                            type="submit"
+                            style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
+                          >
+                            Remove
+                          </button>
+                        </form>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {queuedCount === 0 ? (
+              <div style="background:#fff;border:1px solid #e2e3e8;padding:36px 16px;text-align:center;font-size:13px;color:#686b74;">
+                Accept, decline or waitlist submissions from{' '}
+                <a href="/app/submissions" style="color:#4c5fd5;font-weight:600;">
+                  Submissions
+                </a>{' '}
+                or the evaluation view — they collect here for one reviewed send.
+              </div>
+            ) : null}
           </div>
         ) : (
           <div style="display:grid;gap:12px;">
@@ -274,6 +394,34 @@ app.get('/app/emails', async (c) => {
       </div>
     </AdminLayout>
   );
+});
+
+/* ------------------------------------------------------------- outbox */
+
+app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event!;
+  const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
+  const res = await sendQueuedDecisions(c.env, event.id, actor, OUTBOX_SEND_LIMIT);
+
+  const n = (x: number, word: string) => `${x} ${word}${x === 1 ? '' : 's'}`;
+  let msg = `${n(res.updated, 'decision')} applied · ${n(res.emailed, 'email')}${
+    res.emailed > 0 && res.simulated === res.emailed ? ' simulated (see Log)' : ' sent'
+  }`;
+  if (res.simulated && res.simulated !== res.emailed) msg += ` (${res.simulated} simulated)`;
+  if (res.skipped.length) msg += ` · ${res.skipped.length} skipped — no longer decidable`;
+  if (res.remaining) msg += ` · ${res.remaining} still queued — send again for the rest`;
+
+  return c.redirect(`/app/emails?tab=${res.remaining ? 'outbox' : 'log'}&ok=${encodeURIComponent(msg)}`);
+});
+
+app.post('/app/emails/outbox/remove', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event!;
+  const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
+  const form = await c.req.parseBody();
+  const id = String(form.id ?? '');
+  const removed = id ? await removeQueuedDecisions(c.env, event.id, [id], actor) : 0;
+  const msg = removed ? 'Removed from the outbox — nothing was sent, the decision is undone' : 'Already gone';
+  return c.redirect(`/app/emails?tab=outbox&ok=${encodeURIComponent(msg)}`);
 });
 
 /* ------------------------------------------------------ full-page editor */

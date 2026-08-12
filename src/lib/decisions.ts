@@ -159,7 +159,7 @@ function fmtDateRange(start: string, end: string): string {
 }
 
 /** Statuses that are not a decision's business. */
-const UNDECIDABLE: Record<string, string> = {
+export const UNDECIDABLE: Record<string, string> = {
   draft: 'still a draft — never submitted',
   withdrawn: 'withdrawn by the speaker',
 };

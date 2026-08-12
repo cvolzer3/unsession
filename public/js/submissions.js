@@ -382,11 +382,13 @@ function boot(DATA) {
 
   function summaryFor(kind, n) {
     const s = plural(n);
-    if (kind === 'accept')
-      return `On send: status → Accepted · ${n} email${s} queued (background job) · confirmation loop opens · logged to activity.`;
-    if (kind === 'decline')
-      return `On send: status → Declined · ${n} email${s} queued · individual feedback merged per recipient · logged to activity.`;
-    return `On send: status → Waitlisted · ${n} email${s} queued · promoting later re-runs the accept flow · logged to activity.`;
+    const later =
+      kind === 'accept'
+        ? `status → Accepted · session${s} created · acceptance email${s} + confirmation loop`
+        : kind === 'decline'
+          ? `status → Declined · decline email${s} with individual feedback merged per recipient`
+          : `status → Waitlisted · waitlist email${s} (promoting later re-runs the accept flow)`;
+    return `Queueing sends nothing and changes no status — speakers see nothing yet, and you can still undo. When you send from Emails → Outbox: ${later} · logged to activity.`;
   }
 
   /** Fill subject/body from a template — still editable per send. */
@@ -409,7 +411,7 @@ function boot(DATA) {
     const n = rows.length;
 
     $('#decision-heading').textContent = `${VERB[kind]} ${n} submission${plural(n)}`;
-    $('#decision-recip-label').textContent = `RECIPIENTS · ${n} — CHECK THIS LIST. THIS EMAIL CANNOT BE UNSENT.`;
+    $('#decision-recip-label').textContent = `RECIPIENTS · ${n} — QUEUED FOR REVIEW. NOTHING SENDS UNTIL YOU ACT ON THE OUTBOX.`;
     $('#decision-recipients').innerHTML = rows
       .map((r) => {
         const sp = r.speakers[0] || { name: 'No speaker on file', email: '—' };
@@ -419,6 +421,11 @@ function boot(DATA) {
             <span style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</span>
             <span style="font-size:12px;color:#686b74;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;">${esc(r.title)}</span>
           </div>
+          ${
+            r.queued
+              ? `<div style="margin-top:4px;font-family:${MONO};font-size:10px;color:#b08800;">ALREADY IN OUTBOX AS ${esc(r.queued.toUpperCase())} — QUEUEING REPLACES IT</div>`
+              : ''
+          }
           ${
             kind === 'decline'
               ? `<input data-feedback="${esc(r.id)}" placeholder="Optional individual feedback for this speaker…" style="margin-top:8px;width:100%;padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;">`
@@ -450,7 +457,7 @@ function boot(DATA) {
     $('#decision-summary').textContent = summaryFor(kind, n);
     const send = $('#decision-send');
     send.style.background = COLOR[kind];
-    send.textContent = `Send ${n} email${plural(n)} & update status`;
+    send.textContent = `Queue ${n} decision${plural(n)} — send later from Outbox`;
 
     state.decision = { kind, ids: rows.map((r) => r.id), templates: tplList };
     openDialog('#decision-modal'); // layers above the drawer, which stays open
@@ -481,26 +488,29 @@ function boot(DATA) {
         requestConfirmation: $('#decision-request-confirmation').checked,
       };
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Sending…';
+      sendBtn.textContent = 'Queueing…';
       try {
-        let updated = 0;
-        let emailed = 0;
-        let simulated = 0;
+        let queued = 0;
+        let replaced = 0;
+        let skipped = 0;
         for (let i = 0; i < ids.length; i += 50) {
           const res = await api('/app/api/submissions/decide', { ...payload, ids: ids.slice(i, i + 50) });
-          updated += res.result.updated;
-          emailed += res.result.emailed;
-          simulated += res.result.simulated;
+          queued += res.result.queued;
+          replaced += res.result.replaced;
+          skipped += res.result.skipped.length;
         }
-        const note = simulated
-          ? ` — sending is simulated, open Emails → Log for the ${simulated > 1 ? 'messages' : 'message'}`
-          : '';
-        const msg = `${emailed} email${plural(emailed)} queued · ${updated} → ${DONE[kind]} · activity logged${note}`;
+        const notes = [];
+        if (replaced) notes.push(`${replaced} replaced an earlier queued decision`);
+        if (skipped) notes.push(`${skipped} skipped (draft/withdrawn)`);
+        const msg =
+          `${queued} decision${plural(queued)} queued as ${DONE[kind]} — nothing sent yet. ` +
+          `Review & send from Emails → Outbox.` +
+          (notes.length ? ` (${notes.join(' · ')})` : '');
         location.href = `/app/submissions?ok=${encodeURIComponent(msg)}`;
       } catch (err) {
         toast(err.message, false);
         sendBtn.disabled = false;
-        sendBtn.textContent = `Send ${ids.length} email${plural(ids.length)} & update status`;
+        sendBtn.textContent = `Queue ${ids.length} decision${plural(ids.length)} — send later from Outbox`;
       }
     });
 
