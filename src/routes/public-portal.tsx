@@ -19,6 +19,7 @@ import { logActivity } from '../lib/activity';
 import { sendEmail, renderTemplate } from '../lib/email';
 import { confirmParticipation } from '../lib/confirm';
 import { filesEnabled, saveUpload } from '../lib/files';
+import { addFileComment, fmtDateTime, listFileComments, type FileCommentRow } from '../lib/file-comments';
 import * as T from '../lib/tasks';
 import { LINK_FIELDS, normalizeLink, type SpeakerLinks } from '../lib/speaker-links';
 
@@ -92,6 +93,7 @@ type ChecklistTask = {
   sessionId: string | null;
   sessionTitle: string | null;
   files: { id: string; filename: string; version: number; created_at: string }[];
+  comments: FileCommentRow[];
   form: T.MiniForm | null;
   response: Record<string, unknown> | null;
 };
@@ -224,6 +226,7 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
             t.id
           )
         : [];
+    const comments = type === 'file' && files.length ? await listFileComments(env.DB, 'task', t.id) : [];
     tasks.push({
       id: t.id,
       // A snapshot means the template changed after this instance was stamped —
@@ -242,6 +245,7 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
       sessionId: t.session_id,
       sessionTitle: session?.title ?? null,
       files,
+      comments,
       form: type === 'form' ? T.formSpecOf(settings) : null,
       response: jsonParse<Record<string, unknown> | null>(t.response_json, null),
     });
@@ -345,6 +349,31 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
               {task.files.length > 1
                 ? `v${task.files[0].version} replaced v${task.files[1].version} · ${fmtDate(task.files[0].created_at)} · ${task.files[0].filename}`
                 : `v1 · ${fmtDate(task.files[0].created_at)} · ${task.files[0].filename}`}
+            </div>
+          ) : null}
+          {task.files.length ? (
+            <div style="margin-top:8px;border:1px solid var(--chip);background:var(--bg);">
+              {task.comments.map((cm) => (
+                <div style="padding:8px 10px;border-bottom:1px solid var(--chip);">
+                  <div style={`font-family:${MONO};font-size:10px;color:${cm.author_role === 'organizer' ? 'var(--primary)' : 'var(--muted)'};margin-bottom:2px;`}>
+                    {`${cm.author_name.toUpperCase()}${cm.author_role === 'organizer' ? ' · ORGANIZER' : ''} · ${fmtDateTime(cm.created_at)}`}
+                  </div>
+                  <div style="font-size:12.5px;line-height:1.5;color:var(--text);">{cm.body}</div>
+                </div>
+              ))}
+              <form method="post" action={`/${slug}/portal/task/comment`} style="display:flex;gap:6px;padding:8px 10px;margin:0;">
+                <input type="hidden" name="taskId" value={task.id} />
+                <input
+                  name="body"
+                  required
+                  maxlength={2000}
+                  placeholder="Comment on this file — the organizers see it too…"
+                  style="flex:1;min-width:0;padding:6px 9px;border:1px solid var(--border-strong);font-size:12px;background:var(--card);color:var(--text);"
+                />
+                <button type="submit" style={SMALL_BTN}>
+                  Comment
+                </button>
+              </form>
             </div>
           ) : null}
           {task.locked ? (
@@ -1112,6 +1141,43 @@ app.post('/:event/portal/task/upload', async (c) => {
       ? `Uploaded — “${task.tpl_name ?? 'File'}” is pending review${res.file.version > 1 ? ` · v${res.file.version} replaced v${res.file.version - 1}` : ''}`
       : `Uploaded — “${task.tpl_name ?? 'File'}” is done${res.file.version > 1 ? ` · v${res.file.version} replaced v${res.file.version - 1}` : ''}`
   );
+});
+
+app.post('/:event/portal/task/comment', async (c) => {
+  const g = await guard(c);
+  if (g instanceof Response) return g;
+  const body = await c.req.parseBody();
+  const task = await ownsTask(c.env, g, String(body.taskId ?? ''));
+  if (!task) return back(c, g.event.slug, 'That task isn’t on your checklist');
+  const text = String(body.body ?? '').trim().slice(0, 2000);
+  if (!text) return back(c, g.event.slug, 'Write a comment first');
+  const latest = await one<{ id: string }>(
+    c.env.DB,
+    `SELECT id FROM files WHERE subject_type = 'task' AND subject_id = ? ORDER BY version DESC LIMIT 1`,
+    task.id
+  );
+  if (!latest) return back(c, g.event.slug, 'Upload a file first — comments attach to the file');
+  await addFileComment(c.env.DB, {
+    eventId: g.event.id,
+    kind: 'task_file',
+    subjectType: 'task',
+    subjectId: task.id,
+    fileId: latest.id,
+    authorUserId: c.var.user?.id ?? null,
+    authorName: g.name,
+    authorRole: 'speaker',
+    body: text,
+  });
+  // Deliberately no email — the organizers read the thread in the files library.
+  await logActivity(c.env.DB, {
+    eventId: g.event.id,
+    subjectType: 'task',
+    subjectId: task.id,
+    actor: g.name,
+    action: 'Commented on file',
+    detail: text.length > 80 ? `${text.slice(0, 80)}…` : text,
+  });
+  return back(c, g.event.slug, 'Comment added — the organizers can see it too');
 });
 
 app.post('/:event/portal/task/form', async (c) => {
