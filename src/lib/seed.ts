@@ -262,7 +262,7 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
     const id = newId('usr');
     personUserId.set(p.id, id);
     stmts.push([
-      `INSERT INTO users (id, email, name, google_id, created_at) VALUES (?,?,?,NULL,?)`,
+      `INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?,?,?,NULL,?)`,
       [id, D.suffixEmail(p.email, suffix), p.name, stamp],
     ]);
   });
@@ -272,7 +272,7 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
   const speakerPersonaEmail = D.suffixEmail(D.SANDBOX_PERSONAS.speaker.email, suffix);
   const speakerPersonaUserId = newId('usr');
   stmts.push([
-    `INSERT INTO users (id, email, name, google_id, created_at) VALUES (?,?,?,NULL,?)`,
+    `INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?,?,?,NULL,?)`,
     [speakerPersonaUserId, speakerPersonaEmail, D.SANDBOX_PERSONAS.speaker.name, stamp],
   ]);
 

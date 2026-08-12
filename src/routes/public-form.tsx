@@ -19,7 +19,7 @@ import { loadPublicEvent } from '../lib/public';
 import { all, jsonParse, now, one, run } from '../lib/db';
 import { newId, nextSeq } from '../lib/ids';
 import { logActivity } from '../lib/activity';
-import { findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
+import { findOrCreateUserByEmail, requestMagicLink, requestPasswordReset } from '../lib/auth';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
 import { createSessionFromSubmission } from '../lib/sessions-core';
@@ -793,7 +793,7 @@ function renderPage(opts: {
 
             {!opts.user ? (
               <div id="pf-email-block" style="border:1px solid var(--border-strong);background:var(--card);padding:16px;">
-                <div style={LABEL}>Where should we send your magic link + confirmation? <span style="color:#e03131;">*</span></div>
+                <div style={LABEL}>Where should we send your draft link + confirmation? <span style="color:#e03131;">*</span></div>
                 <input
                   type="email"
                   name="email"
@@ -1523,17 +1523,25 @@ app.post('/:event/:form', async (c) => {
   }
 
   if (!user && owner.email) {
-    await requestMagicLink(
-      c.env,
-      owner.email,
-      'signin',
-      { next: `/${found.event.slug}/portal` },
-      {
+    if (!owner.password_hash) {
+      await requestPasswordReset(c.env, owner.email, {
         eventId: found.event.id,
+        next: `/${found.event.slug}/portal`,
         subject: `Your ${found.event.name} speaker portal`,
-        text: `Open your speaker portal to track “${title}”.`,
-      }
-    );
+        text: `Set a password to track “${title}” in your speaker portal.`,
+      });
+    } else {
+      await sendEmail(c.env, {
+        eventId: found.event.id,
+        to: owner.email,
+        toName: owner.name,
+        templateKey: 'portal_welcome',
+        subject: `Your ${found.event.name} speaker portal`,
+        text: `Open your speaker portal to track “${title}”.\n\n${c.env.APP_ORIGIN}/${found.event.slug}/portal`,
+        subjectType: 'submission',
+        subjectId: submissionId,
+      });
+    }
   }
 
   return c.redirect(`/${found.event.slug}/${loaded.form.slug}?submitted=${submissionId}`);

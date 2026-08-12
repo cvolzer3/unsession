@@ -701,8 +701,7 @@ app.get('/', (c) => {
               </a>
             </div>
             <div class="note">
-              Already have an event to run? <a href="/signin">Sign in with a magic link</a> — no password to
-              invent.
+              Already have an event to run? <a href="/signin">Sign in</a>.
             </div>
           </div>
         </div>

@@ -288,7 +288,7 @@ app.get('/app/team', async (c) => {
                   </select>
                 </div>
                 <div style="font-size:11.5px;color:#9a9da6;line-height:1.5;">
-                  Invites are magic links — no password to set.
+                  New members set a password when they accept the invite.
                 </div>
               </div>
               <div style={DIALOG_FOOT}>
@@ -351,7 +351,7 @@ app.post('/app/team/invite', guard, async (c) => {
       subject: `${inviter} invited you to ${event.name} on Unsession`,
       text:
         `${inviter} added you as ${role} on ${event.name}.\n\n` +
-        `Open the workspace — the link signs you in, no password needed:`,
+        `Accept the invite here — you'll be asked to create a password:`,
     }
   );
 

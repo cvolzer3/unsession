@@ -15,7 +15,7 @@
 | Database | **D1** (SQLite) — `unsession-db` | Free tier ample (5M reads/day); relational model fits |
 | Files | **R2** (`unsession-files`) once enabled in dashboard; until then uploads degrade gracefully ("uploads not yet enabled") | R2 needs one-time dashboard enablement |
 | Email | **Cloudflare Email Service** (`send_email` binding), from `@unsession.dev` | Zone `unsession.dev` is live on the account. Until domain onboarding completes, an email abstraction logs to the `emails` table with `simulated` status and dev-surfaces magic links |
-| Auth | **Magic links** (all roles) + **Google OAuth** (organizers; enabled when user provides GCP client id/secret) + session cookie backed by D1 | Spec §4.4/§5.3. No passwords anywhere (see Decisions D2) |
+| Auth | **Email + password** (all roles; PBKDF2-SHA256 via WebCrypto) + session cookie backed by D1, plus single-use emailed links for invites, participation confirmations, draft resume and password reset/first-time setup | Spec §4.4/§5.3. Conventional sign-in per Decisions D14 (supersedes the passwordless magic-link + Google OAuth plan in D2/D12) |
 | Client interactivity | Hand-written vanilla JS islands in `/public/js/` (form builder, agenda drag-drop, conditional forms, tables) | No client build step; pixel-perfect control; matches "islands" philosophy |
 | Background work | `ctx.waitUntil` for email sends; **Cron trigger** (every 15 min) for scheduled reminders (CFP closing, task nags, reviewer reminders) | Queues needs paid plan; cron is free |
 | Hosting | `unsession.dev` custom domain (+ `unsession.workers.dev` fallback) | Real domain exists |

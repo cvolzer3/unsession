@@ -1,24 +1,28 @@
 /**
  * Sign in + auth routes (spec §5.2, §5.3). Visual port of the prototype's
- * `Sign In.dc.html` minus the password field (DECISIONS D2) and with the demo
- * persona list replaced by the sandbox CTA.
+ * `Sign In.dc.html`, with the demo persona list replaced by the sandbox CTA.
+ *
+ * Credentials are email + password. Magic tokens survive only as emailed
+ * action links — `/auth/verify` still consumes invite and draft links, and
+ * `password_reset` tokens land on `/auth/reset`, which doubles as the "set
+ * your first password" flow for accounts created before passwords existed.
  */
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
-import type { Ctx } from '../types';
+import type { Ctx, User } from '../types';
 import { MONO, GOOGLE_FONTS, ADMIN_BASE_CSS, Toast } from '../views/layout';
 import {
   createSession,
   destroySession,
   findOrCreateUserByEmail,
-  googleAuthUrl,
-  googleConfigured,
-  googleExchange,
-  linkGoogleUser,
-  requestMagicLink,
+  hashPassword,
+  requestPasswordReset,
+  requireUser,
   verifyMagicToken,
+  verifyPassword,
 } from '../lib/auth';
+import { newId } from '../lib/ids';
 import { now, one, run } from '../lib/db';
 import { deleteCookie } from 'hono/cookie';
 import { SANDBOX_COOKIE } from '../lib/seed-data';
@@ -58,6 +62,34 @@ const LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const INPUT = 'width:100%;padding:9px 11px;border:1px solid #d4d5db;font-size:13.5px;background:#fff;';
 const PRIMARY_BTN =
   'display:block;width:100%;text-align:center;padding:11px;background:#4c5fd5;color:#fff;font-size:14px;font-weight:600;border:none;cursor:pointer;';
+const HINT = 'font-size:12px;color:#9a9da6;margin-top:16px;line-height:1.5;';
+
+const MIN_PASSWORD = 8;
+
+/** The prototype's inline error strip, shown from the `err` query param. */
+const Err: FC<{ message?: string | null }> = (props) =>
+  props.message ? (
+    <div style="border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:9px 11px;font-size:12.5px;margin-bottom:14px;">
+      {props.message}
+    </div>
+  ) : null;
+
+function safeNext(next: unknown, fallback = '/app'): string {
+  return typeof next === 'string' && next.startsWith('/') ? next : fallback;
+}
+
+function withOk(target: string, message: string): string {
+  return `${target}${target.includes('?') ? '&' : '?'}ok=${encodeURIComponent(message)}`;
+}
+
+function backTo(path: string, err: string, next?: string): string {
+  const p = new URLSearchParams();
+  if (next) p.set('next', next);
+  p.set('err', err);
+  return `${path}?${p.toString()}`;
+}
+
+/* ------------------------------------------------------------------ sign in */
 
 app.get('/signin', (c) => {
   if (c.var.user) return c.redirect(c.req.query('next') || '/app');
@@ -69,39 +101,26 @@ app.get('/signin', (c) => {
       <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
         <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Sign in</div>
         <div style="font-size:13px;color:#686b74;margin-bottom:20px;">{`Organizer workspace · ${host}`}</div>
-        {err ? (
-          <div style="border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:9px 11px;font-size:12.5px;margin-bottom:14px;">
-            {err}
-          </div>
-        ) : null}
-        <form method="post" action="/auth/magic" style="display:flex;flex-direction:column;gap:12px;">
+        <Err message={err} />
+        <form method="post" action="/auth/signin" style="display:flex;flex-direction:column;gap:12px;">
           <input type="hidden" name="next" value={next} />
           <label style="display:block;">
             <div style={LABEL}>EMAIL</div>
             <input name="email" type="email" required autofocus placeholder="you@example.com" style={INPUT} />
           </label>
+          <label style="display:block;">
+            <div style={LABEL}>PASSWORD</div>
+            <input name="password" type="password" required autocomplete="current-password" style={INPUT} />
+          </label>
           <button type="submit" style={PRIMARY_BTN}>
-            Email me a magic link
+            Sign in
           </button>
         </form>
-        {googleConfigured(c.env) ? (
-          <>
-            <div style="display:flex;align-items:center;gap:10px;margin:16px 0 14px;">
-              <div style="flex:1;height:1px;background:#eceded;"></div>
-              <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>OR</div>
-              <div style="flex:1;height:1px;background:#eceded;"></div>
-            </div>
-            <a
-              href={`/auth/google${next ? `?next=${encodeURIComponent(next)}` : ''}`}
-              style="display:flex;align-items:center;justify-content:center;gap:9px;padding:10px;background:#fff;border:1px solid #d4d5db;color:#16171d;font-size:13.5px;font-weight:600;text-decoration:none;"
-            >
-              Continue with Google
-            </a>
-          </>
-        ) : null}
-        <div style="font-size:12px;color:#9a9da6;margin-top:16px;line-height:1.5;">
-          No passwords, ever. The link signs you in on this device for 30 days.
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;font-size:12.5px;">
+          <a href={next ? `/auth/forgot?next=${encodeURIComponent(next)}` : '/auth/forgot'}>Forgot password?</a>
+          <a href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}>New here? Create an account</a>
         </div>
+        <div style={HINT}>Signs you in on this device for 30 days.</div>
       </div>
       <div style="margin-top:22px;">
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.14em;color:#9a9da6;margin-bottom:8px;text-align:center;`}>
@@ -126,37 +145,181 @@ app.get('/signin', (c) => {
   );
 });
 
-app.post('/auth/magic', async (c) => {
+app.post('/auth/signin', async (c) => {
+  const body = await c.req.parseBody();
+  const email = String(body.email ?? '').trim();
+  const password = String(body.password ?? '');
+  const next = String(body.next ?? '');
+
+  if (!email || !email.includes('@')) {
+    return c.redirect(backTo('/signin', 'Enter a valid email address', next));
+  }
+
+  const user = await one<User>(c.env.DB, `SELECT * FROM users WHERE email = ?`, email);
+
+  // Accounts created before passwords existed (invites, draft links, seeded
+  // people) have no hash — the reset email is the only proof of ownership we
+  // will accept before letting anyone set one.
+  if (user && !user.password_hash) {
+    return c.redirect(
+      backTo('/signin', 'This account doesn’t have a password yet — use “Forgot password?” to set one.', next)
+    );
+  }
+
+  const ok = user ? await verifyPassword(password, user.password_hash) : false;
+  if (!user || !ok) {
+    return c.redirect(backTo('/signin', 'Invalid email or password', next));
+  }
+
+  await createSession(c, user.id, null);
+  return c.redirect(withOk(safeNext(next), 'Signed in'));
+});
+
+/* ------------------------------------------------------------------ sign up */
+
+app.get('/signup', (c) => {
+  if (c.var.user) return c.redirect(c.req.query('next') || '/app');
+  const next = c.req.query('next') || '';
+  return c.html(
+    <Shell title="Create an account" toast={c.req.query('ok') ?? null}>
+      <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
+        <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Create an account</div>
+        <div style="font-size:13px;color:#686b74;margin-bottom:20px;">Run your own event on Unsession</div>
+        <Err message={c.req.query('err')} />
+        <form method="post" action="/auth/signup" style="display:flex;flex-direction:column;gap:12px;">
+          <input type="hidden" name="next" value={next} />
+          <label style="display:block;">
+            <div style={LABEL}>NAME</div>
+            <input name="name" type="text" autofocus placeholder="Marta Keller" style={INPUT} />
+          </label>
+          <label style="display:block;">
+            <div style={LABEL}>EMAIL</div>
+            <input name="email" type="email" required placeholder="you@example.com" style={INPUT} />
+          </label>
+          <label style="display:block;">
+            <div style={LABEL}>PASSWORD</div>
+            <input
+              name="password"
+              type="password"
+              required
+              minlength={MIN_PASSWORD}
+              autocomplete="new-password"
+              style={INPUT}
+            />
+          </label>
+          <button type="submit" style={PRIMARY_BTN}>
+            Create account
+          </button>
+        </form>
+        <div style="margin-top:14px;font-size:12.5px;">
+          <a href={next ? `/signin?next=${encodeURIComponent(next)}` : '/signin'}>← Already have an account? Sign in</a>
+        </div>
+        <div style={HINT}>{`At least ${MIN_PASSWORD} characters. Signs you in on this device for 30 days.`}</div>
+      </div>
+    </Shell>
+  );
+});
+
+app.post('/auth/signup', async (c) => {
+  const body = await c.req.parseBody();
+  const name = String(body.name ?? '').trim();
+  const email = String(body.email ?? '').trim();
+  const password = String(body.password ?? '');
+  const next = String(body.next ?? '');
+
+  if (!email || !email.includes('@')) {
+    return c.redirect(backTo('/signup', 'Enter a valid email address', next));
+  }
+  if (password.length < MIN_PASSWORD) {
+    return c.redirect(backTo('/signup', `Choose a password of at least ${MIN_PASSWORD} characters`, next));
+  }
+
+  // Existing rows include accounts auto-created from an emailed link, so
+  // signup must never attach a password to one — that would be takeover.
+  const existing = await one<User>(c.env.DB, `SELECT * FROM users WHERE email = ?`, email);
+  if (existing) {
+    return c.redirect(
+      backTo('/signin', 'That email already has an account — sign in or use “Forgot password?”.', next)
+    );
+  }
+
+  const id = newId('usr');
+  await run(
+    c.env.DB,
+    `INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)`,
+    id,
+    email,
+    name || null,
+    await hashPassword(password),
+    now()
+  );
+
+  await createSession(c, id, null);
+  return c.redirect(withOk(safeNext(next), 'Welcome'));
+});
+
+/* ------------------------------------------------------------------ forgot / reset */
+
+app.get('/auth/forgot', (c) => {
+  const next = c.req.query('next') || '';
+  return c.html(
+    <Shell title="Forgot password">
+      <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
+        <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Set a password</div>
+        <div style="font-size:13px;color:#686b74;margin-bottom:20px;line-height:1.55;">
+          We’ll email you a link to set a new password. Use this too if your account never had one.
+        </div>
+        <Err message={c.req.query('err')} />
+        <form method="post" action="/auth/forgot" style="display:flex;flex-direction:column;gap:12px;">
+          <input type="hidden" name="next" value={next} />
+          <label style="display:block;">
+            <div style={LABEL}>EMAIL</div>
+            <input name="email" type="email" required autofocus placeholder="you@example.com" style={INPUT} />
+          </label>
+          <button type="submit" style={PRIMARY_BTN}>
+            Email me a reset link
+          </button>
+        </form>
+        <div style="margin-top:14px;font-size:12.5px;">
+          <a href={next ? `/signin?next=${encodeURIComponent(next)}` : '/signin'}>← Back to sign in</a>
+        </div>
+      </div>
+    </Shell>
+  );
+});
+
+app.post('/auth/forgot', async (c) => {
   const body = await c.req.parseBody();
   const email = String(body.email ?? '').trim();
   const next = String(body.next ?? '');
   if (!email || !email.includes('@')) {
-    return c.redirect('/signin?err=' + encodeURIComponent('Enter a valid email address'));
+    return c.redirect(backTo('/auth/forgot', 'Enter a valid email address', next));
   }
-  const res = await requestMagicLink(c.env, email, 'signin', next ? { next } : undefined);
+
+  // Sent unconditionally — whether an address has an account is not something
+  // this page should reveal.
+  const res = await requestPasswordReset(c.env, email, next ? { next } : undefined);
 
   return c.html(
     <Shell title="Check your email">
       <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
         <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Check your email</div>
         <div style="font-size:13px;color:#686b74;margin-bottom:18px;line-height:1.55;">
-          We sent a sign-in link to <span style={`font-family:${MONO};`}>{email}</span>. It works once and expires in
-          30 minutes.
+          If <span style={`font-family:${MONO};`}>{email}</span> has an account, we sent it a link to set a password. It
+          works once and expires in 30 minutes.
         </div>
         {res.simulatedLink ? (
           <div style="border:1px solid #b08800;background:#fdf5dc;padding:12px 14px;margin-bottom:16px;">
             <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#b08800;margin-bottom:6px;`}>
               DEV MODE — EMAIL SENDING NOT YET ENABLED
             </div>
-            <div style="font-size:12.5px;color:#686b74;margin-bottom:8px;">
-              Open your magic link directly:
-            </div>
+            <div style="font-size:12.5px;color:#686b74;margin-bottom:8px;">Open your password link directly:</div>
             <a href={res.simulatedLink} style="font-size:12.5px;word-break:break-all;">
               {res.simulatedLink}
             </a>
           </div>
         ) : null}
-        <a href="/signin" style="font-size:12.5px;">
+        <a href="/auth/forgot" style="font-size:12.5px;">
           ← Use a different email
         </a>
       </div>
@@ -164,10 +327,146 @@ app.post('/auth/magic', async (c) => {
   );
 });
 
+/** Password form for an emailed reset token. The token is only consumed on POST. */
+const ResetForm: FC<{ token: string; err?: string | null }> = (props) => (
+  <Shell title="Choose a password">
+    <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
+      <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Choose a password</div>
+      <div style="font-size:13px;color:#686b74;margin-bottom:20px;">This link works once.</div>
+      <Err message={props.err} />
+      <form method="post" action="/auth/reset" style="display:flex;flex-direction:column;gap:12px;">
+        <input type="hidden" name="token" value={props.token} />
+        <label style="display:block;">
+          <div style={LABEL}>NEW PASSWORD</div>
+          <input
+            name="password"
+            type="password"
+            required
+            minlength={MIN_PASSWORD}
+            autofocus
+            autocomplete="new-password"
+            style={INPUT}
+          />
+        </label>
+        <label style="display:block;">
+          <div style={LABEL}>CONFIRM PASSWORD</div>
+          <input name="confirm" type="password" required autocomplete="new-password" style={INPUT} />
+        </label>
+        <button type="submit" style={PRIMARY_BTN}>
+          Set password
+        </button>
+      </form>
+      <div style={HINT}>{`At least ${MIN_PASSWORD} characters.`}</div>
+    </div>
+  </Shell>
+);
+
+app.get('/auth/reset', (c) => {
+  const token = c.req.query('token') ?? '';
+  if (!token) {
+    return c.redirect('/signin?err=' + encodeURIComponent('That link is missing its token — request a new one'));
+  }
+  return c.html(<ResetForm token={token} err={c.req.query('err')} />);
+});
+
+app.post('/auth/reset', async (c) => {
+  const body = await c.req.parseBody();
+  const token = String(body.token ?? '');
+  const password = String(body.password ?? '');
+  const confirm = String(body.confirm ?? '');
+
+  // Validate the typed fields before consuming the token — a typo in the
+  // confirm field must not burn a single-use link.
+  if (password.length < MIN_PASSWORD) {
+    return c.html(<ResetForm token={token} err={`Choose a password of at least ${MIN_PASSWORD} characters`} />);
+  }
+  if (password !== confirm) {
+    return c.html(<ResetForm token={token} err="Those passwords don’t match" />);
+  }
+
+  const verified = await verifyMagicToken(c.env, token);
+  if (!verified || verified.purpose !== 'password_reset') {
+    return c.redirect('/signin?err=' + encodeURIComponent('That link has expired or was already used'));
+  }
+
+  const payload = (verified.payload ?? {}) as Record<string, unknown>;
+  const user = await findOrCreateUserByEmail(c.env.DB, verified.email);
+  await run(c.env.DB, `UPDATE users SET password_hash = ? WHERE id = ?`, await hashPassword(password), user.id);
+
+  await createSession(c, user.id, null);
+  return c.redirect(withOk(safeNext(payload.next), 'Password set'));
+});
+
+/* ------------------------------------------------------------------ first password (session-verified) */
+
+app.get('/auth/set-password', requireUser, (c) => {
+  const next = c.req.query('next') || '/app';
+  // Only for accounts that still have no hash: their session came from a
+  // verified email link. Changing an existing password needs the reset email.
+  if (c.var.user?.password_hash) return c.redirect(safeNext(next));
+  return c.html(
+    <Shell title="Choose a password">
+      <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
+        <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Choose a password</div>
+        <div style="font-size:13px;color:#686b74;margin-bottom:20px;line-height:1.55;">
+          You’re signed in as <span style={`font-family:${MONO};`}>{c.var.user?.email}</span>. Pick a password so you
+          can sign in without an emailed link next time.
+        </div>
+        <Err message={c.req.query('err')} />
+        <form method="post" action="/auth/set-password" style="display:flex;flex-direction:column;gap:12px;">
+          <input type="hidden" name="next" value={next} />
+          <label style="display:block;">
+            <div style={LABEL}>PASSWORD</div>
+            <input
+              name="password"
+              type="password"
+              required
+              minlength={MIN_PASSWORD}
+              autofocus
+              autocomplete="new-password"
+              style={INPUT}
+            />
+          </label>
+          <button type="submit" style={PRIMARY_BTN}>
+            Set password
+          </button>
+        </form>
+        <div style={HINT}>{`At least ${MIN_PASSWORD} characters.`}</div>
+      </div>
+    </Shell>
+  );
+});
+
+app.post('/auth/set-password', requireUser, async (c) => {
+  const body = await c.req.parseBody();
+  const password = String(body.password ?? '');
+  const next = String(body.next ?? '/app');
+  const user = c.var.user!;
+
+  if (password.length < MIN_PASSWORD) {
+    return c.redirect(
+      backTo('/auth/set-password', `Choose a password of at least ${MIN_PASSWORD} characters`, safeNext(next))
+    );
+  }
+
+  await run(c.env.DB, `UPDATE users SET password_hash = ? WHERE id = ?`, await hashPassword(password), user.id);
+  return c.redirect(withOk(safeNext(next), 'Password set'));
+});
+
+/* ------------------------------------------------------------------ emailed action links */
+
 app.get('/auth/verify', async (c) => {
   const token = c.req.query('token') ?? '';
   const verified = await verifyMagicToken(c.env, token);
   if (!verified) {
+    return c.redirect('/signin?err=' + encodeURIComponent('That link has expired or was already used'));
+  }
+  // Password links land on /auth/reset and confirmations on /confirm — a token
+  // for either purpose must not open a session here.
+  if (verified.purpose === 'password_reset') {
+    return c.redirect('/signin?err=' + encodeURIComponent('That was a password link — request a fresh one below'));
+  }
+  if (verified.purpose === 'confirm_participation') {
     return c.redirect('/signin?err=' + encodeURIComponent('That link has expired or was already used'));
   }
 
@@ -202,27 +501,13 @@ app.get('/auth/verify', async (c) => {
   }
 
   await createSession(c, user.id, null);
-  const next = typeof payload.next === 'string' && payload.next.startsWith('/') ? payload.next : '/app';
-  return c.redirect(`${next}${next.includes('?') ? '&' : '?'}ok=${encodeURIComponent('Signed in')}`);
-});
-
-app.get('/auth/google', (c) => {
-  if (!googleConfigured(c.env)) return c.redirect('/signin');
-  const next = c.req.query('next') || '/app';
-  return c.redirect(googleAuthUrl(c.env, next));
-});
-
-app.get('/auth/google/callback', async (c) => {
-  if (!googleConfigured(c.env)) return c.redirect('/signin');
-  const code = c.req.query('code');
-  if (!code) return c.redirect('/signin?err=' + encodeURIComponent('Google sign-in was cancelled'));
-  const profile = await googleExchange(c.env, code);
-  if (!profile) return c.redirect('/signin?err=' + encodeURIComponent('Google sign-in failed'));
-  const user = await linkGoogleUser(c.env.DB, profile);
-  await createSession(c, user.id, null);
-  const state = c.req.query('state');
-  const next = state && state.startsWith('/') ? state : '/app';
-  return c.redirect(next);
+  const next = safeNext(payload.next);
+  // Invited and draft-link people arrive without credentials — the verified
+  // link is exactly the proof needed to let them pick a password now.
+  if (!user.password_hash) {
+    return c.redirect(`/auth/set-password?next=${encodeURIComponent(next)}`);
+  }
+  return c.redirect(withOk(next, 'Signed in'));
 });
 
 app.get('/auth/signout', async (c) => {

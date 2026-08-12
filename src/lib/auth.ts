@@ -1,4 +1,12 @@
-/** Sessions, magic links, Google OAuth (spec A §3). No passwords anywhere (DECISIONS D2). */
+/**
+ * Sessions, email+password credentials, and magic links (spec A §3).
+ *
+ * Sign-in is email + password (PBKDF2-HMAC-SHA256 via WebCrypto — the Workers
+ * runtime has no bcrypt). Magic tokens stay for emailed action links only:
+ * `invite`, `confirm_participation`, `draft_link` and `password_reset` (which
+ * covers both "forgot password" and "set your first password" on accounts that
+ * predate passwords, since the emailed link proves mailbox ownership).
+ */
 import type { Context, MiddlewareHandler } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { all, now, one, run } from './db';
@@ -10,7 +18,7 @@ export const SESSION_COOKIE = 'us_sess';
 const SESSION_DAYS = 30;
 const MAGIC_MINUTES = 30;
 
-export type MagicPurpose = 'signin' | 'invite' | 'confirm_participation' | 'draft_link';
+export type MagicPurpose = 'invite' | 'confirm_participation' | 'draft_link' | 'password_reset';
 
 export function randomToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -30,6 +38,74 @@ function plusMinutes(min: number): string {
 
 function plusDays(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/* ------------------------------------------------------------------ passwords */
+
+const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_SALT_BYTES = 16;
+const PBKDF2_KEY_BYTES = 32;
+
+function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+async function pbkdf2(password: string, salt: Uint8Array, iterations: number, bytes: number): Promise<Uint8Array> {
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, [
+    'deriveBits',
+  ]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: salt as BufferSource, iterations },
+    key,
+    bytes * 8
+  );
+  return new Uint8Array(bits);
+}
+
+/** XOR-accumulate so a wrong password never leaks how much of the hash matched. */
+function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/**
+ * PBKDF2-HMAC-SHA256 (WebCrypto — the Workers runtime has no node bcrypt).
+ * Stored as `pbkdf2$<iterations>$<b64 salt>$<b64 hash>` so the cost factor is
+ * upgradable: `verifyPassword` derives with whatever the row recorded.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(PBKDF2_SALT_BYTES));
+  const hash = await pbkdf2(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEY_BYTES);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(hash)}`;
+}
+
+/** False for NULL (account predates passwords) or malformed stored values. */
+export async function verifyPassword(password: string, stored: string | null): Promise<boolean> {
+  if (!password || !stored) return false;
+  const parts = stored.split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
+  const iterations = Number(parts[1]);
+  if (!Number.isFinite(iterations) || iterations < 1) return false;
+  try {
+    const salt = fromBase64(parts[2]);
+    const expected = fromBase64(parts[3]);
+    if (!salt.length || !expected.length) return false;
+    const actual = await pbkdf2(password, salt, iterations, expected.length);
+    return constantTimeEqual(actual, expected);
+  } catch {
+    return false;
+  }
 }
 
 /* ------------------------------------------------------------------ magic links */
@@ -108,6 +184,48 @@ export async function requestMagicLink(
   };
 }
 
+/**
+ * "Forgot password" and "set your first password" are the same flow: the
+ * emailed link is the proof of mailbox ownership that lets someone claim a
+ * password on an account (accounts created before passwords existed have
+ * `password_hash IS NULL` and can only be claimed this way).
+ */
+export async function requestPasswordReset(
+  env: Bindings,
+  email: string,
+  opts?: { subject?: string; text?: string; eventId?: string | null; next?: string }
+): Promise<MagicLinkResult> {
+  const { raw, id } = await createMagicToken(
+    env,
+    email,
+    'password_reset',
+    opts?.next ? { next: opts.next } : undefined
+  );
+
+  const url = `${env.APP_ORIGIN}/auth/reset?token=${encodeURIComponent(raw)}`;
+  const subject = opts?.subject ?? 'Set your Unsession password';
+  const text =
+    opts?.text ??
+    `Use this link to set or reset your Unsession password. It works once and expires in ${MAGIC_MINUTES} minutes.\n\n${url}\n\nIf you didn't ask for this, you can ignore this email — your password stays as it is.\n\n— Unsession`;
+
+  const res = await sendEmail(env, {
+    eventId: opts?.eventId ?? null,
+    to: email.trim(),
+    templateKey: 'magic_password_reset',
+    subject,
+    text: text.includes(url) ? text : `${text}\n\n${url}`,
+    subjectType: 'magic_token',
+    subjectId: id,
+  });
+
+  return {
+    url,
+    emailId: res.id,
+    status: res.status,
+    simulatedLink: res.status === 'simulated' ? url : undefined,
+  };
+}
+
 export type VerifiedToken = {
   id: string;
   email: string;
@@ -158,12 +276,12 @@ export async function findOrCreateUserByEmail(
     id: newId('usr'),
     email: email.trim(),
     name: name ?? null,
-    google_id: null,
+    password_hash: null,
     created_at: now(),
   };
   await run(
     db,
-    `INSERT INTO users (id, email, name, google_id, created_at) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)`,
     user.id,
     user.email,
     user.name,
@@ -296,65 +414,4 @@ export async function setActiveEvent(c: Context<Ctx>, eventId: string): Promise<
   const session = c.var.session;
   if (!session) return;
   await run(c.env.DB, `UPDATE auth_sessions SET active_event_id = ? WHERE id = ?`, eventId, session.id);
-}
-
-/* ------------------------------------------------------------------ Google OAuth */
-
-export function googleConfigured(env: Bindings): boolean {
-  return !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
-}
-
-export function googleRedirectUri(env: Bindings): string {
-  return `${env.APP_ORIGIN}/auth/google/callback`;
-}
-
-export function googleAuthUrl(env: Bindings, state: string): string {
-  const p = new URLSearchParams({
-    client_id: env.GOOGLE_CLIENT_ID!,
-    redirect_uri: googleRedirectUri(env),
-    response_type: 'code',
-    scope: 'openid email profile',
-    access_type: 'online',
-    include_granted_scopes: 'true',
-    prompt: 'select_account',
-    state,
-  });
-  return `https://accounts.google.com/o/oauth2/v2/auth?${p.toString()}`;
-}
-
-export type GoogleProfile = { sub: string; email: string; name?: string };
-
-export async function googleExchange(env: Bindings, code: string): Promise<GoogleProfile | null> {
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: env.GOOGLE_CLIENT_ID!,
-      client_secret: env.GOOGLE_CLIENT_SECRET!,
-      redirect_uri: googleRedirectUri(env),
-      grant_type: 'authorization_code',
-    }),
-  });
-  if (!tokenRes.ok) return null;
-  const token = (await tokenRes.json()) as { access_token?: string };
-  if (!token.access_token) return null;
-
-  const infoRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
-    headers: { authorization: `Bearer ${token.access_token}` },
-  });
-  if (!infoRes.ok) return null;
-  const info = (await infoRes.json()) as { sub?: string; email?: string; name?: string };
-  if (!info.sub || !info.email) return null;
-  return { sub: info.sub, email: info.email, name: info.name };
-}
-
-/** Links a Google identity to an existing account by email, or creates one. */
-export async function linkGoogleUser(db: D1Database, profile: GoogleProfile): Promise<User> {
-  const byGoogle = await one<User>(db, `SELECT * FROM users WHERE google_id = ?`, profile.sub);
-  if (byGoogle) return byGoogle;
-  const user = await findOrCreateUserByEmail(db, profile.email, profile.name ?? null);
-  await run(db, `UPDATE users SET google_id = ? WHERE id = ?`, profile.sub, user.id);
-  user.google_id = profile.sub;
-  return user;
 }

@@ -18,7 +18,7 @@ import { adminProps } from '../views/chrome';
 import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { all, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
-import { requireOrgRole, requestMagicLink } from '../lib/auth';
+import { requireOrgRole, requestPasswordReset } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { sendEmail } from '../lib/email';
 import {
@@ -1753,27 +1753,43 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
     );
   }
 
-  // Invite everyone newly added to the plan: a sign-in link straight to the queue.
+  // Tell everyone newly added to the plan where their queue is. Reviewers who
+  // don't have a password yet get a set-a-password link; the rest just get the URL.
   const added = reviewers.filter((r) => !before.includes(r.userId));
   const links: { email: string; link: string }[] = [];
   for (const r of added) {
-    const u = await one<{ email: string; name: string | null }>(c.env.DB, `SELECT email, name FROM users WHERE id = ?`, r.userId);
+    const u = await one<{ email: string; name: string | null; password_hash: string | null }>(
+      c.env.DB,
+      `SELECT email, name, password_hash FROM users WHERE id = ?`,
+      r.userId
+    );
     if (!u) continue;
-    const res = await requestMagicLink(
-      c.env,
-      u.email,
-      'signin',
-      { next: `/${event.slug}/evaluate` },
-      {
+    if (!u.password_hash) {
+      const res = await requestPasswordReset(c.env, u.email, {
         eventId: event.id,
+        next: `/${event.slug}/evaluate`,
         subject: `You're reviewing for ${event.name}`,
         text:
           `Hi ${u.name || 'there'},\n\n` +
           `You've been added as a reviewer on “${name}” for ${event.name}.\n\n` +
-          `Open your review queue with this link (it signs you in):\n`,
-      }
-    );
-    if (res.simulatedLink) links.push({ email: u.email, link: res.simulatedLink });
+          `Set a password with this link and it opens your review queue:\n`,
+      });
+      if (res.simulatedLink) links.push({ email: u.email, link: res.simulatedLink });
+    } else {
+      await sendEmail(c.env, {
+        eventId: event.id,
+        to: u.email,
+        toName: u.name,
+        templateKey: 'reviewer_added',
+        subject: `You're reviewing for ${event.name}`,
+        text:
+          `Hi ${u.name || 'there'},\n\n` +
+          `You've been added as a reviewer on “${name}” for ${event.name}.\n\n` +
+          `Sign in with your password to open your review queue:\n${c.env.APP_ORIGIN}/${event.slug}/evaluate`,
+        subjectType: 'eval_plan',
+        subjectId: planId,
+      });
+    }
   }
 
   await logActivity(c.env.DB, {

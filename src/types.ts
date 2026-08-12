@@ -14,9 +14,6 @@ export type Bindings = {
   APP_ORIGIN: string;
   EMAIL_FROM: string;
   EMAIL_ENABLED: string;
-  /** Secrets — set with `wrangler secret put`. Google button hides when absent (D12). */
-  GOOGLE_CLIENT_ID?: string;
-  GOOGLE_CLIENT_SECRET?: string;
 };
 
 export type Role = 'owner' | 'admin' | 'collaborator';
@@ -25,7 +22,8 @@ export type User = {
   id: string;
   email: string;
   name: string | null;
-  google_id: string | null;
+  /** `pbkdf2$<iterations>$<b64 salt>$<b64 hash>`; NULL on accounts that predate passwords. */
+  password_hash: string | null;
   created_at: string;
 };
 

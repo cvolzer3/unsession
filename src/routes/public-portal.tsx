@@ -10,11 +10,11 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { FC } from 'hono/jsx';
-import type { Ctx, Event, Theme } from '../types';
+import type { Ctx, Event, Theme, User } from '../types';
 import { PublicLayout, fmtDate } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one, run, now, jsonParse } from '../lib/db';
-import { requestMagicLink } from '../lib/auth';
+import { createSession, verifyPassword } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { sendEmail, renderTemplate } from '../lib/email';
 import { confirmParticipation } from '../lib/confirm';
@@ -477,7 +477,7 @@ app.get('/:event/portal', async (c) => {
   const user = c.var.user;
   const toast = c.req.query('ok') ?? null;
 
-  if (!user) return c.html(<SignIn event={event} theme={theme} toast={toast} err={c.req.query('err') ?? null} sent={c.req.query('sent') ?? null} />);
+  if (!user) return c.html(<SignIn event={event} theme={theme} toast={toast} err={c.req.query('err') ?? null} />);
 
   const data = await loadPortal(c.env, event, user.email);
   const files = filesEnabled(c.env);
@@ -797,33 +797,18 @@ app.get('/:event/portal', async (c) => {
 
 /* ------------------------------------------------------------- sign-in */
 
-const SignIn: FC<{ event: Event; theme: Theme; toast: string | null; err: string | null; sent: string | null }> = ({
+const SignIn: FC<{ event: Event; theme: Theme; toast: string | null; err: string | null }> = ({
   event,
   theme,
   toast,
   err,
-  sent,
 }) => (
   <PublicLayout title="Speaker portal" event={event} theme={theme} maxWidth={520} toast={toast} kicker="SPEAKER PORTAL">
     <div style="max-width:520px;margin:0 auto;padding:40px 20px 70px;">
       <h1 style="margin:0 0 4px;font-size:24px;letter-spacing:-0.02em;">Speaker portal</h1>
       <p style="margin:0 0 22px;font-size:14px;color:var(--text-secondary);">
-        {`Sign in with the email you used to submit to ${event.name}. No password — we send a magic link.`}
+        {`Sign in with the email you used to submit to ${event.name} and your password.`}
       </p>
-      {sent ? (
-        <div style="border:1px solid var(--primary-border);background:var(--primary-tint);padding:14px 16px;margin-bottom:16px;">
-          <div style="font-size:13.5px;font-weight:600;margin-bottom:4px;">Check your email</div>
-          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">
-            The link works once and expires in 30 minutes.
-          </div>
-          {sent.startsWith('http') ? (
-            <div style="margin-top:10px;font-size:12.5px;word-break:break-all;">
-              <div style={`${LABEL}margin-bottom:4px;`}>DEV MODE — EMAIL SENDING NOT YET ENABLED</div>
-              <a href={sent}>{sent}</a>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
       {err ? (
         <div style="border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:9px 11px;font-size:12.5px;margin-bottom:14px;">
           {err}
@@ -834,9 +819,21 @@ const SignIn: FC<{ event: Event; theme: Theme; toast: string | null; err: string
           <div style={`${LABEL}margin-bottom:5px;`}>EMAIL</div>
           <input name="email" type="email" required placeholder="you@example.com" style={INPUT} />
         </div>
+        <div>
+          <div style={`${LABEL}margin-bottom:5px;`}>PASSWORD</div>
+          <input name="password" type="password" required autocomplete="current-password" style={INPUT} />
+        </div>
         <button type="submit" style="padding:11px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;">
-          Email me a sign-in link
+          Sign in
         </button>
+        <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;flex-wrap:wrap;">
+          <a href={`/auth/forgot?next=${encodeURIComponent(`/${event.slug}/portal`)}`} style="color:var(--text-secondary);">
+            Forgot password?
+          </a>
+          <a href={`/auth/forgot?next=${encodeURIComponent(`/${event.slug}/portal`)}`} style="color:var(--text-secondary);">
+            First time here? Set your password
+          </a>
+        </div>
       </form>
     </div>
   </PublicLayout>
@@ -847,20 +844,22 @@ app.post('/:event/portal/signin', async (c) => {
   if (!found) return c.notFound();
   const body = await c.req.parseBody();
   const email = String(body.email ?? '').trim();
+  const password = String(body.password ?? '');
   const back = `/${found.event.slug}/portal`;
   if (!email.includes('@')) return c.redirect(`${back}?err=${encodeURIComponent('Enter a valid email address')}`);
-  const res = await requestMagicLink(
-    c.env,
-    email,
-    'signin',
-    { next: back },
-    {
-      eventId: found.event.id,
-      subject: `Your ${found.event.name} speaker portal link`,
-      text: `Here is your sign-in link for the ${found.event.name} speaker portal. It works once and expires in 30 minutes.`,
-    }
-  );
-  return c.redirect(`${back}?sent=${encodeURIComponent(res.simulatedLink ?? '1')}`);
+
+  const user = await one<User>(c.env.DB, `SELECT * FROM users WHERE email = ?`, email);
+  if (user && !user.password_hash) {
+    return c.redirect(
+      `${back}?err=${encodeURIComponent('No password on this account yet — use “Set your password” below.')}`
+    );
+  }
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
+    return c.redirect(`${back}?err=${encodeURIComponent('Invalid email or password')}`);
+  }
+
+  await createSession(c, user.id, null);
+  return c.redirect(`${back}?ok=${encodeURIComponent('Signed in')}`);
 });
 
 /* ------------------------------------------------------------ mutations */

@@ -187,8 +187,9 @@ await sendEmail(c.env, {
   first, so the log is complete whether or not sending is live.
 - Sending is live (`EMAIL_ENABLED=1` + `send_email` binding); sandbox orgs are
   force-simulated in `lib/email.ts`. Flows that depend on a link the user must
-  open (magic links, invites, confirmations) **must surface the URL in the UI**
-  when `status === 'simulated'` — see `/signin` and `/app/team` for the pattern.
+  open (password reset/setup, invites, confirmations, draft links) **must
+  surface the URL in the UI** when `status === 'simulated'` — see `/auth/forgot`
+  and `/app/team` for the pattern.
 - Decision emails are never sent from the decision modal. Deciding queues into
   `decision_queue` (`lib/decision-queue.ts`); an organizer sends from
   Emails → Outbox, which runs `applyDecision` in batches sized to fit one
@@ -197,7 +198,12 @@ await sendEmail(c.env, {
 - Templates are per event, keyed `accept | decline | waitlist | reminder |
   task_nag | schedule_notice | confirm_submission`. Variables are `{{snake_case}}`.
 
-## 10. Magic links
+## 10. Tokenized links
+
+Sign-in is **email + password** (`/signin`, `/signup`, `/auth/forgot`,
+`/auth/reset`, `/auth/set-password`; PBKDF2-SHA256 hashes in
+`users.password_hash`) — tokenized links never sign anyone in on their own.
+They exist for the flows that need a one-shot link in an email:
 
 ```ts
 const res = await requestMagicLink(c.env, email, 'confirm_participation',
@@ -206,11 +212,12 @@ const res = await requestMagicLink(c.env, email, 'confirm_participation',
 if (res.simulatedLink) { /* show it */ }
 ```
 
-Purposes: `signin | invite | confirm_participation | draft_link`. Tokens are
-single-use, 30-minute, SHA-256 hashed at rest. `/auth/verify` consumes the
-token, creates the user if needed, opens a session, then redirects to
-`payload.next`. Add new purposes by extending the switch in `routes/auth.tsx`
-(coordinate — that file is track A's).
+Purposes: `invite | confirm_participation | draft_link | password_reset`.
+Tokens are single-use, 30-minute, SHA-256 hashed at rest. `/auth/verify`
+consumes the token, creates the user if needed, and redirects to
+`payload.next` — an invited or password-less user lands in password setup
+rather than a live session. Add new purposes by extending the switch in
+`routes/auth.tsx` (coordinate — that file is track A's).
 
 ## 11. Theming
 
@@ -226,7 +233,5 @@ both places.
 - **Email sending** — live since 2026-08-12 (Workers Paid + Email Service,
   `EMAIL` binding, `EMAIL_ENABLED=1`). Sandbox orgs are force-simulated in
   `src/lib/email.ts`; the abstraction rules in §9 still apply.
-- **Google OAuth** — the button appears only when `GOOGLE_CLIENT_ID` and
-  `GOOGLE_CLIENT_SECRET` secrets exist (still unset).
 - **Cron work** — `src/lib/jobs.ts` runs every 15 minutes (reminder engine).
   Add scheduled functions there, not inline.

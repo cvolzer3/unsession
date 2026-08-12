@@ -12,7 +12,7 @@ Unsession is open-source speaker & session management for conferences. It covers
 - **CFP forms** — form builder with fixed core fields (title, abstract, format, per-speaker name/email/bio/headshot) plus custom fields: word-limited text with live counters, selects bound to event taxonomies, URLs, file uploads. Conditional show/hide logic, drafts with autosave and emailed draft links, co-speakers, multiple forms per event, themed mobile-first public forms.
 - **Evaluation** — evaluation plans scoped to a slice of submissions, reviewer rosters, 1–5 rubric criteria, anonymized (blind) review, keyboard-driven scoring, reviewer progress tracking.
 - **Decisions** — accept / decline / waitlist individually or in bulk; templated decision emails that always go through preview + confirm; CSV import, CSV/XLSX export.
-- **Speaker onboarding** — magic-link speaker portal (submissions, statuses, tasks, profile), explicit participation confirmation that can gate public agenda display, task templates (checkbox / file request / form / profile), file uploads to R2, ICS calendar invites with proper updates on reschedule, per-submission activity log.
+- **Speaker onboarding** — speaker portal with email + password sign-in (submissions, statuses, tasks, profile), explicit participation confirmation that can gate public agenda display, task templates (checkbox / file request / form / profile), file uploads to R2, ICS calendar invites with proper updates on reschedule, per-submission activity log.
 - **Agenda & publishing** — drag-and-drop agenda builder with conflict detection (double-booked rooms, a speaker in two places at once), themed public agenda and speaker directory with a WCAG-checked palette derived from one brand color, embeddable agenda/speaker widgets, edge-cached public pages invalidated on publish.
 - **API & MCP** — bearer-token REST API (`/api/v1/*`) and an MCP server (`POST /api/mcp`) over the same operations; tokens are created in the admin, scoped read-only or read-write, optionally restricted to one event.
 
@@ -48,12 +48,12 @@ Then adjust `wrangler.jsonc` for your account:
 
 - `account_id` — your Cloudflare account id.
 - `routes` — your custom domains, or delete the block to use the `workers.dev` URL.
-- `vars.APP_ORIGIN` — the origin your worker is reachable on; used for absolute URLs in emails and magic links.
+- `vars.APP_ORIGIN` — the origin your worker is reachable on; used for absolute URLs in emails and emailed links.
 - `vars.EMAIL_FROM` / `vars.EMAIL_ENABLED` — see below.
 
-**Email sending** uses [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) through the `send_email` binding (`EMAIL`). Onboard your sending domain to Email Service, set `EMAIL_FROM` to an address on it, and set `EMAIL_ENABLED` to `"1"`. Until then, remove the `send_email` block and set `EMAIL_ENABLED` to `"0"` — every send is recorded as `simulated`, and flows that depend on a link (sign-in, invites, confirmations) surface the link in the UI instead.
+**Email sending** uses [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) through the `send_email` binding (`EMAIL`). Onboard your sending domain to Email Service, set `EMAIL_FROM` to an address on it, and set `EMAIL_ENABLED` to `"1"`. Until then, remove the `send_email` block and set `EMAIL_ENABLED` to `"0"` — every send is recorded as `simulated`, and flows that depend on a link (password reset, invites, confirmations) surface the link in the UI instead.
 
-**Google sign-in (optional):** set the `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` secrets (`npx wrangler secret put …`); the sign-in button appears automatically when both exist. Email magic links work without it.
+**Sign-in** is email + password for everyone — no identity provider to configure, nothing extra to set up. Password-reset/first-time-setup, team-invite, participation-confirmation and draft-resume links go out by email; in simulated-email mode they appear on screen instead.
 
 ## Development
 
