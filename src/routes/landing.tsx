@@ -54,7 +54,6 @@ const CSS = `
   .hero h1 em::after{content:"";position:absolute;left:-2px;right:-2px;bottom:4px;height:0.34em;background:var(--amber);z-index:-1;}
   .hero p{margin:0 auto 34px;font-size:18px;line-height:1.6;color:var(--ink2);max-width:56ch;}
   .hero-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;align-items:center;}
-  .hero-note{margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--ink3);}
 
   /* hero collage */
   .collage{position:relative;max-width:920px;margin:64px auto -2px;}
@@ -533,7 +532,6 @@ app.get('/', (c) => {
                 Create a free account
               </a>
             </div>
-            <div class="hero-note">No account needed — the sandbox drops you into a real event, pre-filled.</div>
 
             <div class="collage">
               <div class="browser">
