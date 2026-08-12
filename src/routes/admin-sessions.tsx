@@ -191,7 +191,7 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
       </div>
       <div style={DIALOG_FOOT}>
         <div style="font-size:11.5px;color:#9a9da6;line-height:1.4;flex:1;">
-          Talk sessions can’t be created here — they arrive by accepting a submission.
+          Talk sessions can’t be created here. Accept a Submission to create a session from a talk.
         </div>
         <button type="button" data-dialog-close="#new-session" style={CANCEL_BTN}>
           Cancel
