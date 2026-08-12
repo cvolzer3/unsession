@@ -1,25 +1,905 @@
 /**
- * `/app/forms` — Forms.
+ * `/app/forms` — full port of `prototype/design_handoff_program/design/Forms.dc.html`.
  *
- * OWNER: B1. This file is a placeholder; replace its contents wholesale.
- * Keep the exported Hono app and the routes it registers so `src/index.tsx`
- * does not need to change.
+ * Server renders the picker bar, the setup step, the settings drawer and the
+ * initial field list; `public/js/form-builder.js` takes over drag-and-drop,
+ * the right-hand field rail and the live preview (which reuses the *public*
+ * renderer from `public/js/public-form.js`).
+ *
+ * OWNER: B1.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
-import { AdminLayout, UnderConstruction } from '../views/layout';
+import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
+import { all, now, one, run } from '../lib/db';
+import { newId } from '../lib/ids';
+import { slugify } from '../lib/slugify';
+import { logActivity } from '../lib/activity';
+import { requireOrgRole } from '../lib/auth';
+import { parseTheme, themeStyleVars } from '../lib/theme';
+import {
+  PALETTE,
+  coreFields,
+  currentVersion,
+  defaultSettings,
+  hydrateSchema,
+  listForms,
+  loadForm,
+  loadFormRow,
+  loadTaxonomies,
+  monthDay,
+  normalizeField,
+  parseSchema,
+  parseSettings,
+  randomSecret,
+  saveSchema,
+  sanitizeConditions,
+  shareUrl,
+  submissionCounts,
+  validateSchema,
+  type FormField,
+  type FormRow,
+  type FormSettings,
+} from '../lib/forms';
 
 const app = new Hono<Ctx>();
 
+/* ------------------------------------------------------------------ styles */
+
+const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
+const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:5px;';
+const SETUP_INPUT = 'width:100%;padding:10px 12px;border:1px solid #d8d9de;font-size:14px;';
+const DRAWER_INPUT = 'width:100%;padding:8px 10px;border:1px solid #d8d9de;font-size:13px;';
+const TYPE_CHIP = `font-family:${MONO};font-size:9.5px;background:#eef0fb;color:#4c5fd5;padding:3px 6px;font-weight:600;min-width:34px;text-align:center;line-height:1.4;flex:none;`;
+
+const PAGE_CSS = `
+  .us-seg input{position:absolute;opacity:0;width:0;height:0;}
+  .us-seg span{display:block;padding:7px 14px;font-size:12.5px;cursor:pointer;font-weight:600;background:#fff;color:#686b74;}
+  .us-seg input:checked + span{background:#16171d;color:#fff;}
+  .us-toggle{display:flex;align-items:flex-start;gap:12px;}
+  .us-toggle input{position:absolute;opacity:0;width:0;height:0;}
+  .us-toggle .tk{flex:none;width:36px;height:20px;border-radius:10px;padding:2px;display:flex;transition:background 0.15s;background:#d8d9de;justify-content:flex-start;cursor:pointer;}
+  .us-toggle input:checked + .tk{background:#4c5fd5;justify-content:flex-end;}
+  .us-toggle .kn{width:16px;height:16px;border-radius:50%;background:#fff;display:block;}
+  @keyframes drawerin{from{transform:translateX(32px);opacity:0}to{transform:none;opacity:1}}
+`;
+
+function statusBadge(status: string): string {
+  const tone =
+    status === 'open'
+      ? 'color:#2b8a3e;background:#e6f4ea;'
+      : status === 'draft'
+        ? 'color:#686b74;background:#f1f3f5;'
+        : 'color:#c92a2a;background:#fbe9e9;';
+  return `font-family:${MONO};font-size:9px;letter-spacing:0.08em;padding:2px 6px;font-weight:600;${tone}`;
+}
+
+function closesLabel(form: FormRow): string {
+  return form.closes_at ? `closes ${monthDay(form.closes_at)}` : 'not scheduled';
+}
+
+function linkLabel(form: FormRow, origin: string, eventSlug: string): string {
+  if (form.status === 'draft') return 'not published';
+  return shareUrl(origin, eventSlug, form.slug).replace(/^https?:\/\//, '');
+}
+
+/* ------------------------------------------------------------------ field row (mirrored in form-builder.js) */
+
+function condChip(f: FormField, fields: FormField[]): string | null {
+  if (!f.cond) return null;
+  const src = fields.find((x) => x.id === f.cond!.src);
+  if (!src) return 'IF (ARCHIVED FIELD)';
+  return `IF ${src.label.toUpperCase()} ${f.cond.op.toUpperCase()} ${String(f.cond.val).split(' (')[0].toUpperCase()}`;
+}
+
+function tagLine(f: FormField): string {
+  return [f.required ? 'required' : null, f.flags.public ? 'public' : null, !f.flags.evaluatorVisible ? 'hidden from evaluators' : null]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function FieldRow({ f, fields }: { f: FormField; fields: FormField[] }) {
+  const chip = condChip(f, fields);
+  const tags = tagLine(f);
+  return (
+    <div
+      data-field={f.id}
+      draggable={true}
+      style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid #e2e3e8;padding:11px 14px;margin-bottom:6px;cursor:grab;"
+    >
+      <span style="color:#c9cbd3;cursor:grab;font-size:14px;line-height:1;flex:none;">⠿</span>
+      <span style={TYPE_CHIP}>{f.type}</span>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:13.5px;font-weight:600;line-height:1.3;">{f.label}</span>
+          {f.core ? (
+            <span
+              style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;color:#4c5fd5;border:1px solid #d5daf4;padding:2px 5px;line-height:1.4;flex:none;white-space:nowrap;`}
+            >
+              CORE
+            </span>
+          ) : null}
+          {chip ? (
+            <span
+              style={`font-family:${MONO};font-size:10px;color:#b08800;background:#fdf5dc;padding:2px 6px;line-height:1.4;flex:none;white-space:nowrap;`}
+            >
+              {chip}
+            </span>
+          ) : null}
+        </div>
+        {tags ? <span style="font-size:11px;color:#9a9da6;line-height:1.3;">{tags}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ settings fields (setup step + drawer) */
+
+const TOGGLES: { key: string; label: string; hint: string }[] = [
+  { key: 'allowDrafts', label: 'Allow saving drafts', hint: 'Submitters can save and return before the deadline' },
+  { key: 'lateLink', label: 'Secret late-submission link', hint: 'Private URL that accepts entries after close' },
+  { key: 'welcome', label: 'Welcome page', hint: 'Markdown intro shown before the first question' },
+];
+
+function SettingsFields({
+  form,
+  settings,
+  inputStyle,
+  lateLink,
+  gap,
+}: {
+  form: FormRow;
+  settings: FormSettings;
+  inputStyle: string;
+  lateLink: string;
+  gap: string;
+}) {
+  const on: Record<string, boolean> = {
+    allowDrafts: settings.allowDrafts,
+    lateLink: !!settings.lateLinkSecret,
+    welcome: settings.welcomeEnabled,
+  };
+  return (
+    <>
+      <div>
+        <div style={FIELD_LABEL}>Form name</div>
+        <input name="name" value={form.name} style={inputStyle} />
+      </div>
+      <div>
+        <div style={FIELD_LABEL}>Status</div>
+        <div style="display:flex;border:1px solid #e2e3e8;width:fit-content;">
+          {['draft', 'open', 'closed'].map((s) => (
+            <label class="us-seg">
+              <input type="radio" name="status" value={s} checked={form.status === s} />
+              <span>{s.charAt(0).toUpperCase() + s.slice(1)}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <div style={`display:grid;grid-template-columns:1fr 1fr;gap:${gap};`}>
+        <div>
+          <div style={FIELD_LABEL}>Opens</div>
+          <input type="date" name="opens_at" value={form.opens_at?.slice(0, 10) ?? ''} style={inputStyle} />
+        </div>
+        <div>
+          <div style={FIELD_LABEL}>Closes</div>
+          <input type="date" name="closes_at" value={form.closes_at?.slice(0, 10) ?? ''} style={inputStyle} />
+        </div>
+      </div>
+      <div style={`border-top:1px solid #eceded;padding-top:${gap};display:grid;gap:${gap};`}>
+        {TOGGLES.map((t) => (
+          <label class="us-toggle" data-toggle-key={t.key}>
+            <input type="checkbox" name={t.key} value="1" checked={on[t.key]} />
+            <span class="tk">
+              <span class="kn"></span>
+            </span>
+            <span>
+              <span style="font-size:13px;font-weight:600;display:block;">{t.label}</span>
+              <span style="font-size:11.5px;color:#9a9da6;display:block;">{t.hint}</span>
+            </span>
+          </label>
+        ))}
+        <div
+          data-late-link
+          hidden={!on.lateLink}
+          style={`font-family:${MONO};font-size:11px;color:#4c5fd5;background:#eef0fb;padding:8px 10px;margin-left:48px;word-break:break-all;`}
+        >
+          {lateLink}
+        </div>
+        <div data-welcome-block hidden={!on.welcome} style="margin-left:48px;">
+          <div style="font-size:11.5px;color:#686b74;margin-bottom:4px;">Welcome message · Markdown</div>
+          <textarea
+            name="welcomeMd"
+            rows={6}
+            style={`width:100%;padding:8px 10px;border:1px solid #d8d9de;font-size:12px;font-family:${MONO};line-height:1.5;resize:vertical;`}
+          >
+            {settings.welcomeMd}
+          </textarea>
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">
+            Supports # headings, **bold**, and - lists · shown in Preview
+          </div>
+        </div>
+      </div>
+      <div style={`border-top:1px solid #eceded;padding-top:${gap};`}>
+        <div style={FIELD_LABEL}>Co-speaker cap</div>
+        <input
+          type="number"
+          name="coSpeakerCap"
+          value={String(settings.coSpeakerCap)}
+          min="0"
+          max="5"
+          style={`width:80px;${inputStyle.replace('width:100%;', '')}`}
+        />
+        <span style="font-size:11.5px;color:#9a9da6;margin-left:8px;">additional speakers per submission</span>
+      </div>
+      <div>
+        <div style={FIELD_LABEL}>Post-submit message</div>
+        <textarea name="postSubmitMsg" rows={3} style={`${inputStyle}resize:vertical;`}>
+          {settings.postSubmitMsg}
+        </textarea>
+      </div>
+      <div>
+        <div style={FIELD_LABEL}>Notify these addresses on every new submission</div>
+        <input
+          name="notifyEmails"
+          value={settings.notifyEmails.join(', ')}
+          placeholder="program@example.org, chair@example.org"
+          style={inputStyle}
+        />
+        <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Comma separated · leave empty for no notifications</div>
+      </div>
+    </>
+  );
+}
+
+/* ------------------------------------------------------------------ page */
+
 app.get('/app/forms', async (c) => {
-  const props = await adminProps(c, 'Forms');
-  if (!c.var.event) return c.redirect('/app/events/new');
+  const event = c.var.event;
+  const props = await adminProps(c, 'Forms', { headerTitle: 'Forms' });
+  if (!event) return c.redirect('/app/events/new');
+  const db = c.env.DB;
+  const origin = c.env.APP_ORIGIN;
+
+  const forms = await listForms(db, event.id);
+  const counts = await submissionCounts(db, event.id);
+
+  if (!forms.length) {
+    return c.html(
+      <AdminLayout {...props}>
+        {raw(`<style>${PAGE_CSS}</style>`)}
+        <div style="padding:48px 28px;display:flex;justify-content:center;">
+          <div style="width:100%;max-width:520px;background:#fff;border:1px solid #e2e3e8;padding:34px 28px;text-align:center;">
+            <div style={`${MICRO}margin-bottom:8px;`}>NO FORMS YET</div>
+            <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:6px;">
+              Every submission starts with a form
+            </div>
+            <div style="font-size:13px;color:#686b74;margin-bottom:20px;">
+              Core fields — title, abstract, format and speakers — are copied in for you.
+            </div>
+            <form method="post" action="/app/forms/new">
+              <button
+                type="submit"
+                style="padding:10px 20px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"
+              >
+                ＋ New form
+              </button>
+            </form>
+          </div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const wanted = c.req.query('form');
+  const active = forms.find((f) => f.id === wanted || f.slug === wanted) ?? forms[0];
+  const loaded = await loadFormRow(db, active);
+  const taxonomies = await loadTaxonomies(db, event.id);
+  const schema = hydrateSchema(loaded.schema, taxonomies);
+  const settings = loaded.settings;
+
+  const modeParam = c.req.query('mode');
+  const mode: 'setup' | 'build' | 'preview' =
+    modeParam === 'setup' || modeParam === 'preview' || modeParam === 'build' ? modeParam : 'build';
+
+  const share = shareUrl(origin, event.slug, active.slug);
+  const lateLink = settings.lateLinkSecret
+    ? `${share}?key=${settings.lateLinkSecret}`
+    : 'link generated when you turn this on';
+
+  const data = {
+    formId: active.id,
+    formName: active.name,
+    formSlug: active.slug,
+    status: active.status,
+    eventSlug: event.slug,
+    eventName: event.name,
+    mode,
+    version: loaded.version.version,
+    versionCount: loaded.versionCount,
+    schema,
+    settings,
+    taxonomies,
+    palette: PALETTE,
+    shareUrl: share,
+    submissions: counts.get(active.id) ?? 0,
+    filesEnabled: !!c.env.FILES,
+    themeVars: themeStyleVars(parseTheme(event.theme_json)),
+  };
+
+  const segButton = (label: string, m: string) => (
+    <a
+      href={`/app/forms?form=${active.id}&mode=${m}`}
+      style={`padding:7px 14px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;text-decoration:none;${
+        mode === m ? 'background:#16171d;color:#fff;' : 'background:#fff;color:#686b74;'
+      }`}
+    >
+      {label}
+    </a>
+  );
+
+  const headerActions =
+    mode === 'setup' ? null : (
+      <div style="display:flex;border:1px solid #e2e3e8;">
+        {segButton('Build', 'build')}
+        {segButton('Preview', 'preview')}
+      </div>
+    );
+
   return c.html(
-    <AdminLayout {...props}>
-      <UnderConstruction page="Forms" note="The form list, builder and preview land in track B1." />
+    <AdminLayout {...props} headerActions={headerActions} scripts={['/js/form-builder.js']}>
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      {raw(
+        `<script type="application/json" id="fb-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`
+      )}
+
+      {/* ------------------------------------------------------ picker bar */}
+      <div style="background:#fff;border-bottom:1px solid #e2e3e8;padding:16px 28px 14px;display:flex;align-items:flex-start;gap:16px;">
+        <div style="position:relative;min-width:0;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <button
+              type="button"
+              data-toggle="#form-picker"
+              title="Switch form"
+              style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:8px 12px;cursor:pointer;max-width:540px;"
+            >
+              <span style="font-weight:700;font-size:16px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                {active.name}
+              </span>
+              <span style={statusBadge(active.status)}>{active.status.toUpperCase()}</span>
+              <span style="color:#686b74;font-size:11px;border-left:1px solid #d8d9de;padding-left:10px;">▾</span>
+            </button>
+            <form method="post" action="/app/forms/new" style="flex:none;">
+              <button
+                type="submit"
+                style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8d9de;padding:8px 12px;font-size:13px;font-weight:600;color:#4c5fd5;cursor:pointer;"
+              >
+                ＋ New form
+              </button>
+            </form>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:7px;flex-wrap:wrap;">
+            <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+              {`${settings.audience} · ${linkLabel(active, origin, event.slug)} · ${closesLabel(active)}`}
+            </span>
+            <button
+              type="button"
+              id="fb-copy-link"
+              data-share={share}
+              data-draft={active.status === 'draft' ? '1' : '0'}
+              style="background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;"
+            >
+              Copy share link
+            </button>
+            <button
+              type="button"
+              data-dialog-open="#form-settings"
+              style="background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;"
+            >
+              Form settings
+            </button>
+            {active.status === 'open' ? (
+              <a href={`/${event.slug}/${active.slug}`} target="_blank" rel="noreferrer" style="font-size:12px;">
+                Open public form ↗
+              </a>
+            ) : null}
+          </div>
+          <div
+            id="form-picker"
+            hidden
+            style="position:absolute;top:calc(100% + 8px);left:0;width:360px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
+          >
+            {forms.map((f) => {
+              const n = counts.get(f.id) ?? 0;
+              const s = parseSettings(f.settings_json);
+              return (
+                <a
+                  href={`/app/forms?form=${f.id}`}
+                  style={`display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;width:100%;padding:11px 14px;cursor:pointer;background:${
+                    f.id === active.id ? '#eef0fb' : '#fff'
+                  };border-bottom:1px solid #eceded;text-decoration:none;color:#16171d;`}
+                >
+                  <span style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:13px;font-weight:600;">{f.name}</span>
+                    <span style={statusBadge(f.status)}>{f.status.toUpperCase()}</span>
+                  </span>
+                  <span style="font-size:11px;color:#9a9da6;">
+                    {`${s.audience} · ${n} submission${n === 1 ? '' : 's'} · ${closesLabel(f)}`}
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ------------------------------------------------------ setup step */}
+      {mode === 'setup' ? (
+        <div style="padding:36px 28px;display:flex;justify-content:center;">
+          <div style="width:100%;max-width:640px;">
+            <div style={`${MICRO}margin-bottom:6px;`}>NEW FORM · STEP 1 OF 2 · SETTINGS</div>
+            <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:4px;">Set up your form</div>
+            <div style="font-size:13px;color:#686b74;margin-bottom:26px;">
+              Core fields are already copied in — you’ll arrange fields in the next step.
+            </div>
+            <form method="post" action={`/app/forms/${active.id}/settings`} style="display:grid;gap:20px;">
+              <input type="hidden" name="next" value="build" />
+              <SettingsFields form={active} settings={settings} inputStyle={SETUP_INPUT} lateLink={lateLink} gap="14px" />
+              <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #eceded;padding-top:20px;">
+                <button
+                  type="submit"
+                  form={`cancel-${active.id}`}
+                  style="padding:10px 18px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;color:#686b74;"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  style="margin-left:auto;padding:10px 20px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"
+                >
+                  Continue to fields →
+                </button>
+              </div>
+            </form>
+            <form id={`cancel-${active.id}`} method="post" action={`/app/forms/${active.id}/delete`} hidden></form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------------------ build mode */}
+      {mode === 'build' ? (
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:0;align-items:start;">
+          <div style="padding:22px 28px;max-width:760px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;min-height:14px;">
+              <span data-version-note style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`}>
+                {loaded.version.version > 1
+                  ? `v${loaded.version.version} · previous versions keep their submissions’ answers`
+                  : ''}
+              </span>
+              <span id="fb-save-state" style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
+            </div>
+            {settings.welcomeEnabled ? (
+              <div id="fb-welcome-wrap">
+                <div style={`${MICRO}margin-bottom:8px;`}>WELCOME PAGE · SHOWN BEFORE THE FIRST QUESTION</div>
+                <div style="border:1px solid #e2e3e8;background:#fff;margin-bottom:24px;display:flex;flex-direction:column;">
+                  <textarea
+                    id="fb-welcome"
+                    rows={12}
+                    style={`width:100%;flex:1;border:none;outline:none;font-size:12.5px;font-family:${MONO};line-height:1.55;resize:vertical;padding:14px 16px;box-sizing:border-box;`}
+                  >
+                    {settings.welcomeMd}
+                  </textarea>
+                </div>
+              </div>
+            ) : null}
+            <div id="fb-list">
+              {schema.fields.map((f) => (
+                <FieldRow f={f} fields={schema.fields} />
+              ))}
+            </div>
+            <div
+              id="fb-endzone"
+              style={`border:1px dashed #d8d9de;background:transparent;color:#b4b6be;padding:12px;text-align:center;font-family:${MONO};font-size:11px;letter-spacing:0.04em;`}
+            >
+              drop zone
+            </div>
+            <div style={`${MICRO}margin:20px 0 8px;`}>FIELD TYPES · DRAG ONTO THE FORM, OR CLICK TO ADD AT THE END</div>
+            <div id="fb-palette" style="display:flex;gap:6px;flex-wrap:wrap;">
+              {PALETTE.map((p) => (
+                <button
+                  type="button"
+                  draggable={true}
+                  data-palette={p.label}
+                  style="padding:6px 11px;background:#fff;border:1px dashed #c9cbd3;font-size:12px;color:#686b74;cursor:grab;"
+                >
+                  {`+ ${p.label}`}
+                </button>
+              ))}
+            </div>
+          </div>
+          <aside
+            id="fb-rail"
+            style="border-left:1px solid #e2e3e8;background:#fff;min-height:calc(100vh - 69px);padding:20px;position:sticky;top:0;"
+          >
+            <div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">
+              Select a field to configure it, or drag a field type onto the form.
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------------------ preview mode */}
+      {mode === 'preview' ? (
+        <div style="padding:24px 28px;display:grid;grid-template-columns:minmax(0,640px);gap:24px;justify-content:center;align-items:start;">
+          <div id="fb-preview" style={`background:#fff;border:1px solid #e2e3e8;padding:30px 34px;${data.themeVars}`}>
+            <div style="color:#9a9da6;font-size:13px;">Loading preview…</div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------------------ settings drawer */}
+      <div id="form-settings" data-dialog hidden style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;">
+        <aside style="position:absolute;top:0;right:0;bottom:0;width:420px;max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;">
+          <form
+            method="post"
+            action={`/app/forms/${active.id}/settings`}
+            style="display:flex;flex-direction:column;height:100%;min-height:0;"
+          >
+            <input type="hidden" name="next" value={mode} />
+            <div style="display:flex;align-items:center;gap:10px;padding:18px 22px;border-bottom:1px solid #eceded;">
+              <div style="min-width:0;">
+                <div style="font-weight:700;font-size:15px;">Form settings</div>
+                <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                  {active.name}
+                </div>
+              </div>
+              <button
+                type="button"
+                data-dialog-close="#form-settings"
+                style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:4px;"
+              >
+                ×
+              </button>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:20px 22px;display:grid;gap:18px;align-content:start;">
+              <SettingsFields form={active} settings={settings} inputStyle={DRAWER_INPUT} lateLink={lateLink} gap="12px" />
+            </div>
+            <div style="padding:14px 22px;border-top:1px solid #eceded;display:flex;justify-content:flex-end;gap:8px;">
+              {(counts.get(active.id) ?? 0) === 0 ? (
+                <button
+                  type="submit"
+                  form={`delete-${active.id}`}
+                  style="margin-right:auto;padding:9px 14px;background:#fff;border:1px solid #ecc5c5;color:#c92a2a;font-size:12.5px;cursor:pointer;"
+                >
+                  Delete form
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                style="padding:9px 18px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:13px;font-weight:600;cursor:pointer;"
+              >
+                Done
+              </button>
+            </div>
+          </form>
+        </aside>
+      </div>
+      <form id={`delete-${active.id}`} method="post" action={`/app/forms/${active.id}/delete`} hidden></form>
     </AdminLayout>
   );
 });
+
+/* ------------------------------------------------------------------ writes */
+
+const guard = requireOrgRole('admin');
+
+async function uniqueFormSlug(db: D1Database, eventId: string, base: string, exceptId?: string): Promise<string> {
+  const root = slugify(base, 'form');
+  let slug = root;
+  let n = 2;
+  for (;;) {
+    const row = await one<{ id: string }>(
+      db,
+      `SELECT id FROM forms WHERE event_id = ? AND slug = ?`,
+      eventId,
+      slug
+    );
+    if (!row || row.id === exceptId) return slug;
+    slug = `${root}-${n++}`;
+  }
+}
+
+app.post('/app/forms/new', guard, async (c) => {
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+  const db = c.env.DB;
+
+  // Core fields are copied from the event's first form, exactly like the prototype.
+  const existing = await listForms(db, event.id);
+  let fields: FormField[] = [];
+  if (existing.length) {
+    const first = await loadFormRow(db, existing[0]);
+    fields = first.schema.fields.filter((f) => f.core);
+  }
+  if (!fields.length) {
+    const formatTax = await one<{ id: string }>(
+      db,
+      `SELECT id FROM taxonomies WHERE event_id = ? AND name = 'Format' LIMIT 1`,
+      event.id
+    );
+    fields = coreFields(defaultSettings().coSpeakerCap, formatTax?.id ?? null);
+  }
+
+  const id = newId('frm');
+  const slug = await uniqueFormSlug(db, event.id, 'Untitled form');
+  const settings = defaultSettings();
+  await run(
+    db,
+    `INSERT INTO forms (id, event_id, name, slug, status, opens_at, closes_at, settings_json, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    id,
+    event.id,
+    'Untitled form',
+    slug,
+    'draft',
+    null,
+    null,
+    JSON.stringify(settings),
+    now()
+  );
+  await run(
+    db,
+    `INSERT INTO form_versions (id, form_id, version, schema_json, created_at) VALUES (?,?,1,?,?)`,
+    newId('fvr'),
+    id,
+    JSON.stringify({ fields }),
+    now()
+  );
+  await logActivity(db, {
+    eventId: event.id,
+    subjectType: 'form',
+    subjectId: id,
+    actor: c.var.user?.name || c.var.user?.email || 'System',
+    action: 'Form created',
+    detail: 'Untitled form',
+  });
+  return c.redirect(`/app/forms?form=${id}&mode=setup`);
+});
+
+function settingsFromBody(body: Record<string, unknown>, prev: FormSettings): FormSettings {
+  const lateOn = !!body.lateLink;
+  const welcomeOn = !!body.welcome;
+  const cap = Number.parseInt(String(body.coSpeakerCap ?? ''), 10);
+  return {
+    allowDrafts: !!body.allowDrafts,
+    lateLinkSecret: lateOn ? prev.lateLinkSecret || randomSecret() : null,
+    welcomeEnabled: welcomeOn,
+    welcomeMd: typeof body.welcomeMd === 'string' ? body.welcomeMd : prev.welcomeMd,
+    coSpeakerCap: Number.isFinite(cap) ? Math.max(0, Math.min(5, cap)) : prev.coSpeakerCap,
+    postSubmitMsg: typeof body.postSubmitMsg === 'string' ? body.postSubmitMsg : prev.postSubmitMsg,
+    notifyEmails: String(body.notifyEmails ?? '')
+      .split(/[\s,;]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.includes('@')),
+    audience: prev.audience,
+  };
+}
+
+app.post('/app/forms/:id/settings', guard, async (c) => {
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+  const db = c.env.DB;
+  const loaded = await loadForm(db, event.id, c.req.param('id'));
+  if (!loaded) return c.notFound();
+  const body = (await c.req.parseBody()) as Record<string, unknown>;
+
+  const name = String(body.name ?? '').trim() || loaded.form.name;
+  const statusRaw = String(body.status ?? loaded.form.status);
+  const status = ['draft', 'open', 'closed'].includes(statusRaw) ? statusRaw : loaded.form.status;
+  const opensAt = String(body.opens_at ?? '').slice(0, 10) || null;
+  let closesAt = String(body.closes_at ?? '').slice(0, 10) || null;
+  if (opensAt && closesAt && closesAt < opensAt) closesAt = opensAt;
+  const settings = settingsFromBody(body, loaded.settings);
+  const slug = name === loaded.form.name ? loaded.form.slug : await uniqueFormSlug(db, event.id, name, loaded.form.id);
+
+  await run(
+    db,
+    `UPDATE forms SET name = ?, slug = ?, status = ?, opens_at = ?, closes_at = ?, settings_json = ? WHERE id = ?`,
+    name,
+    slug,
+    status,
+    opensAt,
+    closesAt,
+    JSON.stringify(settings),
+    loaded.form.id
+  );
+
+  const actor = c.var.user?.name || c.var.user?.email || 'System';
+  if (status !== loaded.form.status) {
+    await logActivity(db, {
+      eventId: event.id,
+      subjectType: 'form',
+      subjectId: loaded.form.id,
+      actor,
+      action: status === 'open' ? 'Form opened' : status === 'closed' ? 'Form closed' : 'Form unpublished',
+      detail: name,
+    });
+  } else {
+    await logActivity(db, {
+      eventId: event.id,
+      subjectType: 'form',
+      subjectId: loaded.form.id,
+      actor,
+      action: 'Form settings updated',
+      detail: name,
+    });
+  }
+
+  const next = String(body.next ?? 'build');
+  const isNew = next === 'build' && loaded.form.name === 'Untitled form';
+  const message = isNew
+    ? 'Form created — core fields copied in. Drag field types to add more'
+    : 'Form settings saved';
+  return c.redirect(
+    `/app/forms?form=${loaded.form.id}&mode=${next === 'preview' ? 'preview' : 'build'}&ok=${encodeURIComponent(message)}`
+  );
+});
+
+app.post('/app/forms/:id/delete', guard, async (c) => {
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+  const db = c.env.DB;
+  const form = await one<FormRow>(
+    db,
+    `SELECT * FROM forms WHERE event_id = ? AND id = ?`,
+    event.id,
+    c.req.param('id')
+  );
+  if (!form) return c.notFound();
+  const used = await one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM submissions WHERE form_id = ?`, form.id);
+  if ((used?.n ?? 0) > 0) {
+    return c.redirect(
+      `/app/forms?form=${form.id}&ok=${encodeURIComponent('This form has submissions — close it instead of deleting')}`
+    );
+  }
+  await run(db, `DELETE FROM form_versions WHERE form_id = ?`, form.id);
+  await run(db, `DELETE FROM forms WHERE id = ?`, form.id);
+  await logActivity(db, {
+    eventId: event.id,
+    subjectType: 'form',
+    subjectId: form.id,
+    actor: c.var.user?.name || c.var.user?.email || 'System',
+    action: 'Form deleted',
+    detail: form.name,
+  });
+  return c.redirect(`/app/forms?ok=${encodeURIComponent(`“${form.name}” deleted`)}`);
+});
+
+/* ------------------------------------------------------------------ JSON API */
+
+app.post('/app/api/forms/:id/schema', guard, async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const db = c.env.DB;
+  const form = await one<FormRow>(
+    db,
+    `SELECT * FROM forms WHERE event_id = ? AND id = ?`,
+    event.id,
+    c.req.param('id')
+  );
+  if (!form) return c.json({ ok: false, error: 'Form not found.' }, 404);
+
+  const body = await c.req.json<{ fields?: unknown[] }>().catch(() => null);
+  if (!body || !Array.isArray(body.fields)) return c.json({ ok: false, error: 'Expected a fields array.' }, 400);
+
+  const fields = body.fields
+    .map((f, i) => normalizeField(f, i))
+    .filter((f): f is FormField => !!f);
+  const { fields: clean, dropped } = sanitizeConditions(fields);
+  const problem = validateSchema(clean);
+  if (problem) return c.json({ ok: false, error: problem }, 400);
+
+  const before = await currentVersion(db, form.id);
+  const result = await saveSchema(db, form.id, { fields: clean });
+  if (result.bumped) {
+    await logActivity(db, {
+      eventId: event.id,
+      subjectType: 'form',
+      subjectId: form.id,
+      actor: c.var.user?.name || c.var.user?.email || 'System',
+      action: 'Form version created',
+      detail: `v${result.version.version} — v${before?.version ?? 1} keeps its submissions’ answers`,
+    });
+  }
+  return c.json({
+    ok: true,
+    version: result.version.version,
+    bumped: result.bumped,
+    // A condition whose source ended up later in the form is cleared, not rejected —
+    // same rule the builder applies on drop (Forms.dc.html `sanitize`).
+    sanitized: dropped,
+    fields: clean,
+  });
+});
+
+app.post('/app/api/forms/:id/settings', guard, async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const db = c.env.DB;
+  const loaded = await loadForm(db, event.id, c.req.param('id'));
+  if (!loaded) return c.json({ ok: false, error: 'Form not found.' }, 404);
+
+  const body = await c.req.json<Partial<FormSettings>>().catch(() => null);
+  if (!body) return c.json({ ok: false, error: 'Expected a settings object.' }, 400);
+  const next: FormSettings = {
+    ...loaded.settings,
+    ...body,
+    notifyEmails: Array.isArray(body.notifyEmails) ? body.notifyEmails.map(String) : loaded.settings.notifyEmails,
+  };
+  if (next.lateLinkSecret === null && loaded.settings.lateLinkSecret) next.lateLinkSecret = null;
+  await run(db, `UPDATE forms SET settings_json = ? WHERE id = ?`, JSON.stringify(next), loaded.form.id);
+  return c.json({ ok: true, settings: next });
+});
+
+/** Read-only helper used by the builder after a save, and handy for curl tests. */
+app.get('/app/api/forms/:id', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const loaded = await loadForm(c.env.DB, event.id, c.req.param('id'));
+  if (!loaded) return c.json({ ok: false, error: 'Form not found.' }, 404);
+  const taxonomies = await loadTaxonomies(c.env.DB, event.id);
+  return c.json({
+    ok: true,
+    form: {
+      id: loaded.form.id,
+      name: loaded.form.name,
+      slug: loaded.form.slug,
+      status: loaded.form.status,
+      opensAt: loaded.form.opens_at,
+      closesAt: loaded.form.closes_at,
+    },
+    version: loaded.version.version,
+    versionCount: loaded.versionCount,
+    settings: loaded.settings,
+    schema: hydrateSchema(loaded.schema, taxonomies),
+  });
+});
+
+app.get('/app/api/forms', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event.' }, 400);
+  const forms = await listForms(c.env.DB, event.id);
+  const counts = await submissionCounts(c.env.DB, event.id);
+  const versions = await all<{ form_id: string; v: number }>(
+    c.env.DB,
+    `SELECT form_id, MAX(version) AS v FROM form_versions GROUP BY form_id`
+  );
+  const vmap = new Map(versions.map((v) => [v.form_id, v.v]));
+  return c.json({
+    ok: true,
+    forms: forms.map((f) => ({
+      id: f.id,
+      name: f.name,
+      slug: f.slug,
+      status: f.status,
+      opensAt: f.opens_at,
+      closesAt: f.closes_at,
+      submissions: counts.get(f.id) ?? 0,
+      version: vmap.get(f.id) ?? 1,
+      settings: parseSettings(f.settings_json),
+      publicUrl: shareUrl(c.env.APP_ORIGIN, event.slug, f.slug),
+    })),
+  });
+});
+
+/** Schema fetch used by the public form island + curl tests. */
+export async function schemaOf(db: D1Database, eventId: string, formSlug: string) {
+  const loaded = await loadForm(db, eventId, formSlug);
+  if (!loaded) return null;
+  const taxonomies = await loadTaxonomies(db, eventId);
+  return hydrateSchema(parseSchema(loaded.version.schema_json), taxonomies);
+}
 
 export default app;

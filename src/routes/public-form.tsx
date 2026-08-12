@@ -1,32 +1,1334 @@
 /**
  * Public submission form — `/{event}/{form}`. Registered last: it is the catch-all.
  *
- * OWNER: B1. Placeholder — replace the contents, keep the exported app
- * and its registered routes so `src/index.tsx` does not need to change.
+ * Port of `prototype/design_handoff_program/design/Submit.dc.html`, generalized
+ * over the form schema. The whole form is server-rendered inside a real
+ * `<form method="post">` (so it submits without JavaScript); `public/js/
+ * public-form.js` layers on debounced autosave, conditional show/hide, word
+ * counters, co-speaker cards, headshot uploads and the client-side error pass.
+ *
+ * OWNER: B1.
  */
 import { Hono } from 'hono';
-import type { Ctx } from '../types';
+import type { Context } from 'hono';
+import { raw } from 'hono/html';
+import { getCookie, setCookie } from 'hono/cookie';
+import type { Ctx, Event, Theme, User } from '../types';
 import { PublicLayout } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
+import { all, jsonParse, now, one, run } from '../lib/db';
+import { newId, nextSeq } from '../lib/ids';
+import { logActivity } from '../lib/activity';
+import { findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
+import { renderTemplate, sendEmail } from '../lib/email';
+import { filesEnabled, saveUpload } from '../lib/files';
+import {
+  coreRoles,
+  hydrateSchema,
+  inlineLinks,
+  loadForm,
+  loadTaxonomies,
+  monthDay,
+  openState,
+  renderMarkdown,
+  speakerCap,
+  wordCount,
+  type FormField,
+  type FormRow,
+  type FormSettings,
+  type FormSchema,
+} from '../lib/forms';
+import {
+  normalizeUrl,
+  requiredWhenVisible,
+  stripHidden,
+  validateSubmission,
+  visibleIds,
+  type Answers,
+  type SpeakerInput,
+} from '../lib/conditions';
 
 const app = new Hono<Ctx>();
 
-app.get('/:event/:form', async (c) => {
-  const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
-  if (!found) return c.notFound();
-  return c.html(
-    <PublicLayout title="Submission form" event={found.event} theme={found.theme} maxWidth={620} toast={c.req.query('ok') ?? null}>
-      <div style={`max-width:620px;margin:0 auto;padding:48px 20px 80px;`}>
-        <div style="background:var(--card);border:1px solid var(--border);padding:40px 24px;text-align:center;">
-          <div style={`font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);margin-bottom:8px;`}>
-            UNDER CONSTRUCTION
+const DRAFT_COOKIE = 'us_draft';
+
+/* ------------------------------------------------------------------ styles */
+
+const MONO_VAR = 'var(--font-mono)';
+const LABEL = 'font-size:14px;font-weight:600;margin-bottom:6px;';
+const SECTION =
+  'font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;';
+const HINT = 'font-size:12px;color:var(--muted);margin-bottom:6px;';
+
+function inputStyle(bad?: boolean): string {
+  return `width:100%;padding:11px 12px;border:1px solid ${
+    bad ? '#e03131' : 'var(--border-strong)'
+  };font-size:14px;background:var(--card);outline-color:var(--primary);font-family:inherit;resize:vertical;`;
+}
+
+/* ------------------------------------------------------------------ types */
+
+type SubmissionRow = {
+  id: string;
+  event_id: string;
+  form_id: string;
+  form_version_id: string | null;
+  seq: number;
+  status: string;
+  title: string;
+  abstract: string;
+  answers_json: string;
+  owner_user_id: string | null;
+  agent_mode: number;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type SpeakerRow = {
+  id: string;
+  submission_id: string;
+  position: number;
+  name: string;
+  email: string;
+  bio: string;
+  headshot_file_id: string | null;
+};
+
+type RenderState = {
+  answers: Answers;
+  speakers: SpeakerInput[];
+  agentMode: boolean;
+  errors: Record<string, string>;
+  errorList: string[];
+  tried: boolean;
+  draftId: string | null;
+  email: string;
+  simulatedLink?: string | null;
+};
+
+/* ------------------------------------------------------------------ cookies */
+
+/**
+ * Draft access is capability-based: the random `sub_…` id is the secret, and
+ * this cookie remembers which ids this browser created (D3 — anonymous drafts
+ * work in-session, the emailed `draft_link` makes them portable).
+ */
+function draftIds(c: Context<Ctx>): string[] {
+  const cookie = getCookie(c, DRAFT_COOKIE) ?? '';
+  return cookie.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function rememberDraft(c: Context<Ctx>, id: string, ids: string[]) {
+  const next = [id, ...ids.filter((x) => x !== id)].slice(0, 10);
+  setCookie(c, DRAFT_COOKIE, next.join(','), {
+    httpOnly: true,
+    secure: new URL(c.req.url).protocol === 'https:',
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 60 * 86_400,
+  });
+}
+
+/* ------------------------------------------------------------------ layout helpers */
+
+type Item = { kind: 'section'; label: string } | { kind: 'field'; field: FormField };
+
+/**
+ * Sections come from HDR fields. Schemas without any (the seeded sandbox, the
+ * prototype's own CFP) get the prototype's rhythm generated for them:
+ * 01 · YOUR SESSION → 02 · SPEAKERS → … → CONSENT.
+ */
+export function layoutItems(fields: FormField[]): Item[] {
+  const hasHdr = fields.some((f) => f.type === 'HDR');
+  const items: Item[] = [];
+  if (hasHdr) {
+    for (const f of fields) {
+      if (f.type === 'HDR') items.push({ kind: 'section', label: f.label.toUpperCase() });
+      else items.push({ kind: 'field', field: f });
+    }
+  } else {
+    let current = '';
+    const open = (label: string) => {
+      if (current === label) return;
+      current = label;
+      items.push({ kind: 'section', label });
+    };
+    for (const f of fields) {
+      const consent = f.type === 'CHK' && !!f.validation.mustCheck;
+      if (f.type === 'GRP') open('SPEAKERS');
+      else if (consent) open('CONSENT');
+      else if (current === '' ) open('YOUR SESSION');
+      else if (current === 'SPEAKERS' || current === 'CONSENT') open('MORE DETAIL');
+      items.push({ kind: 'field', field: f });
+    }
+  }
+  let n = 0;
+  return items.map((it) =>
+    it.kind === 'section' ? { kind: 'section' as const, label: `${String(++n).padStart(2, '0')} · ${it.label}` } : it
+  );
+}
+
+function condHint(f: FormField, fields: FormField[]): string {
+  if (!f.cond) return '';
+  const src = fields.find((x) => x.id === f.cond!.src);
+  const what = String(f.cond.val || '').trim();
+  const tail = f.cond.alsoReq ? ' — required while it shows.' : '.';
+  if (f.cond.op === 'is' && what) return `Appeared because you chose ${what}${tail}`;
+  if (!src) return `Appeared because of an earlier answer${tail}`;
+  return `Appeared because ${src.label} ${f.cond.op} ${what ? `“${what}”` : 'answered'}${tail}`;
+}
+
+/* ------------------------------------------------------------------ field renderer */
+
+function FieldBlock({
+  f,
+  fields,
+  state,
+  visible,
+  filesOn,
+  cap,
+}: {
+  f: FormField;
+  fields: FormField[];
+  state: RenderState;
+  visible: boolean;
+  filesOn: boolean;
+  cap: number;
+}) {
+  if (f.type === 'GRP') return <SpeakerBlock f={f} state={state} visible={visible} filesOn={filesOn} cap={cap} />;
+
+  const err = state.errors[f.id];
+  const value = state.answers[f.id];
+  const req = requiredWhenVisible(f);
+  const name = `f_${f.id}`;
+  const conditional = !!f.cond;
+
+  const inner = (
+    <>
+      <div style={LABEL}>
+        {f.label} {req ? <span style="color:#e03131;">*</span> : null}
+      </div>
+      {conditional ? <div style={HINT}>{condHint(f, fields)}</div> : null}
+      {f.help && !conditional && f.type !== 'CHK' ? <div style={HINT}>{raw(inlineLinks(f.help))}</div> : null}
+      {(() => {
+        switch (f.type) {
+          case 'LONG':
+            return (
+              <>
+                <textarea
+                  name={name}
+                  rows={5}
+                  placeholder={f.placeholder ?? ''}
+                  data-words={f.validation.maxWords ? String(f.validation.maxWords) : undefined}
+                  style={inputStyle(!!err)}
+                >
+                  {String(value ?? '')}
+                </textarea>
+                <div style="display:flex;margin-top:4px;">
+                  {err ? <div style="font-size:12px;color:#c92a2a;" data-err={f.id}>{err}</div> : <div data-err={f.id}></div>}
+                  {f.validation.maxWords ? (
+                    <div
+                      data-counter={f.id}
+                      style={`margin-left:auto;font-family:${MONO_VAR};font-size:11px;color:var(--muted);`}
+                    >
+                      {`${wordCount(String(value ?? ''))} / ${f.validation.maxWords} words`}
+                    </div>
+                  ) : null}
+                </div>
+              </>
+            );
+          case 'SEL':
+            return (
+              <select name={name} style={inputStyle(!!err)}>
+                <option value="">Choose…</option>
+                {(f.opts ?? []).map((o) => (
+                  <option value={o} selected={String(value ?? '') === o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            );
+          case 'MULTI': {
+            const chosen = new Set(Array.isArray(value) ? value.map(String) : value ? [String(value)] : []);
+            return (
+              <div style="display:grid;gap:7px;">
+                {(f.opts ?? []).map((o) => (
+                  <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;color:var(--text-secondary);">
+                    <input
+                      type="checkbox"
+                      name={`${name}[]`}
+                      value={o}
+                      checked={chosen.has(o)}
+                      style="accent-color:var(--primary);margin-top:2px;"
+                    />
+                    <span>{o}</span>
+                  </label>
+                ))}
+              </div>
+            );
+          }
+          case 'CHK': {
+            const checked = value === true || value === 'true' || value === 'on';
+            return (
+              <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;">
+                <input
+                  type="checkbox"
+                  name={name}
+                  value="true"
+                  checked={checked}
+                  style="accent-color:var(--primary);margin-top:2px;"
+                />
+                <span>
+                  {raw(inlineLinks(f.placeholder || f.help || f.label))}{' '}
+                  {req ? <span style="color:#e03131;">*</span> : null}
+                </span>
+              </label>
+            );
+          }
+          case 'FILE': {
+            const ids = Array.isArray(value) ? value.map(String) : value ? [String(value)] : [];
+            return (
+              <div data-file={f.id} data-exts={f.validation.fileExts ?? ''} data-max-mb={String(f.validation.fileMaxMb ?? 25)}>
+                <input type="hidden" name={name} value={ids.join(',')} />
+                {filesOn ? (
+                  <label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
+                    <input type="file" style="display:none;" data-file-input={f.id} />
+                    <span data-file-label={f.id}>
+                      {ids.length
+                        ? `${ids.length} file${ids.length === 1 ? '' : 's'} attached — tap to replace`
+                        : `Tap to upload${f.validation.fileExts ? ` · ${f.validation.fileExts}` : ''}${
+                            f.validation.fileMaxMb ? ` · ${f.validation.fileMaxMb} MB` : ''
+                          }`}
+                    </span>
+                  </label>
+                ) : (
+                  <div
+                    title="File storage not yet enabled"
+                    style="border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--faint);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:not-allowed;"
+                  >
+                    File storage not yet enabled
+                  </div>
+                )}
+              </div>
+            );
+          }
+          case 'NUM':
+            return (
+              <input
+                type="number"
+                name={name}
+                inputmode={f.validation.numKind === 'decimal' ? 'decimal' : 'numeric'}
+                step={f.validation.numKind === 'decimal' ? 'any' : '1'}
+                min={f.validation.min !== undefined ? String(f.validation.min) : undefined}
+                max={f.validation.max !== undefined ? String(f.validation.max) : undefined}
+                value={String(value ?? '')}
+                placeholder={f.placeholder ?? ''}
+                style={inputStyle(!!err)}
+              />
+            );
+          case 'DATE':
+            return (
+              <input
+                type="date"
+                name={name}
+                min={f.validation.dateFrom || undefined}
+                max={f.validation.dateTo || undefined}
+                value={String(value ?? '')}
+                style={inputStyle(!!err)}
+              />
+            );
+          case 'EML':
+            return (
+              <input
+                type="email"
+                name={name}
+                inputmode="email"
+                autocomplete="email"
+                value={String(value ?? '')}
+                placeholder={f.placeholder ?? 'you@example.com'}
+                style={inputStyle(!!err)}
+              />
+            );
+          case 'URL':
+            return (
+              <input
+                type="url"
+                name={name}
+                inputmode="url"
+                data-url
+                value={String(value ?? '')}
+                placeholder={f.placeholder ?? 'https://…'}
+                style={inputStyle(!!err)}
+              />
+            );
+          case 'TEL':
+            return (
+              <input
+                type="tel"
+                name={name}
+                inputmode="tel"
+                value={String(value ?? '')}
+                placeholder={f.placeholder ?? '+49 …'}
+                style={inputStyle(!!err)}
+              />
+            );
+          default:
+            return (
+              <input
+                name={name}
+                value={String(value ?? '')}
+                placeholder={f.placeholder ?? ''}
+                maxlength={f.validation.maxChars ? f.validation.maxChars : undefined}
+                style={inputStyle(!!err)}
+              />
+            );
+        }
+      })()}
+      {err && f.type !== 'LONG' ? (
+        <div data-err={f.id} style="font-size:12px;color:#c92a2a;margin-top:4px;">
+          {err}
+        </div>
+      ) : (
+        <div data-err={f.id}></div>
+      )}
+    </>
+  );
+
+  return (
+    <div
+      data-fw={f.id}
+      data-cond={f.cond ? JSON.stringify(f.cond) : undefined}
+      data-req={f.required ? '1' : '0'}
+      data-type={f.type}
+      hidden={!visible}
+      style={conditional ? 'border-left:3px solid var(--primary);padding-left:14px;' : undefined}
+    >
+      {inner}
+    </div>
+  );
+}
+
+function SpeakerCard({
+  i,
+  s,
+  state,
+  filesOn,
+}: {
+  i: number;
+  s: SpeakerInput;
+  state: RenderState;
+  filesOn: boolean;
+}) {
+  const label =
+    state.agentMode && i === 0
+      ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)'
+      : `SPEAKER ${i + 1}${i === 0 && !state.agentMode ? ' · YOU' : ''}`;
+  const nameErr = state.errors[`sp${i}.name`];
+  const emailErr = state.errors[`sp${i}.email`];
+  return (
+    <div data-speaker={String(i)} style="border:1px solid var(--border-strong);background:var(--card);padding:16px;display:grid;gap:12px;">
+      <div style="display:flex;align-items:center;">
+        <div data-speaker-label style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.1em;color:var(--muted);`}>
+          {label}
+        </div>
+        {i > 0 ? (
+          <button
+            type="button"
+            data-remove-speaker
+            style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:12.5px;cursor:pointer;"
+          >
+            Remove
+          </button>
+        ) : null}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <input name="sp_name[]" value={s.name} placeholder="Full name *" style={inputStyle(!!nameErr)} />
+        </div>
+        <div>
+          <input
+            name="sp_email[]"
+            type="email"
+            inputmode="email"
+            value={s.email}
+            placeholder="Email *"
+            style={inputStyle(!!emailErr)}
+          />
+        </div>
+      </div>
+      <textarea
+        name="sp_bio[]"
+        rows={2}
+        placeholder="Short bio (shown on the public agenda)"
+        style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);font-size:13.5px;resize:vertical;font-family:inherit;background:var(--card);"
+      >
+        {s.bio ?? ''}
+      </textarea>
+      <input type="hidden" name="sp_headshot[]" value={s.headshotFileId ?? ''} />
+      {filesOn ? (
+        <label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
+          <input type="file" accept="image/*" style="display:none;" data-headshot-input />
+          <span data-headshot-label>
+            {s.headshotFileId ? (
+              'headshot attached — tap to replace'
+            ) : (
+              <>
+                <span style={`font-family:${MONO_VAR};`}>headshot</span>
+                {' — tap to upload from camera roll · JPG/PNG · 10 MB'}
+              </>
+            )}
+          </span>
+        </label>
+      ) : (
+        <div
+          title="File storage not yet enabled"
+          style="border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--faint);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:not-allowed;"
+        >
+          <span style={`font-family:${MONO_VAR};`}>headshot</span> — file storage not yet enabled
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SpeakerBlock({
+  f,
+  state,
+  visible,
+  filesOn,
+  cap,
+}: {
+  f: FormField;
+  state: RenderState;
+  visible: boolean;
+  filesOn: boolean;
+  cap: number;
+}) {
+  const speakers = state.speakers.length ? state.speakers : [{ name: '', email: '', bio: '' }];
+  return (
+    <div data-fw={f.id} data-type="GRP" data-cond={f.cond ? JSON.stringify(f.cond) : undefined} hidden={!visible}>
+      <div style="display:grid;gap:12px;">
+        <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;color:var(--text-secondary);">
+          <input
+            type="checkbox"
+            name="agent_mode"
+            value="1"
+            checked={state.agentMode}
+            data-agent
+            style="accent-color:var(--primary);margin-top:2px;"
+          />
+          <span>
+            I’m submitting on behalf of someone else — I manage this submission, the speaker gets speaker-facing emails.
+          </span>
+        </label>
+        {state.errors.speakers ? (
+          <div style="font-size:12px;color:#c92a2a;">{state.errors.speakers}</div>
+        ) : null}
+        <div id="pf-speakers" data-cap={String(cap)} style="display:grid;gap:12px;">
+          {speakers.map((s, i) => (
+            <SpeakerCard i={i} s={s} state={state} filesOn={filesOn} />
+          ))}
+        </div>
+        {speakers.length < cap ? (
+          <button
+            type="button"
+            id="pf-add-speaker"
+            style="padding:11px 0;background:var(--card);border:1px dashed #c9c2b4;font-size:13.5px;color:var(--text-secondary);cursor:pointer;"
+          >
+            {`+ Add co-speaker (${speakers.length}/${cap})`}
+          </button>
+        ) : (
+          <button
+            type="button"
+            id="pf-add-speaker"
+            hidden
+            style="padding:11px 0;background:var(--card);border:1px dashed #c9c2b4;font-size:13.5px;color:var(--text-secondary);cursor:pointer;"
+          >
+            {`+ Add co-speaker (${speakers.length}/${cap})`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ page */
+
+function fmtEventLine(event: Event): string {
+  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [sy, sm, sd] = event.start_date.slice(0, 10).split('-').map(Number);
+  const [, em, ed] = (event.end_date || event.start_date).slice(0, 10).split('-').map(Number);
+  const range =
+    sm === em ? `${M[sm - 1]} ${sd}–${ed}, ${sy}` : `${M[sm - 1]} ${sd} – ${M[em - 1]} ${ed}, ${sy}`;
+  const bits = [range];
+  if (event.venue) bits.push(event.venue);
+  if (event.mode === 'hybrid') bits.push('in person + online');
+  else if (event.mode === 'online') bits.push('online');
+  return bits.join(' · ');
+}
+
+function renderPage(opts: {
+  event: Event;
+  theme: Theme;
+  form: FormRow;
+  settings: FormSettings;
+  schema: FormSchema;
+  state: RenderState;
+  filesOn: boolean;
+  late: boolean;
+  showWelcome: boolean;
+  user: User | null;
+  toast?: string | null;
+}) {
+  const { event, form, settings, schema, state, filesOn, late } = opts;
+  const fields = schema.fields;
+  const vis = visibleIds(fields, state.answers);
+  const cap = speakerCap(fields, settings);
+  const items = layoutItems(fields);
+
+  const saveIndicator = (
+    <span style="display:flex;align-items:center;gap:6px;">
+      <span id="pf-dot" style="display:inline-block;width:7px;height:7px;background:#2b8a3e;"></span>
+      <span id="pf-save">{state.draftId ? 'DRAFT SAVED' : 'NOT SAVED YET'}</span>
+    </span>
+  ) as unknown as string;
+
+  const kicker = `${form.name.toUpperCase()}${form.closes_at ? ` · CLOSES ${monthDay(form.closes_at).toUpperCase()}` : ''}`;
+
+  return (
+    <PublicLayout
+      title={form.name}
+      event={event}
+      theme={opts.theme}
+      maxWidth={620}
+      kicker={saveIndicator}
+      toast={opts.toast ?? null}
+      scripts={['/js/public-form.js']}
+    >
+      {raw(
+        `<script type="application/json" id="pf-data">${JSON.stringify({
+          eventSlug: event.slug,
+          formSlug: form.slug,
+          formName: form.name,
+          submissionId: state.draftId,
+          fields,
+          answers: state.answers,
+          speakers: state.speakers,
+          agentMode: state.agentMode,
+          cap,
+          allowDrafts: settings.allowDrafts,
+          filesEnabled: filesOn,
+          needEmail: !opts.user && !state.draftId,
+        }).replace(/</g, '\\u003c')}</script>`
+      )}
+      <div style="max-width:620px;margin:0 auto;padding:28px 20px 80px;">
+        {late ? (
+          <div
+            style={`border:1px solid #f0c36d;background:#fdf5dc;color:#b08800;padding:11px 14px;margin-bottom:20px;font-size:13px;font-family:${MONO_VAR};letter-spacing:0.04em;`}
+          >
+            LATE SUBMISSION LINK · THIS CALL IS CLOSED TO THE PUBLIC
           </div>
-          <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;margin-bottom:4px;">Submission form</div>
-          <div style="font-size:13.5px;color:var(--text-secondary);">The public submission form (conditional fields, autosave, co-speakers) lands in track B1.</div>
+        ) : null}
+        <div style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--primary);margin-bottom:8px;`}>
+          {kicker}
+        </div>
+        <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">{`Speak at ${event.name}`}</h1>
+        <p style="margin:0 0 6px;font-size:15px;color:var(--text-secondary);line-height:1.55;">{fmtEventLine(event)}</p>
+        <p style="margin:0 0 26px;font-size:12.5px;color:var(--muted);">
+          {opts.user ? (
+            <>
+              {'Signed in as '}
+              <span style={`font-family:${MONO_VAR};`}>{opts.user.email}</span>
+              {' — no password, ever. '}
+              {settings.allowDrafts ? 'Your draft autosaves.' : 'Submit when you’re ready.'}
+            </>
+          ) : settings.allowDrafts ? (
+            'No password, ever — leave your email and we’ll send a link so you can pick this up on any device. Your draft autosaves.'
+          ) : (
+            'No password, ever — we’ll email you a confirmation once you submit.'
+          )}
+        </p>
+
+        {opts.showWelcome ? (
+          <div style="border:1px solid var(--border-strong);background:var(--card);padding:24px 26px;margin-bottom:26px;">
+            <div style="font-size:14px;line-height:1.65;color:var(--text-secondary);">
+              {raw(renderMarkdown(settings.welcomeMd))}
+            </div>
+            <a
+              href="?start=1"
+              id="pf-start"
+              style="display:inline-block;margin-top:22px;padding:11px 26px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;"
+            >
+              Start →
+            </a>
+          </div>
+        ) : null}
+
+        <div id="pf-body" hidden={opts.showWelcome}>
+          {state.errorList.length ? (
+            <div id="pf-errors" style="border:1px solid #e03131;background:var(--card);padding:14px 16px;margin-bottom:20px;">
+              <div style="font-weight:700;font-size:13.5px;color:#c92a2a;margin-bottom:6px;">
+                {`Fix ${state.errorList.length} thing${state.errorList.length > 1 ? 's' : ''} before submitting:`}
+              </div>
+              {state.errorList.map((e) => (
+                <div style="font-size:13px;color:#c92a2a;">{`· ${e}`}</div>
+              ))}
+            </div>
+          ) : (
+            <div id="pf-errors" hidden style="border:1px solid #e03131;background:var(--card);padding:14px 16px;margin-bottom:20px;"></div>
+          )}
+
+          <form id="pf-form" method="post" action={`/${event.slug}/${form.slug}`} style="display:grid;gap:22px;">
+            <input type="hidden" name="submission_id" id="pf-submission-id" value={state.draftId ?? ''} />
+            {late ? <input type="hidden" name="key" value={settings.lateLinkSecret ?? ''} /> : null}
+
+            {!opts.user ? (
+              <div id="pf-email-block" style="border:1px solid var(--border-strong);background:var(--card);padding:16px;">
+                <div style={LABEL}>Where should we send your magic link + confirmation? <span style="color:#e03131;">*</span></div>
+                <input
+                  type="email"
+                  name="email"
+                  id="pf-email"
+                  inputmode="email"
+                  autocomplete="email"
+                  value={state.email}
+                  placeholder="you@example.com"
+                  style={inputStyle(!!opts.state.errors.email)}
+                />
+                {opts.state.errors.email ? (
+                  <div style="font-size:12px;color:#c92a2a;margin-top:4px;">{opts.state.errors.email}</div>
+                ) : null}
+                <div style="font-size:11.5px;color:var(--muted);margin-top:6px;">
+                  We create your speaker account automatically — no password to remember.
+                </div>
+                {state.simulatedLink ? (
+                  <div style={`margin-top:10px;font-family:${MONO_VAR};font-size:11px;background:var(--chip);padding:8px 10px;word-break:break-all;`}>
+                    {'Email sending is simulated in this environment — your draft link: '}
+                    <a href={state.simulatedLink}>{state.simulatedLink}</a>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {items.map((it) =>
+              it.kind === 'section' ? (
+                <div style={SECTION}>{it.label}</div>
+              ) : (
+                <FieldBlock
+                  f={it.field}
+                  fields={fields}
+                  state={state}
+                  visible={vis.has(it.field.id)}
+                  filesOn={filesOn}
+                  cap={cap}
+                />
+              )
+            )}
+
+            <button
+              type="submit"
+              id="pf-submit"
+              style="padding:15px 0;background:var(--primary);color:var(--on-primary);border:none;font-size:15.5px;font-weight:700;cursor:pointer;letter-spacing:0.01em;"
+            >
+              Submit session →
+            </button>
+            <div style="font-size:12px;color:var(--muted);text-align:center;">
+              {settings.allowDrafts
+                ? 'Drafts validate softly — submitting runs the real checks. You can edit until the call closes.'
+                : 'Submitting runs the real checks.'}
+            </div>
+          </form>
         </div>
       </div>
     </PublicLayout>
   );
+}
+
+/* ------------------------------------------------------------------ loading */
+
+async function speakersOf(db: D1Database, submissionId: string): Promise<SpeakerInput[]> {
+  const rows = await all<SpeakerRow>(
+    db,
+    `SELECT * FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
+    submissionId
+  );
+  return rows.map((r) => ({ name: r.name, email: r.email, bio: r.bio, headshotFileId: r.headshot_file_id }));
+}
+
+function canAccess(sub: SubmissionRow, user: User | null, cookieIds: string[]): boolean {
+  if (user && sub.owner_user_id === user.id) return true;
+  return cookieIds.includes(sub.id);
+}
+
+/* ------------------------------------------------------------------ JSON API (autosave + upload) */
+
+app.post('/p/api/draft', async (c) => {
+  const body = await c.req.json<{
+    eventSlug?: string;
+    formSlug?: string;
+    submissionId?: string | null;
+    email?: string;
+    answers?: Answers;
+    speakers?: SpeakerInput[];
+    agentMode?: boolean;
+  }>().catch(() => null);
+  if (!body?.eventSlug || !body?.formSlug) return c.json({ ok: false, error: 'Missing form.' }, 400);
+
+  const found = await loadPublicEvent(c.env.DB, body.eventSlug);
+  if (!found) return c.json({ ok: false, error: 'Event not found.' }, 404);
+  const loaded = await loadForm(c.env.DB, found.event.id, body.formSlug);
+  if (!loaded) return c.json({ ok: false, error: 'Form not found.' }, 404);
+  if (!loaded.settings.allowDrafts) return c.json({ ok: false, error: 'This form does not save drafts.' }, 400);
+
+  const user = c.var.user;
+  const cookies = draftIds(c);
+  const answers = body.answers ?? {};
+  const speakers = (body.speakers ?? []).map((s) => ({
+    name: String(s.name ?? ''),
+    email: String(s.email ?? ''),
+    bio: String(s.bio ?? ''),
+    headshotFileId: s.headshotFileId ?? null,
+  }));
+
+  let sub: SubmissionRow | null = null;
+  if (body.submissionId) {
+    sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, body.submissionId);
+    if (!sub || sub.form_id !== loaded.form.id) return c.json({ ok: false, error: 'Draft not found.' }, 404);
+    if (!canAccess(sub, user, cookies)) return c.json({ ok: false, error: 'That draft belongs to someone else.' }, 403);
+    if (sub.status !== 'draft') return c.json({ ok: false, error: 'This submission is already in.' }, 400);
+  }
+
+  let simulatedLink: string | null = null;
+  if (!sub) {
+    const email = (body.email ?? '').trim();
+    if (!user && !email) return c.json({ ok: true, needEmail: true });
+    const owner = user ?? (await findOrCreateUserByEmail(c.env.DB, email));
+    const id = newId('sub');
+    const stamp = now();
+    await run(
+      c.env.DB,
+      `INSERT INTO submissions (id, event_id, form_id, form_version_id, seq, status, title, abstract, answers_json,
+         owner_user_id, agent_mode, withdraw_reason, submitted_at, created_at, updated_at)
+       VALUES (?,?,?,?,0,'draft','','','{}',?,?,NULL,NULL,?,?)`,
+      id,
+      found.event.id,
+      loaded.form.id,
+      loaded.version.id,
+      owner.id,
+      body.agentMode ? 1 : 0,
+      stamp,
+      stamp
+    );
+    sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, id);
+    rememberDraft(c, id, cookies);
+    await logActivity(c.env.DB, {
+      eventId: found.event.id,
+      subjectType: 'submission',
+      subjectId: id,
+      actor: owner.email,
+      action: 'Draft started',
+      detail: loaded.form.name,
+    });
+    if (!user) {
+      const res = await requestMagicLink(
+        c.env,
+        owner.email,
+        'draft_link',
+        { submissionId: id, next: `/${found.event.slug}/${loaded.form.slug}?draft=${id}` },
+        {
+          eventId: found.event.id,
+          subject: `Your ${found.event.name} draft`,
+          text: `Here is the link back to your ${found.event.name} submission draft. It works once and expires in 30 minutes — your draft keeps autosaving in this browser either way.`,
+        }
+      );
+      simulatedLink = res.simulatedLink ?? null;
+    }
+  }
+
+  const roles = coreRoles(loaded.schema.fields);
+  const title = roles.title ? String(answers[roles.title.id] ?? '') : '';
+  const abstract = roles.abstract ? String(answers[roles.abstract.id] ?? '') : '';
+
+  await run(
+    c.env.DB,
+    `UPDATE submissions SET answers_json = ?, title = ?, abstract = ?, agent_mode = ?, updated_at = ? WHERE id = ?`,
+    JSON.stringify(answers),
+    title,
+    abstract,
+    body.agentMode ? 1 : 0,
+    now(),
+    sub!.id
+  );
+  await writeSpeakers(c.env.DB, sub!.id, speakers);
+
+  return c.json({ ok: true, submissionId: sub!.id, simulatedLink });
+});
+
+async function writeSpeakers(db: D1Database, submissionId: string, speakers: SpeakerInput[]) {
+  await run(db, `DELETE FROM submission_speakers WHERE submission_id = ?`, submissionId);
+  for (let i = 0; i < speakers.length; i++) {
+    const s = speakers[i];
+    if (!s.name?.trim() && !s.email?.trim() && !s.bio?.trim() && !s.headshotFileId) continue;
+    await run(
+      db,
+      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, headshot_file_id, user_id)
+       VALUES (?,?,?,?,?,?,?,NULL)`,
+      newId('ssp'),
+      submissionId,
+      i,
+      (s.name ?? '').trim(),
+      (s.email ?? '').trim(),
+      (s.bio ?? '').trim(),
+      s.headshotFileId || null
+    );
+  }
+}
+
+app.post('/p/api/upload', async (c) => {
+  if (!filesEnabled(c.env)) return c.json({ ok: false, error: 'File storage is not enabled yet.' }, 400);
+  const form = await c.req.parseBody();
+  const submissionId = String(form.submissionId ?? '');
+  const kind = String(form.kind ?? 'upload') === 'headshot' ? 'headshot' : 'upload';
+  const fieldId = String(form.fieldId ?? '');
+  const file = form.file;
+  if (!(file instanceof File)) return c.json({ ok: false, error: 'No file received.' }, 400);
+
+  const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, submissionId);
+  if (!sub) return c.json({ ok: false, error: 'Save your draft first.' }, 400);
+  if (!canAccess(sub, c.var.user, draftIds(c))) return c.json({ ok: false, error: 'Not your submission.' }, 403);
+
+  const formRow = await one<FormRow>(c.env.DB, `SELECT * FROM forms WHERE id = ?`, sub.form_id);
+  const loaded = formRow ? await loadForm(c.env.DB, sub.event_id, formRow.id) : null;
+  const field = loaded?.schema.fields.find((f) => f.id === fieldId) ?? null;
+
+  const res = await saveUpload(c.env, {
+    eventId: sub.event_id,
+    kind,
+    subjectType: kind === 'headshot' ? 'submission_speaker' : 'submission',
+    subjectId: kind === 'headshot' ? `${sub.id}:${String(form.position ?? '0')}` : `${sub.id}:${fieldId}`,
+    file,
+    uploadedBy: c.var.user?.id ?? sub.owner_user_id,
+    maxMb: kind === 'headshot' ? 10 : field?.validation.fileMaxMb ?? 25,
+    allowedExts: kind === 'headshot' ? 'jpg, jpeg, png, webp' : field?.validation.fileExts ?? '',
+  });
+  if (!res.ok) return c.json({ ok: false, error: res.error }, 400);
+  return c.json({ ok: true, id: res.file.id, filename: res.file.filename, url: `/files/${res.file.id}` });
+});
+
+/* ------------------------------------------------------------------ GET the form */
+
+app.get('/:event/:form', async (c) => {
+  const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
+  if (!found) return c.notFound();
+  const loaded = await loadForm(c.env.DB, found.event.id, c.req.param('form'));
+  if (!loaded) return c.notFound();
+
+  const taxonomies = await loadTaxonomies(c.env.DB, found.event.id);
+  const schema = hydrateSchema(loaded.schema, taxonomies);
+  const settings = loaded.settings;
+  const user = c.var.user;
+  const cookies = draftIds(c);
+
+  /* ------------------------------------------------------------ post-submit */
+  const submittedId = c.req.query('submitted');
+  if (submittedId) {
+    const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, submittedId);
+    if (sub && sub.form_id === loaded.form.id && canAccess(sub, user, cookies)) {
+      const speakers = await speakersOf(c.env.DB, sub.id);
+      return c.html(
+        <PublicLayout title={loaded.form.name} event={found.event} theme={found.theme} maxWidth={620}>
+          <div style="max-width:620px;margin:0 auto;padding:56px 20px;text-align:center;">
+            <div style="width:56px;height:56px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-size:26px;margin:0 auto 18px;">
+              ✓
+            </div>
+            <h1 style="margin:0 0 10px;font-size:26px;letter-spacing:-0.02em;">It’s in. Nice work.</h1>
+            <p style="font-size:15px;color:var(--text-secondary);line-height:1.6;max-width:440px;margin:0 auto 26px;">
+              {`“${sub.title || 'Your session'}” is with the ${found.event.name} program team. `}
+              {settings.postSubmitMsg ||
+                'You’ll get a confirmation email now, and we’ll be in touch with a decision. Track it any time in your speaker portal.'}
+            </p>
+            <div style="border:1px solid var(--border-strong);background:var(--card);max-width:360px;margin:0 auto 20px;padding:22px;text-align:left;">
+              <div style={`font-family:${MONO_VAR};font-size:10px;letter-spacing:0.14em;color:var(--primary);margin-bottom:8px;`}>
+                I JUST SUBMITTED TO
+              </div>
+              <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;">{found.event.name}</div>
+              <div style="font-size:12.5px;color:var(--muted);margin-top:4px;">{fmtEventLine(found.event)}</div>
+              <div style={`font-family:${MONO_VAR};font-size:11px;color:var(--muted);margin-top:10px;`}>
+                {`SUB-${sub.seq}`}
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+              <button
+                type="button"
+                data-copy={`I just submitted “${sub.title}” to ${found.event.name} — ${c.env.APP_ORIGIN}/${found.event.slug}/${loaded.form.slug}`}
+                data-copy-msg="Share card copied — post it anywhere"
+                style="padding:10px 18px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+              >
+                Share the card
+              </button>
+              <a
+                href={`/${found.event.slug}/portal`}
+                style="padding:10px 18px;border:1px solid var(--border-strong);font-size:13px;font-weight:600;color:var(--text);text-decoration:none;"
+              >
+                Open speaker portal →
+              </a>
+            </div>
+            {!user && speakers[0]?.email ? (
+              <div style={`max-width:440px;margin:22px auto 0;font-size:12px;color:var(--muted);`}>
+                {`We emailed ${speakers[0].email} — open that link to reach your speaker portal.`}
+              </div>
+            ) : null}
+            <div style="margin-top:26px;">
+              <a href={`/${found.event.slug}/${loaded.form.slug}`} style="color:var(--muted);font-size:12px;text-decoration:underline;">
+                Submit another proposal
+              </a>
+            </div>
+          </div>
+        </PublicLayout>
+      );
+    }
+  }
+
+  /* ------------------------------------------------------------ open window */
+  const state = openState(loaded.form, settings, found.event.timezone, c.req.query('key'));
+  if (!state.open) {
+    return c.html(
+      <PublicLayout title={loaded.form.name} event={found.event} theme={found.theme} maxWidth={620}>
+        <div style="max-width:620px;margin:0 auto;padding:64px 20px;text-align:center;">
+          <div style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);margin-bottom:10px;`}>
+            {loaded.form.name.toUpperCase()}
+          </div>
+          <h1 style="margin:0 0 12px;font-size:26px;letter-spacing:-0.02em;">{state.message}</h1>
+          <p style="font-size:14.5px;color:var(--text-secondary);line-height:1.6;max-width:420px;margin:0 auto 24px;">
+            {state.reason === 'not_yet' && loaded.form.opens_at
+              ? `Submissions open ${monthDay(loaded.form.opens_at)}. Check back then.`
+              : state.reason === 'draft'
+                ? 'The organizers haven’t published this form yet.'
+                : 'Thanks for the interest — the program team is reviewing what came in.'}
+          </p>
+          <a
+            href={`/${found.event.slug}/agenda`}
+            style="display:inline-block;padding:11px 22px;background:var(--primary);color:var(--on-primary);font-size:13.5px;font-weight:600;text-decoration:none;"
+          >
+            See the programme →
+          </a>
+        </div>
+      </PublicLayout>,
+      state.reason === 'draft' ? 404 : 200
+    );
+  }
+
+  /* ------------------------------------------------------------ draft resume */
+  let draft: SubmissionRow | null = null;
+  const wanted = c.req.query('draft');
+  if (wanted) {
+    const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, wanted);
+    if (sub && sub.form_id === loaded.form.id && sub.status === 'draft' && canAccess(sub, user, cookies)) {
+      draft = sub;
+      rememberDraft(c, sub.id, cookies);
+    }
+  }
+  if (!draft && user) {
+    draft = await one<SubmissionRow>(
+      c.env.DB,
+      `SELECT * FROM submissions WHERE form_id = ? AND owner_user_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 1`,
+      loaded.form.id,
+      user.id
+    );
+  }
+  if (!draft && cookies.length) {
+    draft = await one<SubmissionRow>(
+      c.env.DB,
+      `SELECT * FROM submissions WHERE form_id = ? AND status = 'draft' AND id IN (${cookies.map(() => '?').join(',')})
+        ORDER BY updated_at DESC LIMIT 1`,
+      loaded.form.id,
+      ...cookies
+    );
+  }
+
+  const answers = draft ? jsonParse<Answers>(draft.answers_json, {}) : {};
+  const speakers = draft ? await speakersOf(c.env.DB, draft.id) : [];
+
+  const showWelcome = settings.welcomeEnabled && !!settings.welcomeMd && !c.req.query('start') && !draft;
+
+  return c.html(
+    renderPage({
+      event: found.event,
+      theme: found.theme,
+      form: loaded.form,
+      settings,
+      schema,
+      filesOn: filesEnabled(c.env),
+      late: state.late,
+      showWelcome,
+      user,
+      toast: c.req.query('ok') ?? null,
+      state: {
+        answers,
+        speakers,
+        agentMode: !!draft?.agent_mode,
+        errors: {},
+        errorList: [],
+        tried: false,
+        draftId: draft?.id ?? null,
+        email: '',
+      },
+    })
+  );
+});
+
+/* ------------------------------------------------------------------ POST submit */
+
+function vals(body: Record<string, unknown>, key: string): string[] {
+  const raw = body[key] !== undefined ? body[key] : body[`${key}[]`];
+  if (raw === undefined || raw === null) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.filter((v): v is string => typeof v === 'string');
+}
+
+function answersFromBody(fields: FormField[], body: Record<string, unknown>): Answers {
+  const answers: Answers = {};
+  for (const f of fields) {
+    if (f.type === 'HDR' || f.type === 'GRP') continue;
+    const got = vals(body, `f_${f.id}`);
+    switch (f.type) {
+      case 'MULTI':
+        answers[f.id] = got;
+        break;
+      case 'CHK':
+        answers[f.id] = got.length > 0;
+        break;
+      case 'FILE':
+        answers[f.id] = (got[0] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+        break;
+      case 'URL':
+        answers[f.id] = got[0] ? normalizeUrl(got[0]) : '';
+        break;
+      default:
+        answers[f.id] = got[0] ?? '';
+    }
+  }
+  return answers;
+}
+
+function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
+  const names = vals(body, 'sp_name');
+  const emails = vals(body, 'sp_email');
+  const bios = vals(body, 'sp_bio');
+  const heads = vals(body, 'sp_headshot');
+  const n = Math.max(names.length, emails.length, bios.length, heads.length);
+  const out: SpeakerInput[] = [];
+  for (let i = 0; i < n; i++) {
+    out.push({
+      name: (names[i] ?? '').trim(),
+      email: (emails[i] ?? '').trim(),
+      bio: (bios[i] ?? '').trim(),
+      headshotFileId: heads[i] || null,
+    });
+  }
+  // Trailing blank cards are ignored (the island can leave one behind).
+  while (out.length > 1 && !out[out.length - 1].name && !out[out.length - 1].email) out.pop();
+  return out;
+}
+
+app.post('/:event/:form', async (c) => {
+  const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
+  if (!found) return c.notFound();
+  const loaded = await loadForm(c.env.DB, found.event.id, c.req.param('form'));
+  if (!loaded) return c.notFound();
+
+  const body = (await c.req.parseBody({ all: true })) as Record<string, unknown>;
+  const taxonomies = await loadTaxonomies(c.env.DB, found.event.id);
+  const schema = hydrateSchema(loaded.schema, taxonomies);
+  const settings = loaded.settings;
+  const fields = schema.fields;
+
+  const state = openState(loaded.form, settings, found.event.timezone, vals(body, 'key')[0] ?? c.req.query('key'));
+  if (!state.open) {
+    return c.redirect(`/${found.event.slug}/${loaded.form.slug}`);
+  }
+
+  const user = c.var.user;
+  const cookies = draftIds(c);
+  const answers = answersFromBody(fields, body);
+  const speakers = speakersFromBody(body);
+  const agentMode = vals(body, 'agent_mode').length > 0;
+  const email = (vals(body, 'email')[0] ?? '').trim();
+  const cap = speakerCap(fields, settings);
+
+  const check = validateSubmission(fields, answers, speakers, { hard: true, speakerCap: cap });
+  const errors = { ...check.errors };
+  const errorList = [...check.list];
+  if (!user && !email && !vals(body, 'submission_id')[0]) {
+    errors.email = 'We need an email address to send your confirmation.';
+    errorList.unshift('Email — required so we can confirm your submission');
+  }
+
+  let draft: SubmissionRow | null = null;
+  const draftId = vals(body, 'submission_id')[0];
+  if (draftId) {
+    const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, draftId);
+    if (sub && sub.form_id === loaded.form.id && canAccess(sub, user, cookies)) draft = sub;
+  }
+
+  if (errorList.length) {
+    return c.html(
+      renderPage({
+        event: found.event,
+        theme: found.theme,
+        form: loaded.form,
+        settings,
+        schema,
+        filesOn: filesEnabled(c.env),
+        late: state.late,
+        showWelcome: false,
+        user,
+        state: {
+          answers,
+          speakers,
+          agentMode,
+          errors,
+          errorList,
+          tried: true,
+          draftId: draft?.id ?? null,
+          email,
+        },
+      }),
+      422
+    );
+  }
+
+  /* ------------------------------------------------------------ persist */
+  const owner = user ?? (draft?.owner_user_id
+    ? await one<User>(c.env.DB, `SELECT * FROM users WHERE id = ?`, draft.owner_user_id)
+    : null) ?? (await findOrCreateUserByEmail(c.env.DB, email || speakers[0]?.email || '', speakers[0]?.name ?? null));
+
+  const roles = coreRoles(fields);
+  const cleaned = stripHidden(fields, answers);
+  const title = roles.title ? String(cleaned[roles.title.id] ?? '') : speakers[0]?.name ?? '';
+  const abstract = roles.abstract ? String(cleaned[roles.abstract.id] ?? '') : '';
+  const stamp = now();
+
+  let submissionId: string;
+  let seq: number;
+  if (draft && draft.status === 'draft') {
+    submissionId = draft.id;
+    seq = await nextSeq(c.env.DB, found.event.id, 'submission');
+    await run(
+      c.env.DB,
+      `UPDATE submissions SET seq = ?, status = 'submitted', title = ?, abstract = ?, answers_json = ?, owner_user_id = ?,
+         agent_mode = ?, form_version_id = ?, submitted_at = ?, updated_at = ? WHERE id = ?`,
+      seq,
+      title,
+      abstract,
+      JSON.stringify(cleaned),
+      owner.id,
+      agentMode ? 1 : 0,
+      loaded.version.id,
+      stamp,
+      stamp,
+      submissionId
+    );
+  } else {
+    submissionId = newId('sub');
+    seq = await nextSeq(c.env.DB, found.event.id, 'submission');
+    await run(
+      c.env.DB,
+      `INSERT INTO submissions (id, event_id, form_id, form_version_id, seq, status, title, abstract, answers_json,
+         owner_user_id, agent_mode, withdraw_reason, submitted_at, created_at, updated_at)
+       VALUES (?,?,?,?,?,'submitted',?,?,?,?,?,NULL,?,?,?)`,
+      submissionId,
+      found.event.id,
+      loaded.form.id,
+      loaded.version.id,
+      seq,
+      title,
+      abstract,
+      JSON.stringify(cleaned),
+      owner.id,
+      agentMode ? 1 : 0,
+      stamp,
+      stamp,
+      stamp
+    );
+  }
+  await writeSpeakers(c.env.DB, submissionId, speakers);
+  rememberDraft(c, submissionId, cookies);
+
+  await logActivity(c.env.DB, {
+    eventId: found.event.id,
+    subjectType: 'submission',
+    subjectId: submissionId,
+    actor: owner.name || owner.email,
+    action: 'Submitted',
+    detail: `SUB-${seq} · ${loaded.form.name}`,
+  });
+
+  /* ------------------------------------------------------------ emails */
+  const tpl = await one<{ subject: string; body: string }>(
+    c.env.DB,
+    `SELECT subject, body FROM email_templates WHERE event_id = ? AND key = 'confirm_submission'`,
+    found.event.id
+  );
+  const portalLink = `${c.env.APP_ORIGIN}/${found.event.slug}/portal`;
+  const recipients = new Map<string, string>();
+  speakers.forEach((s) => {
+    if (s.email) recipients.set(s.email.toLowerCase(), s.name || s.email);
+  });
+  if (owner.email) recipients.set(owner.email.toLowerCase(), owner.name || owner.email);
+
+  for (const [to, toName] of recipients) {
+    const vars = {
+      speaker_name: toName,
+      session_title: title,
+      event_name: found.event.name,
+      portal_link: portalLink,
+    };
+    await sendEmail(c.env, {
+      eventId: found.event.id,
+      to,
+      toName,
+      templateKey: 'confirm_submission',
+      subject: tpl ? renderTemplate(tpl.subject, vars) : `We’ve got your ${found.event.name} submission`,
+      text: tpl
+        ? renderTemplate(tpl.body, vars)
+        : `Thanks for submitting “${title}” to ${found.event.name}.\n\n${portalLink}`,
+      subjectType: 'submission',
+      subjectId: submissionId,
+    });
+  }
+
+  for (const to of settings.notifyEmails) {
+    await sendEmail(c.env, {
+      eventId: found.event.id,
+      to,
+      templateKey: 'submission_notify',
+      subject: `New submission — ${title || 'untitled'} (SUB-${seq})`,
+      text:
+        `${loaded.form.name} received a new submission.\n\n` +
+        `SUB-${seq} · ${title}\n${speakers.map((s) => `${s.name} <${s.email}>`).join('\n')}\n\n` +
+        `${c.env.APP_ORIGIN}/app/submissions`,
+      subjectType: 'submission',
+      subjectId: submissionId,
+    });
+  }
+
+  if (!user && owner.email) {
+    await requestMagicLink(
+      c.env,
+      owner.email,
+      'signin',
+      { next: `/${found.event.slug}/portal` },
+      {
+        eventId: found.event.id,
+        subject: `Your ${found.event.name} speaker portal`,
+        text: `Open your speaker portal to track “${title}”.`,
+      }
+    );
+  }
+
+  return c.redirect(`/${found.event.slug}/${loaded.form.slug}?submitted=${submissionId}`);
 });
 
 export default app;
