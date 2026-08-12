@@ -60,11 +60,6 @@ const DRAWER_INPUT = 'width:100%;padding:8px 10px;border:1px solid #d8d9de;font-
 const TYPE_CHIP = `font-family:${MONO};font-size:9.5px;background:#eef0fb;color:#4c5fd5;padding:3px 6px;font-weight:600;min-width:34px;text-align:center;line-height:1.4;flex:none;`;
 
 const PAGE_CSS = `
-  /* Build mode is a full-height shell: the layout's <main> already stretches to
-     at least the viewport, so making it a column lets the builder grid claim
-     whatever is left under the app header and the picker bar. Without this the
-     field rail stops short of the bottom on short forms and on scroll. */
-  main{display:flex;flex-direction:column;}
   .us-seg input{position:absolute;opacity:0;width:0;height:0;}
   .us-seg span{display:block;padding:7px 14px;font-size:12.5px;cursor:pointer;font-weight:600;background:#fff;color:#686b74;}
   .us-seg input:checked + span{background:#16171d;color:#fff;}
@@ -316,10 +311,6 @@ function SettingsFields({
               </a>
             </div>
           )}
-          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">
-            Teammates are notified at whatever address they sign in with · removing someone from the team stops their
-            notifications
-          </div>
         </div>
         <div>
           <div style={FIELD_LABEL}>Also notify these addresses</div>
@@ -614,7 +605,7 @@ app.get('/app/forms', async (c) => {
 
       {/* ------------------------------------------------------ build mode */}
       {mode === 'build' ? (
-        <div style="display:grid;grid-template-columns:1fr 360px;gap:0;flex:1 0 auto;">
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:0;align-items:start;">
           <div style="padding:22px 28px;max-width:760px;">
             <div style="display:flex;align-items:center;margin-bottom:10px;min-height:14px;">
               <span id="fb-save-state" style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
@@ -680,18 +671,12 @@ app.get('/app/forms', async (c) => {
               ))}
             </div>
           </div>
-          {/* The aside is the white column — it stretches to the grid row, which
-              fills the viewport (see the `main` rule in PAGE_CSS), so the rail
-              reaches the bottom of the page at any scroll position. The inner
-              #fb-rail is what sticks, and what form-builder.js re-renders. */}
-          <aside style="border-left:1px solid #e2e3e8;background:#fff;">
-            <div
-              id="fb-rail"
-              style="position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:20px;box-sizing:border-box;"
-            >
-              <div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">
-                Select a field to configure it, or drag a field type onto the form.
-              </div>
+          <aside
+            id="fb-rail"
+            style="border-left:1px solid #e2e3e8;background:#fff;min-height:calc(100vh - 69px);padding:20px;position:sticky;top:0;"
+          >
+            <div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">
+              Select a field to configure it, or drag a field type onto the form.
             </div>
           </aside>
         </div>
