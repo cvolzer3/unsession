@@ -705,6 +705,8 @@ app.post('/app/api/sessions/create', requireOrgRole('collaborator'), async (c) =
         name: body.speaker.name.trim(),
         email: body.speaker.email.trim(),
         bio: (body.speaker.bio || '').trim(),
+        tagline: '',
+        links_json: null,
         headshot_file_id: null,
         user_id: null,
         position: 0,

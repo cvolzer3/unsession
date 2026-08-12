@@ -855,6 +855,8 @@ export async function createSession(env: Bindings, auth: ApiAuth, ref: string, i
         name: input.speaker.name.trim(),
         email: input.speaker.email.trim(),
         bio: (input.speaker.bio ?? '').trim(),
+        tagline: '',
+        links_json: null,
         headshot_file_id: null,
         user_id: null,
         position: 0,

@@ -40,6 +40,7 @@ import {
   type FormSchema,
 } from '../lib/forms';
 import { richMessageHtml } from '../lib/rich';
+import { linksJson, normalizeLinks, sanitizeLinks, type SpeakerLinks } from '../lib/speaker-links';
 import {
   normalizeUrl,
   requiredWhenVisible,
@@ -105,6 +106,8 @@ type SpeakerRow = {
   name: string;
   email: string;
   bio: string;
+  tagline: string;
+  links_json: string | null;
   headshot_file_id: string | null;
 };
 
@@ -474,6 +477,13 @@ function SpeakerCard({
           />
         </div>
       </div>
+      <input
+        name="sp_tagline[]"
+        value={s.tagline ?? ''}
+        maxlength={120}
+        placeholder="Tagline — role & company, e.g. “CTO at Acme”"
+        style={inputStyle(false)}
+      />
       <textarea
         name="sp_bio[]"
         rows={2}
@@ -482,6 +492,36 @@ function SpeakerCard({
       >
         {s.bio ?? ''}
       </textarea>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <input
+          name="sp_link_linkedin[]"
+          inputmode="url"
+          value={s.links?.linkedin ?? ''}
+          placeholder="LinkedIn (optional)"
+          style={inputStyle(!!state.errors[`sp${i}.link_linkedin`])}
+        />
+        <input
+          name="sp_link_x[]"
+          inputmode="url"
+          value={s.links?.x ?? ''}
+          placeholder="X (optional)"
+          style={inputStyle(!!state.errors[`sp${i}.link_x`])}
+        />
+        <input
+          name="sp_link_website[]"
+          inputmode="url"
+          value={s.links?.website ?? ''}
+          placeholder="Website (optional)"
+          style={inputStyle(!!state.errors[`sp${i}.link_website`])}
+        />
+        <input
+          name="sp_link_other[]"
+          inputmode="url"
+          value={s.links?.other ?? ''}
+          placeholder="Other link (optional)"
+          style={inputStyle(!!state.errors[`sp${i}.link_other`])}
+        />
+      </div>
       <input type="hidden" name="sp_headshot[]" value={s.headshotFileId ?? ''} />
       {filesOn ? (
         <label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
@@ -794,7 +834,14 @@ async function speakersOf(db: D1Database, submissionId: string): Promise<Speaker
     `SELECT * FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
     submissionId
   );
-  return rows.map((r) => ({ name: r.name, email: r.email, bio: r.bio, headshotFileId: r.headshot_file_id }));
+  return rows.map((r) => ({
+    name: r.name,
+    email: r.email,
+    bio: r.bio,
+    tagline: r.tagline ?? '',
+    links: jsonParse<SpeakerLinks>(r.links_json, {}),
+    headshotFileId: r.headshot_file_id,
+  }));
 }
 
 function canAccess(sub: SubmissionRow, user: User | null, cookieIds: string[]): boolean {
@@ -829,6 +876,8 @@ app.post('/p/api/draft', async (c) => {
     name: String(s.name ?? ''),
     email: String(s.email ?? ''),
     bio: String(s.bio ?? ''),
+    tagline: String(s.tagline ?? ''),
+    links: sanitizeLinks(s.links),
     headshotFileId: s.headshotFileId ?? null,
   }));
 
@@ -910,17 +959,20 @@ async function writeSpeakers(db: D1Database, submissionId: string, speakers: Spe
   await run(db, `DELETE FROM submission_speakers WHERE submission_id = ?`, submissionId);
   for (let i = 0; i < speakers.length; i++) {
     const s = speakers[i];
-    if (!s.name?.trim() && !s.email?.trim() && !s.bio?.trim() && !s.headshotFileId) continue;
+    const links = linksJson(s.links);
+    if (!s.name?.trim() && !s.email?.trim() && !s.bio?.trim() && !s.tagline?.trim() && !links && !s.headshotFileId) continue;
     await run(
       db,
-      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, headshot_file_id, user_id)
-       VALUES (?,?,?,?,?,?,?,NULL)`,
+      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, tagline, links_json, headshot_file_id, user_id)
+       VALUES (?,?,?,?,?,?,?,?,?,NULL)`,
       newId('ssp'),
       submissionId,
       i,
       (s.name ?? '').trim(),
       (s.email ?? '').trim(),
       (s.bio ?? '').trim(),
+      (s.tagline ?? '').trim(),
+      links,
       s.headshotFileId || null
     );
   }
@@ -1168,7 +1220,14 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
   const names = vals(body, 'sp_name');
   const emails = vals(body, 'sp_email');
   const bios = vals(body, 'sp_bio');
+  const taglines = vals(body, 'sp_tagline');
   const heads = vals(body, 'sp_headshot');
+  const linkCols = {
+    linkedin: vals(body, 'sp_link_linkedin'),
+    x: vals(body, 'sp_link_x'),
+    website: vals(body, 'sp_link_website'),
+    other: vals(body, 'sp_link_other'),
+  };
   const n = Math.max(names.length, emails.length, bios.length, heads.length);
   const out: SpeakerInput[] = [];
   for (let i = 0; i < n; i++) {
@@ -1176,6 +1235,13 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
       name: (names[i] ?? '').trim(),
       email: (emails[i] ?? '').trim(),
       bio: (bios[i] ?? '').trim(),
+      tagline: (taglines[i] ?? '').trim(),
+      links: sanitizeLinks({
+        linkedin: linkCols.linkedin[i],
+        x: linkCols.x[i],
+        website: linkCols.website[i],
+        other: linkCols.other[i],
+      }),
       headshotFileId: heads[i] || null,
     });
   }
@@ -1305,7 +1371,12 @@ app.post('/:event/:form', async (c) => {
       stamp
     );
   }
-  await writeSpeakers(c.env.DB, submissionId, speakers);
+  // Links validated above, so store them normalized (https:// prepended etc.).
+  await writeSpeakers(
+    c.env.DB,
+    submissionId,
+    speakers.map((s) => ({ ...s, links: normalizeLinks(s.links) }))
+  );
   rememberDraft(c, submissionId, cookies);
 
   await logActivity(c.env.DB, {

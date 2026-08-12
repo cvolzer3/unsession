@@ -11,6 +11,7 @@
  */
 import type { FieldCond, FormField } from './forms';
 import { coreRoles, wordCount } from './forms';
+import { LINK_FIELDS, normalizeLink, type SpeakerLinks } from './speaker-links';
 
 export type CondOp =
   | 'is'
@@ -29,6 +30,8 @@ export type SpeakerInput = {
   name: string;
   email: string;
   bio?: string;
+  tagline?: string;
+  links?: SpeakerLinks;
   headshotFileId?: string | null;
 };
 
@@ -298,6 +301,16 @@ export function validateSubmission(
         if (!nameOk) errors[`sp${i}.name`] = 'Name is required.';
         if (!emailOk) errors[`sp${i}.email`] = 'A valid email is required.';
         list.push(`Speaker ${i + 1} — name and a valid email required`);
+      }
+      for (const [key, label] of LINK_FIELDS) {
+        const raw = (s.links?.[key] ?? '').trim();
+        if (raw && !normalizeLink(raw)) {
+          fail(
+            `sp${i}.link_${key}`,
+            `The ${label} link needs to be a web address (https://…).`,
+            `Speaker ${i + 1} — ${label} link is not a web address`
+          );
+        }
       }
     });
   }

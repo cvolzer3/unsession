@@ -754,6 +754,8 @@ export async function generateTasksOnTrigger(
     name: string;
     email: string;
     bio: string;
+    tagline: string;
+    links_json: string | null;
     headshot_file_id: string | null;
     user_id: string | null;
     position: number;

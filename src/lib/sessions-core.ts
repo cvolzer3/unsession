@@ -20,7 +20,7 @@ type SubRow = {
   status: string;
 };
 
-type SpeakerRow = { id: string; name: string; email: string; bio: string; headshot_file_id: string | null; user_id: string | null; position: number };
+type SpeakerRow = { id: string; name: string; email: string; bio: string; tagline: string; links_json: string | null; headshot_file_id: string | null; user_id: string | null; position: number };
 
 type OptionRow = { id: string; name: string; duration_min: number | null; taxonomy: string };
 
@@ -58,14 +58,16 @@ export async function ensureSpeakerProfiles(env: Bindings, eventId: string, spea
     const id = newId('spk');
     await run(
       env.DB,
-      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, headshot_file_id, slug, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, tagline, links_json, headshot_file_id, slug, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       id,
       eventId,
       sp.user_id ?? null,
       sp.email,
       sp.name || sp.email,
       sp.bio || '',
+      sp.tagline || null,
+      sp.links_json ?? null,
       sp.headshot_file_id ?? null,
       slug,
       now()

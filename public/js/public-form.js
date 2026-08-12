@@ -141,6 +141,26 @@ export function inlineLinks(text) {
   return out;
 }
 
+const SPEAKER_LINKS = [
+  ['linkedin', 'LinkedIn'],
+  ['x', 'X'],
+  ['website', 'Website'],
+  ['other', 'Other'],
+];
+
+/** Mirrors `src/lib/speaker-links.ts` normalizeLink — https:// on bare domains, http(s) only. */
+function normalizeLink(raw) {
+  let value = raw.trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 /** Mirrors `src/lib/conditions.ts` validateSubmission for the hard checks the UI shows. */
 export function validate(fields, answers, speakers, cap) {
   const ids = visibleIds(fields, answers);
@@ -202,6 +222,16 @@ export function validate(fields, answers, speakers, cap) {
         if (!emailOk) errors[`sp${i}.email`] = 'A valid email is required.';
         list.push(`Speaker ${i + 1} — name and a valid email required`);
       }
+      SPEAKER_LINKS.forEach(([key, label]) => {
+        const raw = ((s.links && s.links[key]) || '').trim();
+        if (raw && !normalizeLink(raw)) {
+          fail(
+            `sp${i}.link_${key}`,
+            `The ${label} link needs to be a web address (https://…).`,
+            `Speaker ${i + 1} — ${label} link is not a web address`
+          );
+        }
+      });
     });
   }
   return { errors, list };
@@ -234,7 +264,14 @@ export function speakerCardHtml(i, s, opts) {
       <div><input name="sp_name[]" value="${escapeHtml(s.name || '')}" placeholder="Full name *" style="${INPUT(false)}"></div>
       <div><input name="sp_email[]" type="email" inputmode="email" value="${escapeHtml(s.email || '')}" placeholder="Email *" style="${INPUT(false)}"></div>
     </div>
+    <input name="sp_tagline[]" maxlength="120" value="${escapeHtml(s.tagline || '')}" placeholder="Tagline — role &amp; company, e.g. “CTO at Acme”" style="${INPUT(false)}">
     <textarea name="sp_bio[]" rows="2" placeholder="Short bio (shown on the public agenda)" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);font-size:13.5px;resize:vertical;font-family:inherit;background:var(--card);">${escapeHtml(s.bio || '')}</textarea>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <input name="sp_link_linkedin[]" inputmode="url" value="${escapeHtml((s.links && s.links.linkedin) || '')}" placeholder="LinkedIn (optional)" style="${INPUT(false)}">
+      <input name="sp_link_x[]" inputmode="url" value="${escapeHtml((s.links && s.links.x) || '')}" placeholder="X (optional)" style="${INPUT(false)}">
+      <input name="sp_link_website[]" inputmode="url" value="${escapeHtml((s.links && s.links.website) || '')}" placeholder="Website (optional)" style="${INPUT(false)}">
+      <input name="sp_link_other[]" inputmode="url" value="${escapeHtml((s.links && s.links.other) || '')}" placeholder="Other link (optional)" style="${INPUT(false)}">
+    </div>
     <input type="hidden" name="sp_headshot[]" value="${escapeHtml(s.headshotFileId || '')}">
     ${slot}
   </div>`;
@@ -425,6 +462,13 @@ function init() {
       name: (card.querySelector('[name="sp_name[]"]') || {}).value || '',
       email: (card.querySelector('[name="sp_email[]"]') || {}).value || '',
       bio: (card.querySelector('[name="sp_bio[]"]') || {}).value || '',
+      tagline: (card.querySelector('[name="sp_tagline[]"]') || {}).value || '',
+      links: {
+        linkedin: (card.querySelector('[name="sp_link_linkedin[]"]') || {}).value || '',
+        x: (card.querySelector('[name="sp_link_x[]"]') || {}).value || '',
+        website: (card.querySelector('[name="sp_link_website[]"]') || {}).value || '',
+        other: (card.querySelector('[name="sp_link_other[]"]') || {}).value || '',
+      },
       headshotFileId: (card.querySelector('[name="sp_headshot[]"]') || {}).value || null,
     }));
   }
@@ -652,7 +696,7 @@ function init() {
     }
     let first = null;
     Object.keys(result.errors).forEach((key) => {
-      const m = /^sp(\d+)\.(name|email)$/.exec(key);
+      const m = /^sp(\d+)\.(name|email|link_linkedin|link_x|link_website|link_other)$/.exec(key);
       if (m) {
         const card = form.querySelector(`[data-speaker="${m[1]}"]`);
         const el = card && card.querySelector(`[name="sp_${m[2]}[]"]`);

@@ -20,6 +20,7 @@ import { sendEmail, renderTemplate } from '../lib/email';
 import { confirmParticipation } from '../lib/confirm';
 import { filesEnabled, saveUpload } from '../lib/files';
 import * as T from '../lib/tasks';
+import { LINK_FIELDS, normalizeLink, type SpeakerLinks } from '../lib/speaker-links';
 
 const app = new Hono<Ctx>();
 
@@ -97,13 +98,14 @@ type ChecklistTask = {
 };
 
 /** Speaker-supplied social links (review-round B6) — only non-empty keys are stored. */
-type ProfileLinks = { linkedin?: string; x?: string; website?: string; other?: string };
+type ProfileLinks = SpeakerLinks;
 
 type ProfileRow = {
   id: string;
   name: string;
   email: string;
   bio: string;
+  tagline: string | null;
   pronouns: string | null;
   links_json: string | null;
   headshot_file_id: string | null;
@@ -121,7 +123,7 @@ type PortalData = {
 async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Promise<PortalData> {
   const profile = await one<ProfileRow>(
     env.DB,
-    `SELECT id, name, email, bio, pronouns, links_json, headshot_file_id FROM speaker_profiles WHERE event_id = ? AND email = ?`,
+    `SELECT id, name, email, bio, tagline, pronouns, links_json, headshot_file_id FROM speaker_profiles WHERE event_id = ? AND email = ?`,
     event.id,
     email
   );
@@ -671,7 +673,10 @@ app.get('/:event/portal', async (c) => {
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Pronouns (optional)</div>
               <input name="pronouns" placeholder="she/her" value={data.profile?.pronouns ?? ''} style={INPUT} />
             </div>
-            <div></div>
+            <div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Tagline (optional)</div>
+              <input name="tagline" maxlength={120} placeholder="CTO at Acme" value={data.profile?.tagline ?? ''} style={INPUT} />
+            </div>
           </div>
           <div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Bio</div>
@@ -1126,26 +1131,6 @@ app.post('/:event/portal/task/form', async (c) => {
   return back(c, g.event.slug, `“${task.tpl_name ?? 'Form'}” submitted — thank you!`);
 });
 
-/** Normalize a profile link: prepend https:// on bare domains, allow only http(s). Null = invalid. */
-function normalizeLink(raw: string): string | null {
-  let value = raw.trim();
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    return url.href;
-  } catch {
-    return null;
-  }
-}
-
-const LINK_FIELDS = [
-  ['linkedin', 'LinkedIn'],
-  ['x', 'X'],
-  ['website', 'Website'],
-  ['other', 'Other'],
-] as const;
-
 app.post('/:event/portal/profile', async (c) => {
   const g = await guard(c);
   if (g instanceof Response) return g;
@@ -1153,6 +1138,7 @@ app.post('/:event/portal/profile', async (c) => {
   const name = String(form.get('name') ?? '').trim();
   const bio = String(form.get('bio') ?? '').trim();
   const pronouns = String(form.get('pronouns') ?? '').trim() || null;
+  const tagline = String(form.get('tagline') ?? '').trim().slice(0, 120) || null;
 
   const links: ProfileLinks = {};
   for (const [key, label] of LINK_FIELDS) {
@@ -1174,14 +1160,15 @@ app.post('/:event/portal/profile', async (c) => {
     profileId = newId('spk');
     await run(
       c.env.DB,
-      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, pronouns, links_json, headshot_file_id, slug, created_at)
-       VALUES (?,?,?,?,?,?,?,?,NULL,?,?)`,
+      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, tagline, pronouns, links_json, headshot_file_id, slug, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?)`,
       profileId,
       g.event.id,
       c.var.user?.id ?? null,
       g.email,
       name || g.email,
       bio,
+      tagline,
       pronouns,
       linksJson,
       slug,
@@ -1190,9 +1177,10 @@ app.post('/:event/portal/profile', async (c) => {
   } else {
     await run(
       c.env.DB,
-      `UPDATE speaker_profiles SET name = ?, bio = ?, pronouns = ?, links_json = ? WHERE id = ?`,
+      `UPDATE speaker_profiles SET name = ?, bio = ?, tagline = ?, pronouns = ?, links_json = ? WHERE id = ?`,
       name,
       bio,
+      tagline,
       pronouns,
       linksJson,
       profileId

@@ -23,6 +23,7 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  tagline: string | null;
   pronouns: string | null;
   links_json: string | null;
   slug: string;
@@ -154,6 +155,9 @@ app.get('/:event/speakers/:slug', async (c) => {
               {`SPEAKER · ${event.name.toUpperCase()}`}
             </div>
             <h1 style="margin:8px 0 0;font-size:34px;letter-spacing:-0.02em;line-height:1.1;">{profile.name}</h1>
+            {profile.tagline ? (
+              <div style="font-size:14.5px;color:var(--text-secondary);margin-top:6px;">{profile.tagline}</div>
+            ) : null}
             {profile.pronouns ? (
               <div style="font-size:13px;color:var(--muted);margin-top:6px;">{profile.pronouns}</div>
             ) : null}
