@@ -5,8 +5,8 @@
  *     "condition cleared — source now later in the form" sanitize rule
  *   · the right-hand field settings rail (label, options, per-type validation,
  *     flags, conditional visibility, archive)
- *   · debounced schema save to /app/api/forms/:id/schema (copy-on-write
- *     versioning happens server-side)
+ *   · explicit "Save changes" (header button) posting to
+ *     /app/api/forms/:id/schema (copy-on-write versioning happens server-side)
  *   · Preview mode, rendered by the *public* form's renderer
  */
 import { toast, api, copy, openDialog } from './ui.js';
@@ -86,15 +86,12 @@ function boot(D) {
         scope.querySelectorAll('[data-welcome-block]').forEach((el) => {
           el.hidden = !box.checked;
         });
-        // The builder's PAGE 1 card follows the toggle without a reload, and the
-        // enabled state persists immediately (the copy itself autosaves from the card).
+        // The builder's PAGE 1 card follows the toggle without a reload; the
+        // enabled state persists when the drawer's own Save posts the form.
         const card = document.getElementById('fb-welcome-card');
         const off = document.getElementById('fb-welcome-off');
         if (card) card.hidden = !box.checked;
         if (off) off.hidden = box.checked;
-        api(`/app/api/forms/${D.formId}/settings`, { welcomeEnabled: box.checked }).catch((err) =>
-          toast(err.message, false)
-        );
       }
     });
   });
@@ -109,12 +106,20 @@ function boot(D) {
   let overIdx = null;
   let drag = null;
   let version = D.version;
-  let saveTimer = null;
+  // Edits mark the builder dirty; nothing hits the server until the header's
+  // "Save changes" button is pressed. rev/savedRev spot edits that land while
+  // a save is in flight, so a mid-save change never shows as saved.
+  let rev = 0;
+  let savedRev = 0;
+  let saving = false;
+  let schemaDirty = false; // fields changed since the last schema post
+  let pendingWelcome = null; // sanitized welcome HTML awaiting save
 
   const list = document.getElementById('fb-list');
   const endzone = document.getElementById('fb-endzone');
   const rail = document.getElementById('fb-rail');
   const saveState = document.getElementById('fb-save-state');
+  const saveBtn = document.getElementById('fb-save-btn');
   const palette = document.getElementById('fb-palette');
 
   const typeOf = (label) => (D.palette.find((p) => p.label === label) || { type: 'TXT' }).type;
@@ -131,53 +136,89 @@ function boot(D) {
     saveState.style.color = colour;
   }
 
-  function queueSave() {
-    setSaveState('SAVING…', '#b08800');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 600);
+  // Shared "there is unsaved work" UI; markDirty() is the field-edit flavour.
+  function touch() {
+    rev++;
+    setSaveState('UNSAVED CHANGES', '#b08800');
+    if (saveBtn) saveBtn.disabled = false;
+  }
+
+  function markDirty() {
+    schemaDirty = true;
+    touch();
   }
 
   async function save() {
+    if (saving || rev === savedRev) return;
+    saving = true;
+    if (saveBtn) saveBtn.disabled = true;
+    setSaveState('SAVING…', '#b08800');
+    const at = rev;
+    // Posting an unchanged schema to a frozen version would fork a spurious
+    // v+1, so only post the parts that actually changed. A mid-save edit
+    // re-raises the flag; the catch restores it so a failed post retries.
+    const postSchema = schemaDirty;
+    schemaDirty = false;
     try {
-      const res = await api(`/app/api/forms/${D.formId}/schema`, { fields });
-      if (res.sanitized) {
-        fields = res.fields;
-        renderList();
-        renderRail();
-        flash('A condition was cleared — its source now sits later in the form');
+      if (pendingWelcome != null) {
+        const welcome = pendingWelcome;
+        await api(`/app/api/forms/${D.formId}/settings`, { welcomeMd: welcome });
+        if (pendingWelcome === welcome) pendingWelcome = null;
       }
-      if (res.bumped) {
-        version = res.version;
-        flash(`Version v${version} created — previous versions keep their submissions’ answers`);
+      if (postSchema) {
+        const res = await api(`/app/api/forms/${D.formId}/schema`, { fields });
+        if (res.sanitized) {
+          fields = res.fields;
+          renderList();
+          renderRail();
+          flash('A condition was cleared — its source now sits later in the form');
+        }
+        if (res.bumped) {
+          version = res.version;
+          flash(`Version v${version} created — previous versions keep their submissions’ answers`);
+        }
       }
-      setSaveState('ALL CHANGES SAVED', '#c9cbd3');
+      savedRev = at;
+      if (rev === savedRev) {
+        setSaveState('ALL CHANGES SAVED', '#c9cbd3');
+      } else {
+        // Edits arrived while saving — keep the button live.
+        setSaveState('UNSAVED CHANGES', '#b08800');
+        if (saveBtn) saveBtn.disabled = false;
+      }
     } catch (err) {
+      if (postSchema) schemaDirty = true;
       setSaveState('NOT SAVED', '#c92a2a');
+      if (saveBtn) saveBtn.disabled = false;
       toast(err.message, false);
+    } finally {
+      saving = false;
     }
   }
 
+  if (saveBtn) saveBtn.addEventListener('click', save);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (rev === savedRev) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
   // PAGE 1 · WELCOME — the hidden #fb-welcome textarea carries the (already
-  // rich-lite) copy; mount the WYSIWYG editor in its place and autosave edits.
+  // rich-lite) copy; mount the WYSIWYG editor in its place. Edits are buffered
+  // in pendingWelcome and land with the schema on "Save changes".
   const welcomeSrc = document.getElementById('fb-welcome');
   if (welcomeSrc) {
     const holder = document.createElement('div');
     welcomeSrc.parentNode.insertBefore(holder, welcomeSrc);
     const welcomeValue = welcomeSrc.value;
     welcomeSrc.remove();
-    let wTimer = null;
     mountRichEditor(holder, {
       name: 'welcomeMd',
       value: welcomeValue,
       onChange: (html) => {
-        clearTimeout(wTimer);
-        wTimer = setTimeout(async () => {
-          try {
-            await api(`/app/api/forms/${D.formId}/settings`, { welcomeMd: sanitizeHtml(html) });
-          } catch (err) {
-            toast(err.message, false);
-          }
-        }, 700);
+        pendingWelcome = sanitizeHtml(html);
+        touch();
       },
     });
   }
@@ -297,7 +338,7 @@ function boot(D) {
       overIdx = null;
       renderList();
       renderRail();
-      queueSave();
+      markDirty();
       flash(dropped ? `“${fld.label}” moved — a condition was cleared (source now later in the form)` : `“${fld.label}” moved`);
     } else {
       const nf = newField(d.label);
@@ -307,7 +348,7 @@ function boot(D) {
       selId = nf.id;
       renderList();
       renderRail();
-      queueSave();
+      markDirty();
       flash(`“${nf.label}” added — configure it on the right`);
     }
   }
@@ -388,7 +429,7 @@ function boot(D) {
       selId = nf.id;
       renderList();
       renderRail();
-      queueSave();
+      markDirty();
       flash(`“${nf.label}” added — configure it on the right`);
     });
   }
@@ -398,7 +439,7 @@ function boot(D) {
   function patch(id, delta) {
     fields = fields.map((f) => (f.id === id ? { ...f, ...delta } : f));
     renderList();
-    queueSave();
+    markDirty();
   }
 
   function patchValidation(id, delta) {
@@ -734,7 +775,7 @@ function boot(D) {
       selId = null;
       renderList();
       renderRail();
-      queueSave();
+      markDirty();
       flash(`“${f.label}” archived — visible on old submissions, hidden from new ones`);
     }
   });

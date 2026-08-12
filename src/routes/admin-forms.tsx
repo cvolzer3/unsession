@@ -82,6 +82,7 @@ const PAGE_CSS = `
      padding so the content stays a readable column while the header and
      footer rules still run edge to edge. */
   .us-drawer[data-expanded]{width:100vw;--band-x:max(22px,calc((100vw - 880px) / 2));}
+  #fb-save-btn:disabled{background:#f1f3f5;border-color:#e2e3e8;color:#b4b6be;cursor:default;}
   .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
   .us-icon-btn:hover{color:#16171d;}
   .us-drawer .ic-min{display:none;}
@@ -476,10 +477,25 @@ app.get('/app/forms', async (c) => {
 
   const headerActions =
     mode === 'setup' ? null : (
-      <div style="display:flex;border:1px solid #e2e3e8;">
-        {segButton('Build', 'build')}
-        {segButton('Preview', 'preview')}
-      </div>
+      <>
+        {mode === 'build' ? (
+          <>
+            <span id="fb-save-state" style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
+            <button
+              type="button"
+              id="fb-save-btn"
+              disabled
+              style="padding:8px 16px;background:#4c5fd5;border:1px solid #4c5fd5;color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;"
+            >
+              Save changes
+            </button>
+          </>
+        ) : null}
+        <div style="display:flex;border:1px solid #e2e3e8;">
+          {segButton('Build', 'build')}
+          {segButton('Preview', 'preview')}
+        </div>
+      </>
     );
 
   return c.html(
@@ -613,9 +629,6 @@ app.get('/app/forms', async (c) => {
       {mode === 'build' ? (
         <div style="display:grid;grid-template-columns:1fr 360px;gap:0;flex:1 0 auto;">
           <div style="padding:22px 28px;max-width:760px;">
-            <div style="display:flex;align-items:center;margin-bottom:10px;min-height:14px;">
-              <span id="fb-save-state" style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
-            </div>
             {/* PAGE 1 · WELCOME — both states render so the settings toggle can flip
                 them live (form-builder.js), and the mental model stays stable. */}
             <div
@@ -625,7 +638,7 @@ app.get('/app/forms', async (c) => {
             >
               <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
                 <span style={MICRO}>PAGE 1 · WELCOME</span>
-                <span style="font-size:11px;color:#9a9da6;">Shown before the first question · autosaves</span>
+                <span style="font-size:11px;color:#9a9da6;">Shown before the first question</span>
               </div>
               {/* Value carrier for the rich editor form-builder.js mounts in its
                   place — legacy Markdown copy is upgraded to rich-lite here so
