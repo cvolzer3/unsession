@@ -71,6 +71,8 @@ type SubmissionCard = {
   coSpeakers: string[];
   session: SessionRow | null;
   slot: string | null;
+  /** Speaker confirmed their session (migration 0011: lives on the session, not the submission). */
+  confirmed: boolean;
 };
 
 type ChecklistTask = {
@@ -173,6 +175,7 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
       coSpeakers: co.filter((x) => x.email.toLowerCase() !== email.toLowerCase()).map((x) => x.name),
       session: session ?? null,
       slot: session ? slotLine(event, session, room?.name ?? null) : null,
+      confirmed: session?.status === 'confirmed',
     });
   }
 
@@ -253,24 +256,25 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
     submissions: cards,
     drafts,
     tasks,
-    confirmable: cards.filter((s) => s.status === 'accepted'),
-    confirmed: cards.some((s) => s.status === 'confirmed'),
+    confirmable: cards.filter((s) => s.status === 'accepted' && !s.confirmed),
+    confirmed: cards.some((s) => s.confirmed),
   };
 }
 
 /* ------------------------------------------------------------- fragments */
 
-const StatusBadge: FC<{ status: string }> = ({ status }) => {
+const StatusBadge: FC<{ status: string; confirmed?: boolean }> = ({ status, confirmed }) => {
   const map: Record<string, [string, string, string]> = {
     accepted: ['ACCEPTED — CONFIRM TO GO PUBLIC', '#2b8a3e', '#e6f4ea'],
-    confirmed: ['CONFIRMED ✓', '#087f5b', '#dcf2eb'],
     withdrawn: ['WITHDRAWN', '#868e96', '#f1f3f5'],
     declined: ['NOT THIS TIME', '#868e96', '#f1f3f5'],
     waitlisted: ['WAITLISTED', '#9c36b5', '#f6e8f9'],
-    submitted: ['IN REVIEW', '#1c7ed6', '#e7f1fb'],
     in_review: ['IN REVIEW', '#1c7ed6', '#e7f1fb'],
   };
-  const [label, fg, bg] = map[status] ?? [status.toUpperCase(), '#868e96', '#f1f3f5'];
+  // Confirmation is the session's state, so it overrides the (still 'accepted') submission.
+  const [label, fg, bg] = confirmed
+    ? (['CONFIRMED ✓', '#087f5b', '#dcf2eb'] as [string, string, string])
+    : (map[status] ?? [status.toUpperCase(), '#868e96', '#f1f3f5']);
   return (
     <span style={`display:inline-block;padding:3px 9px;font-size:11px;font-weight:600;color:${fg};background:${bg};font-family:${MONO};`}>
       {label}
@@ -495,7 +499,7 @@ app.get('/:event/portal', async (c) => {
   }
   const doneCount = data.tasks.filter((t) => t.status === 'done').length;
   const showChecklist = data.confirmed || data.tasks.length > 0;
-  const live = data.submissions.filter((s) => s.status === 'accepted' || s.status === 'confirmed');
+  const live = data.submissions.filter((s) => s.status === 'accepted');
 
   return c.html(
     <PublicLayout
@@ -549,13 +553,13 @@ app.get('/:event/portal', async (c) => {
         {data.submissions.map((s) => (
           <div style={`${CARD}padding:18px 20px;margin-bottom:10px;`}>
             <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-              <StatusBadge status={s.status} />
+              <StatusBadge status={s.status} confirmed={s.confirmed} />
               <span style={`font-family:${MONO};font-size:10.5px;color:var(--muted);`}>
                 {`SUB-${s.seq}${s.coSpeakers.length ? ` · WITH ${s.coSpeakers.join(', ').toUpperCase()}` : ''}`}
               </span>
             </div>
             <div style="font-size:16.5px;font-weight:700;letter-spacing:-0.01em;">{s.title}</div>
-            {s.status === 'confirmed' && s.slot ? (
+            {s.confirmed && s.slot ? (
               <>
                 <div style="margin-top:18px;border:1px solid var(--border);background:var(--bg);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
                   <div>
@@ -571,7 +575,7 @@ app.get('/:event/portal', async (c) => {
                 </div>
               </>
             ) : null}
-            {s.status === 'confirmed' && !s.slot ? (
+            {s.confirmed && !s.slot ? (
               <div style="font-size:12.5px;color:var(--muted);margin-top:10px;">
                 You’re confirmed — we’ll email you the moment your slot is scheduled.
               </div>

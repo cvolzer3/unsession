@@ -68,6 +68,7 @@ const rows = rowsEls.map((el) => ({
   name: el.dataset.name || '',
   session: el.dataset.session || '',
   status: el.dataset.status || '',
+  confirmed: el.dataset.confirmed === '1',
   cells: Object.fromEntries((el.dataset.cells || '').split(',').filter(Boolean).map((p) => p.split(':'))),
 }));
 
@@ -81,7 +82,8 @@ function filtered() {
     out = out.filter((r) => Object.values(r.cells).includes(state.state));
   }
   if (state.review) out = out.filter((r) => Object.values(r.cells).includes('r'));
-  if (state.unconfirmed) out = out.filter((r) => r.status === 'accepted');
+  // Accepted no longer flips to a 'confirmed' status — the session carries that.
+  if (state.unconfirmed) out = out.filter((r) => r.status === 'accepted' && !r.confirmed);
   const q = state.q.trim().toLowerCase();
   if (q) out = out.filter((r) => r.name.toLowerCase().includes(q) || r.session.toLowerCase().includes(q));
   return out;

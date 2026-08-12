@@ -490,13 +490,19 @@ export async function previewTemplateMatch(
   spec: { trigger: TemplateTrigger; clauses: ClauseSpec[] }
 ): Promise<TemplateMatchPreview> {
   if (spec.trigger === 'manual') return EMPTY_MATCH;
-  const statuses = spec.trigger === 'acceptance' ? ['accepted', 'confirmed'] : ['confirmed'];
+  // Both triggers start from `accepted`; the confirmation trigger additionally
+  // requires the speaker to have confirmed, which is the SESSION's state
+  // (migration 0011) — the submission stays `accepted` throughout.
+  const confirmedOnly = spec.trigger !== 'acceptance';
   const subs = await all<{ id: string; answers_json: string; form_version_id: string | null }>(
     env.DB,
-    `SELECT id, answers_json, form_version_id FROM submissions
-      WHERE event_id = ? AND status IN (${statuses.map(() => '?').join(',')})`,
-    eventId,
-    ...statuses
+    `SELECT s.id, s.answers_json, s.form_version_id FROM submissions s
+      WHERE s.event_id = ? AND s.status = 'accepted'${
+        confirmedOnly
+          ? ` AND EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed')`
+          : ''
+      }`,
+    eventId
   );
   if (!subs.length) return EMPTY_MATCH;
 
@@ -938,7 +944,7 @@ export async function cancelOpenTasks(env: Bindings, submissionId: string): Prom
       `SELECT COUNT(*) AS n FROM submissions s
          JOIN submission_speakers ss ON ss.submission_id = s.id
         WHERE s.event_id = ? AND s.id != ? AND ss.email = ?
-          AND s.status IN ('accepted','confirmed')`,
+          AND s.status = 'accepted'`,
       sub.event_id,
       sub.id,
       sp.email

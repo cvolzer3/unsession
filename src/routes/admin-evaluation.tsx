@@ -45,7 +45,6 @@ import {
   reviewerLoad,
   starAvgOf,
   submissionScore,
-  syncPlanMembership,
   type Automation,
   type Criterion,
   type EvalContext,
@@ -464,7 +463,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
           const chips = evaluatorChips(ctx, s);
           const rem = sc.remaining;
           const dec = STATUS_COLORS[s.status];
-          const decided = ['accepted', 'confirmed', 'declined', 'waitlisted'].includes(s.status);
+          const decided = ['accepted', 'declined', 'waitlisted'].includes(s.status);
           return (
             <a
               data-row-hover
@@ -1774,7 +1773,6 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
     if (res.simulatedLink) links.push({ email: u.email, link: res.simulatedLink });
   }
 
-  const flipped = await syncPlanMembership(c.env, planId, actor);
   await logActivity(c.env.DB, {
     eventId: event.id,
     subjectType: 'plan',
@@ -1783,7 +1781,7 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
     action: existing ? 'Updated evaluation plan' : 'Created evaluation plan',
     detail: `“${name}” · ${criteria.length} criteria · ${reviewers.length} reviewers · ${matched.length} submissions${
       added.length ? ` · ${added.length} invited` : ''
-    }${flipped ? ` · ${flipped} moved to In Review` : ''}`,
+    }`,
   });
 
   const toast = existing

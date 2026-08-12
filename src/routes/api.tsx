@@ -87,16 +87,15 @@ async function eventOf(env: Bindings, auth: ApiAuth, eventId: string): Promise<E
 
 /* ------------------------------------------------------------- shared bits */
 
-const SUBMISSION_STATUSES = [
-  'draft',
-  'submitted',
-  'in_review',
-  'accepted',
-  'confirmed',
-  'declined',
-  'waitlisted',
-  'withdrawn',
-];
+const SUBMISSION_STATUSES = ['draft', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'];
+
+/**
+ * Words retired by migration 0011, still accepted on write so existing API
+ * clients don't break. `submitted` was always implied by "not a draft";
+ * `confirmed` belongs to the session (`sessions.status`), which the accept
+ * flow creates — POSTing it here only ever meant "accepted".
+ */
+const RETIRED_STATUS: Record<string, string> = { submitted: 'in_review', confirmed: 'accepted' };
 
 type FormField = { id: string; type?: string; label?: string; core?: boolean };
 type OptionRow = { id: string; name: string; color: string | null; duration_min: number | null; taxonomy: string };
@@ -335,11 +334,12 @@ export async function listSubmissions(env: Bindings, auth: ApiAuth, ref: string,
   const conds = ['s.event_id = ?'];
   const params: unknown[] = [event.id];
   if (query.status) {
-    if (!SUBMISSION_STATUSES.includes(query.status)) {
+    const status = RETIRED_STATUS[query.status] ?? query.status;
+    if (!SUBMISSION_STATUSES.includes(status)) {
       throw bad(`Unknown status “${query.status}” — one of ${SUBMISSION_STATUSES.join(', ')}`);
     }
     conds.push('s.status = ?');
-    params.push(query.status);
+    params.push(status);
   }
   if (query.form) {
     const form = await one<{ id: string }>(
@@ -512,9 +512,10 @@ export async function createSubmission(env: Bindings, auth: ApiAuth, ref: string
   if (!title) throw bad('title is required');
   const abstract = (input.abstract ?? '').trim();
 
-  const status = input.status ?? 'submitted';
+  const requested = input.status ?? 'in_review';
+  const status = RETIRED_STATUS[requested] ?? requested;
   if (!SUBMISSION_STATUSES.includes(status)) {
-    throw bad(`Unknown status “${status}” — one of ${SUBMISSION_STATUSES.join(', ')}`);
+    throw bad(`Unknown status “${requested}” — one of ${SUBMISSION_STATUSES.join(', ')}`);
   }
 
   const speakers = (Array.isArray(input.speakers) ? input.speakers : []).map((s) => ({

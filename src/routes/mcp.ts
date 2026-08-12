@@ -69,8 +69,9 @@ export const TOOLS: Tool[] = [
         event: EVENT_PROP,
         status: {
           type: 'string',
-          enum: ['draft', 'submitted', 'in_review', 'accepted', 'confirmed', 'declined', 'waitlisted', 'withdrawn'],
-          description: 'Filter by status.',
+          enum: ['draft', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'],
+          description:
+            'Filter by status. Speaker confirmation is not a submission status — it lives on the session (get_sessions → status pending|confirmed).',
         },
         form: { type: 'string', description: 'Filter by form id or slug.' },
         track: { type: 'string', description: 'Filter by track option id or name.' },
@@ -164,8 +165,9 @@ export const TOOLS: Tool[] = [
         answers: { type: 'object', description: 'Form answers keyed by field id or field label.' },
         status: {
           type: 'string',
-          enum: ['draft', 'submitted', 'in_review', 'accepted', 'confirmed', 'declined', 'waitlisted', 'withdrawn'],
-          description: 'Initial status, default submitted. Setting accepted here does NOT run the decision engine — use decide_submission for that.',
+          enum: ['draft', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'],
+          description:
+            'Initial status, default in_review. Setting accepted here does NOT run the decision engine — use decide_submission for that.',
         },
       },
       required: ['event', 'formId', 'title'],

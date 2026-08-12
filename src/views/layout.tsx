@@ -457,14 +457,15 @@ export const UnderConstruction: FC<{ page: string; note?: string }> = ({ page, n
 );
 
 export const STATUS_COLORS: Record<string, { label: string; fg: string; bg: string }> = {
+  // submission statuses (migration 0011 retired `submitted` and `confirmed`)
   draft: { label: 'Draft', fg: '#686b74', bg: '#f1f3f5' },
-  submitted: { label: 'Submitted', fg: '#1c7ed6', bg: '#e7f1fb' },
   in_review: { label: 'In Review', fg: '#b08800', bg: '#fdf5dc' },
   accepted: { label: 'Accepted', fg: '#2b8a3e', bg: '#e6f4ea' },
-  confirmed: { label: 'Confirmed', fg: '#087f5b', bg: '#dcf2eb' },
   declined: { label: 'Declined', fg: '#c92a2a', bg: '#fbe9e9' },
   waitlisted: { label: 'Waitlisted', fg: '#9c36b5', bg: '#f6e8f9' },
   withdrawn: { label: 'Withdrawn', fg: '#868e96', bg: '#f1f3f5' },
+  // session statuses — `confirmed` is the speaker confirmation, and it lives here
+  confirmed: { label: 'Confirmed', fg: '#087f5b', bg: '#dcf2eb' },
   // email log statuses
   sent: { label: 'Sent', fg: '#2b8a3e', bg: '#e6f4ea' },
   queued: { label: 'Queued', fg: '#1c7ed6', bg: '#e7f1fb' },

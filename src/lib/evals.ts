@@ -24,7 +24,7 @@ export type Rules = {
   format: string;
   /** 'all' | level name */
   level: string;
-  /** 'active' (submitted|in_review) | 'all' | a single status */
+  /** 'active' (= in_review, i.e. undecided) | 'all' | a single status */
   status: string;
 };
 
@@ -435,7 +435,9 @@ export function matchesRules(s: EvalSubmission, r: Rules): boolean {
   if (r.form !== 'all' && s.formId !== r.form) return false;
   if (r.format !== 'all' && s.format !== r.format) return false;
   if (r.level !== 'all' && s.level !== r.level) return false;
-  if (r.status === 'active') return s.status === 'submitted' || s.status === 'in_review';
+  // 'active' = still undecided. Since migration 0011 that is exactly `in_review`;
+  // draft never reaches here (loadSubmissions filters it out).
+  if (r.status === 'active') return s.status === 'in_review';
   if (r.status !== 'all' && s.status !== r.status) return false;
   return true;
 }
@@ -605,69 +607,6 @@ export function reviewerQueue(
       if (plan && sub) out.push({ plan, submission: sub, done: true, evaluation: e });
     });
   return out;
-}
-
-/* -------------------------------------------------------- membership sync */
-
-/**
- * Flip newly-covered submissions from `submitted` to `in_review`. Called on plan
- * save and from `syncPlansForSubmission` — Phase C / B1's submit path can call
- * the hook when a submission lands.
- */
-export async function syncPlanMembership(env: Bindings, planId: string, actor: string): Promise<number> {
-  const plans = await allPlansForPlanId(env.DB, planId);
-  if (!plans) return 0;
-  const { plan, eventId } = plans;
-  // Flipping only makes sense while the plan still covers in_review work.
-  if (plan.rules.status !== 'active' && plan.rules.status !== 'all') return 0;
-  const subs = await loadSubmissions(env.DB, eventId);
-  const targets = subs.filter((s) => s.status === 'submitted' && matchesRules(s, plan.rules));
-  for (const s of targets) {
-    await run(env.DB, `UPDATE submissions SET status = 'in_review', updated_at = ? WHERE id = ?`, now(), s.id);
-    await logActivity(env.DB, {
-      eventId,
-      subjectType: 'submission',
-      subjectId: s.id,
-      actor,
-      action: 'Moved to In Review',
-      detail: `Assigned to evaluation plan “${plan.name}”`,
-    });
-  }
-  return targets.length;
-}
-
-async function allPlansForPlanId(db: D1Database, planId: string): Promise<{ plan: EvalPlan; eventId: string } | null> {
-  const row = await one<{ event_id: string }>(db, `SELECT event_id FROM eval_plans WHERE id = ?`, planId);
-  if (!row) return null;
-  const plans = await loadPlans(db, row.event_id);
-  const plan = plans.find((p) => p.id === planId);
-  return plan ? { plan, eventId: row.event_id } : null;
-}
-
-/** Hook for the submit path: run every plan of the event over one new submission. */
-export async function syncPlansForSubmission(
-  env: Bindings,
-  eventId: string,
-  submissionId: string,
-  actor = 'System'
-): Promise<boolean> {
-  const [plans, subs] = await Promise.all([loadPlans(env.DB, eventId), loadSubmissions(env.DB, eventId)]);
-  const sub = subs.find((s) => s.id === submissionId);
-  if (!sub || sub.status !== 'submitted') return false;
-  const plan = plans.find(
-    (p) => (p.rules.status === 'active' || p.rules.status === 'all') && matchesRules(sub, p.rules)
-  );
-  if (!plan) return false;
-  await run(env.DB, `UPDATE submissions SET status = 'in_review', updated_at = ? WHERE id = ?`, now(), submissionId);
-  await logActivity(env.DB, {
-    eventId,
-    subjectType: 'submission',
-    subjectId: submissionId,
-    actor,
-    action: 'Moved to In Review',
-    detail: `Assigned to evaluation plan “${plan.name}”`,
-  });
-  return true;
 }
 
 /* ------------------------------------------------------------------ write */

@@ -102,9 +102,7 @@ function planEditor() {
     });
     const status = el('select', 'padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
     [
-      ['active', 'Submitted or In Review'],
-      ['submitted', 'Submitted'],
-      ['in_review', 'In Review'],
+      ['active', 'Undecided (In Review)'],
       ['all', 'Any status'],
     ].forEach(([v, l]) => status.appendChild(new Option(l, v)));
     status.value = draft.rules.status || 'active';
@@ -231,7 +229,7 @@ function planEditor() {
     if (r.form !== 'all' && s.formId !== r.form) return false;
     if (r.format !== 'all' && s.format !== r.format) return false;
     if (r.level !== 'all' && s.level !== r.level) return false;
-    if (r.status === 'active') return s.status === 'submitted' || s.status === 'in_review';
+    if (r.status === 'active') return s.status === 'in_review';
     if (r.status !== 'all' && s.status !== r.status) return false;
     return true;
   }

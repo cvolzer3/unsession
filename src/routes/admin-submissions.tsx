@@ -50,18 +50,20 @@ const TEXTAREA =
 // pathological-event guard, far above the few-thousand-row realistic ceiling.
 const ROW_CAP = 10000;
 
-const STATUS_ORDER = [
-  'draft',
-  'submitted',
-  'in_review',
-  'accepted',
-  'confirmed',
-  'declined',
-  'waitlisted',
-  'withdrawn',
-];
+/**
+ * Submission lifecycle, in pipeline order (migration 0011). No `submitted` —
+ * everything past draft is submitted by definition — and no `confirmed`: the
+ * speaker confirms the SESSION, so that lives on `sessions.status`.
+ */
+const STATUS_ORDER = ['draft', 'in_review', 'accepted', 'waitlisted', 'declined', 'withdrawn'];
 
 const IMPORTABLE_STATUS = new Set(STATUS_ORDER);
+
+/**
+ * Pre-0011 vocabulary, still accepted on import — CSVs exported from this app
+ * before the migration (or from another CFP tool) carry these words.
+ */
+const RETIRED_STATUS: Record<string, string> = { submitted: 'in_review', confirmed: 'accepted' };
 
 function statusMeta(status: string) {
   return STATUS_COLORS[status] ?? { label: status, fg: '#686b74', bg: '#f1f3f5' };
@@ -1401,7 +1403,7 @@ app.post('/app/api/submissions/import', requireOrgRole('admin'), async (c) => {
     let abstract = '';
     let speakerName = '';
     let speakerEmail = '';
-    let status = 'submitted';
+    let status = 'in_review';
 
     mapping.forEach((target, col) => {
       if (!target || target === 'ignore') return;
@@ -1412,8 +1414,9 @@ app.post('/app/api/submissions/import', requireOrgRole('admin'), async (c) => {
       else if (target === 'speaker_name') speakerName = value;
       else if (target === 'speaker_email') speakerEmail = value;
       else if (target === 'status') {
-        const norm = value.toLowerCase().replace(/[\s-]+/g, '_');
-        status = IMPORTABLE_STATUS.has(norm) ? norm : 'submitted';
+        const raw = value.toLowerCase().replace(/[\s-]+/g, '_');
+        const norm = RETIRED_STATUS[raw] ?? raw;
+        status = IMPORTABLE_STATUS.has(norm) ? norm : 'in_review';
       } else if (target.startsWith('field:')) {
         const fieldId = target.slice(6);
         if (!fieldById.has(fieldId)) return;

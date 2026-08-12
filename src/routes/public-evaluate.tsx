@@ -215,9 +215,6 @@ app.post('/p/api/evaluate/score', async (c) => {
   });
   if (!res.ok) return c.json({ ok: false, error: res.error }, 400);
 
-  if (g.sub.status === 'submitted') {
-    await run(c.env.DB, `UPDATE submissions SET status = 'in_review', updated_at = ? WHERE id = ?`, now(), g.sub.id);
-  }
   await logActivity(c.env.DB, {
     eventId: g.eventId!,
     subjectType: 'submission',

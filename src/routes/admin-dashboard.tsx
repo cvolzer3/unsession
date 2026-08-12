@@ -52,7 +52,7 @@ function planScope(eventId: string, rulesJson: string, optName: Map<string, stri
     where.push('s.form_id = ?');
     params.push(rules.form);
   }
-  if (!rules.status || rules.status === 'active') where.push("s.status IN ('submitted','in_review')");
+  if (!rules.status || rules.status === 'active') where.push("s.status = 'in_review'");
   else if (rules.status !== 'all') {
     where.push('s.status = ?');
     params.push(rules.status);
@@ -198,8 +198,21 @@ app.get('/app', async (c) => {
       await one<{ n: number }>(
         db,
         `SELECT COUNT(*) AS n FROM submissions s
-          WHERE s.event_id = ? AND s.status IN ('submitted','in_review')
+          WHERE s.event_id = ? AND s.status = 'in_review'
             AND NOT EXISTS (SELECT 1 FROM evaluations e WHERE e.submission_id = s.id)`,
+        event.id
+      )
+    )?.n ?? 0;
+
+  // Speaker confirmation lives on the session (migration 0011). Scoped to talks
+  // from a submission: sponsor and service sessions are created already
+  // `confirmed`, and nobody confirmed those.
+  const confirmed =
+    (
+      await one<{ n: number }>(
+        db,
+        `SELECT COUNT(*) AS n FROM sessions
+          WHERE event_id = ? AND status = 'confirmed' AND type = 'talk' AND submission_id IS NOT NULL`,
         event.id
       )
     )?.n ?? 0;
@@ -238,7 +251,11 @@ app.get('/app', async (c) => {
     (
       await one<{ n: number }>(
         db,
-        `SELECT COUNT(*) AS n FROM submissions WHERE event_id = ? AND status = 'accepted' AND updated_at < ?`,
+        // `accepted` no longer implies unconfirmed (migration 0011) — the speaker's
+        // confirmation is on the session, so exclude anyone who already confirmed.
+        `SELECT COUNT(*) AS n FROM submissions s
+          WHERE s.event_id = ? AND s.status = 'accepted' AND s.updated_at < ?
+            AND NOT EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed')`,
         event.id,
         weekAgo
       )
@@ -271,12 +288,12 @@ app.get('/app', async (c) => {
     .slice(0, 5);
 
   const kpis = [
-    { label: 'SUBMISSIONS', val: totalSubs, sub: `${cnt('submitted')} new, unassigned`, href: '/app/submissions' },
+    { label: 'SUBMISSIONS', val: totalSubs, sub: `${unreviewed} awaiting first review`, href: '/app/submissions' },
     { label: 'IN REVIEW', val: cnt('in_review'), sub: `${review.done} of ${review.total} reviews in`, href: '/app/evaluation' },
     {
       label: 'ACCEPTED',
-      val: cnt('accepted') + cnt('confirmed'),
-      sub: `${cnt('confirmed')} confirmed by speaker`,
+      val: cnt('accepted'),
+      sub: `${confirmed} confirmed by speaker`,
       href: '/app/sessions',
     },
     { label: 'UNSCHEDULED', val: unscheduled, sub: 'ready for the agenda', href: '/app/agenda?focus=unscheduled' },

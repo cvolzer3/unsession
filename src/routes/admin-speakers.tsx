@@ -66,6 +66,8 @@ type GridRow = {
   slug: string;
   session: string;
   status: string;
+  /** Speaker confirmed their session — `status` alone can no longer tell you (migration 0011). */
+  confirmed: boolean;
   cells: Record<string, string>;
   done: number;
   assigned: number;
@@ -103,9 +105,13 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
       WHERE s.event_id = ? ORDER BY ss.position`,
     eventId
   );
-  const subs = await all<{ email: string; status: string; title: string }>(
+  // `confirmed` is the session's state (migration 0011), so rank it off the
+  // session rather than the submission — an accepted-and-confirmed speaker
+  // still outranks a merely-accepted one in the grid.
+  const subs = await all<{ email: string; status: string; title: string; confirmed: number }>(
     env.DB,
-    `SELECT sp.email AS email, s.status AS status, s.title AS title
+    `SELECT sp.email AS email, s.status AS status, s.title AS title,
+            EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed') AS confirmed
        FROM submission_speakers sp JOIN submissions s ON s.id = sp.submission_id
       WHERE s.event_id = ?`,
     eventId
@@ -118,12 +124,15 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
     if (!e.title) e.title = l.title;
     sessionsOf.set(l.speaker_profile_id, e);
   }
-  const subOf = new Map<string, { status: string; title: string }>();
+  const subOf = new Map<string, { status: string; title: string; confirmed: boolean }>();
   for (const s of subs) {
     const key = s.email.toLowerCase();
     const prev = subOf.get(key);
-    const rank = (st: string) => (st === 'confirmed' ? 3 : st === 'accepted' ? 2 : 1);
-    if (!prev || rank(s.status) > rank(prev.status)) subOf.set(key, { status: s.status, title: s.title });
+    const rank = (st: string, conf: boolean) => (conf ? 3 : st === 'accepted' ? 2 : 1);
+    const confirmed = !!s.confirmed;
+    if (!prev || rank(s.status, confirmed) > rank(prev.status, prev.confirmed)) {
+      subOf.set(key, { status: s.status, title: s.title, confirmed });
+    }
   }
 
   const today = T.todayISO();
@@ -135,7 +144,7 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
       tasks.filter((t) => t.speaker_profile_id === p.id || (t.session_id && mySessions?.ids.has(t.session_id)))
     );
     const sub = subOf.get(p.email.toLowerCase());
-    const onboarding = sub && (sub.status === 'accepted' || sub.status === 'confirmed');
+    const onboarding = sub?.status === 'accepted';
     if (!mine.length && !onboarding) continue;
 
     const cells: Record<string, string> = {};
@@ -155,6 +164,7 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
       slug: p.slug,
       session: mySessions?.title ?? sub?.title ?? '',
       status: sub?.status ?? '',
+      confirmed: sub?.confirmed ?? false,
       cells,
       done,
       assigned,
@@ -194,6 +204,7 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
             data-name={r.name}
             data-session={r.session}
             data-status={r.status}
+            data-confirmed={r.confirmed ? '1' : ''}
             data-cells={data.active.map((t) => `${t.id}:${r.cells[t.id]}`).join(',')}
           >
             <div data-open-speaker={r.id} style="padding-right:10px;cursor:pointer;" title="Open speaker profile">
@@ -1041,17 +1052,19 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
     format: string | null;
     level: string | null;
     session_id: string | null;
+    session_status: string | null;
   }>(
     c.env.DB,
     `SELECT s.id, s.seq, s.status, s.title,
-            tr.name AS track, tr.color AS color, fo.name AS format, se.level AS level, se.id AS session_id
+            tr.name AS track, tr.color AS color, fo.name AS format, se.level AS level, se.id AS session_id,
+            se.status AS session_status
        FROM submissions s
        JOIN submission_speakers sp ON sp.submission_id = s.id
        LEFT JOIN sessions se ON se.submission_id = s.id
        LEFT JOIN taxonomy_options tr ON tr.id = se.track_option_id
        LEFT JOIN taxonomy_options fo ON fo.id = se.format_option_id
       WHERE s.event_id = ? AND sp.email = ?
-      ORDER BY CASE s.status WHEN 'confirmed' THEN 0 WHEN 'accepted' THEN 1 ELSE 2 END, s.seq DESC
+      ORDER BY CASE WHEN se.status = 'confirmed' THEN 0 WHEN s.status = 'accepted' THEN 1 ELSE 2 END, s.seq DESC
       LIMIT 1`,
     event.id,
     profile.email
@@ -1068,6 +1081,9 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
   }
 
   const done = rows.filter((r) => r.state === 'c').length;
+  // "Confirmed" is the more informative badge when it applies, but it is the
+  // session's state now (migration 0011) — the submission stays `accepted`.
+  const badge = sub?.session_status === 'confirmed' ? 'confirmed' : (sub?.status ?? '');
   return c.json({
     ok: true,
     speaker: { id: profile.id, name: profile.name, email: profile.email, bio: profile.bio, slug: profile.slug },
@@ -1076,9 +1092,9 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
           id: sub.id,
           label: `SUB-${sub.seq}`,
           status: sub.status,
-          statusLabel: (STATUS_COLORS[sub.status] ?? { label: sub.status }).label,
-          fg: (STATUS_COLORS[sub.status] ?? { fg: '#686b74' }).fg,
-          bg: (STATUS_COLORS[sub.status] ?? { bg: '#f1f3f5' }).bg,
+          statusLabel: (STATUS_COLORS[badge] ?? { label: badge }).label,
+          fg: (STATUS_COLORS[badge] ?? { fg: '#686b74' }).fg,
+          bg: (STATUS_COLORS[badge] ?? { bg: '#f1f3f5' }).bg,
           title: sub.title,
           track: sub.track ?? '',
           color: sub.color ?? '#9a9da6',

@@ -22,7 +22,6 @@ import { logActivity } from '../lib/activity';
 import { findOrCreateUserByEmail, requestMagicLink } from '../lib/auth';
 import { renderTemplate, sendEmail } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
-import { syncPlansForSubmission } from '../lib/evals';
 import { createSessionFromSubmission } from '../lib/sessions-core';
 import {
   coreRoles,
@@ -1270,7 +1269,7 @@ app.post('/:event/:form', async (c) => {
     seq = await nextSeq(c.env.DB, found.event.id, 'submission');
     await run(
       c.env.DB,
-      `UPDATE submissions SET seq = ?, status = 'submitted', title = ?, abstract = ?, answers_json = ?, owner_user_id = ?,
+      `UPDATE submissions SET seq = ?, status = 'in_review', title = ?, abstract = ?, answers_json = ?, owner_user_id = ?,
          agent_mode = ?, form_version_id = ?, submitted_at = ?, updated_at = ? WHERE id = ?`,
       seq,
       title,
@@ -1290,7 +1289,7 @@ app.post('/:event/:form', async (c) => {
       c.env.DB,
       `INSERT INTO submissions (id, event_id, form_id, form_version_id, seq, status, title, abstract, answers_json,
          owner_user_id, agent_mode, withdraw_reason, submitted_at, created_at, updated_at)
-       VALUES (?,?,?,?,?,'submitted',?,?,?,?,?,NULL,?,?,?)`,
+       VALUES (?,?,?,?,?,'in_review',?,?,?,?,?,NULL,?,?,?)`,
       submissionId,
       found.event.id,
       loaded.form.id,
@@ -1346,17 +1345,11 @@ app.post('/:event/:form', async (c) => {
     } catch (err) {
       console.error('[submit] session-intake session create failed', err);
     }
-  } else {
-    // Category routing (spec §4.2): a matching evaluation plan pulls the fresh
-    // submission into review immediately. Session-intake forms never enter
-    // review, so they skip this entirely (and their status is no longer
-    // 'submitted', which also keeps later plan syncs from picking them up).
-    try {
-      await syncPlansForSubmission(c.env, found.event.id, submissionId);
-    } catch (err) {
-      console.error('[submit] plan sync failed', err);
-    }
   }
+  // Category routing (spec §4.2) needs no hook since migration 0011: a fresh
+  // submission lands in `in_review` already, and evaluation plan membership is
+  // rule-derived (`evals.matchesRules`), recomputed on every read. Session-intake
+  // forms are auto-accepted above, which is what keeps them out of review.
 
   /* ------------------------------------------------------------ emails */
   const tpl = await one<{ subject: string; body: string }>(

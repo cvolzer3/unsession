@@ -3,6 +3,12 @@
  * participation — from the portal (B5) or the tokenized link in the accept
  * email (routes/confirm.tsx). Confirmed gates public agenda display and
  * triggers task generation.
+ *
+ * Confirmation is a property of the SESSION, not the submission (migration
+ * 0011). The submission stays `accepted` forever; `sessions.status` flips
+ * pending → confirmed. Accept always creates the session first
+ * (`decisions.ts` → `createSessionFromSubmission`), so there is always
+ * something to confirm.
  */
 import { all, one, now, run } from './db';
 import { logActivity } from './activity';
@@ -11,7 +17,7 @@ import type { Bindings } from '../types';
 
 export type ConfirmResult =
   | { ok: true; already: boolean; submissionId: string; eventId: string; title: string }
-  | { ok: false; reason: 'not_found' | 'not_accepted' };
+  | { ok: false; reason: 'not_found' | 'not_accepted' | 'no_session' };
 
 export async function confirmParticipation(
   env: Bindings,
@@ -24,14 +30,24 @@ export async function confirmParticipation(
     submissionId
   );
   if (!sub) return { ok: false, reason: 'not_found' };
-  if (sub.status === 'confirmed') return { ok: true, already: true, submissionId, eventId: sub.event_id, title: sub.title };
   if (sub.status !== 'accepted') return { ok: false, reason: 'not_accepted' };
 
-  await run(env.DB, `UPDATE submissions SET status = 'confirmed', updated_at = ? WHERE id = ?`, now(), sub.id);
-  const sessions = await all<{ id: string }>(env.DB, `SELECT id FROM sessions WHERE submission_id = ?`, sub.id);
+  const sessions = await all<{ id: string; status: string }>(
+    env.DB,
+    `SELECT id, status FROM sessions WHERE submission_id = ?`,
+    sub.id
+  );
+  // Accept creates the session, so this only fires if it was deleted afterwards.
+  // Better a visible failure than silently reporting a confirmation we cannot store.
+  if (!sessions.length) return { ok: false, reason: 'no_session' };
+  if (sessions.every((s) => s.status === 'confirmed')) {
+    return { ok: true, already: true, submissionId, eventId: sub.event_id, title: sub.title };
+  }
+
   for (const s of sessions) {
     await run(env.DB, `UPDATE sessions SET status = 'confirmed', updated_at = ? WHERE id = ?`, now(), s.id);
   }
+  await run(env.DB, `UPDATE submissions SET updated_at = ? WHERE id = ?`, now(), sub.id);
 
   const tasks = await generateTasksOnTrigger(env, { submissionId: sub.id, trigger: 'confirmation' });
 
