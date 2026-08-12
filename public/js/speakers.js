@@ -92,7 +92,8 @@ function renderGrid() {
   const page = Math.max(0, state.page);
   const visible = new Set(list.slice(page * PAGE, page * PAGE + PAGE).map((r) => r.id));
   rows.forEach((r) => {
-    r.el.style.display = visible.has(r.id) ? '' : 'none';
+    // 'grid', not '' — clearing display would drop the row's inline display:grid.
+    r.el.style.display = visible.has(r.id) ? 'grid' : 'none';
   });
   $('#grid-empty').hidden = list.length !== 0;
   $('#page-info').textContent = `${list.length ? page * PAGE + 1 : 0}–${page * PAGE + visible.size} OF ${list.length}`;
