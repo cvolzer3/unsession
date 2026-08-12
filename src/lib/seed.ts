@@ -16,6 +16,7 @@ import { batch, now, run } from './db';
 import { newId, shortCode } from './ids';
 import { slugify } from './slugify';
 import { DEFAULT_EMAIL_TEMPLATES } from './defaults';
+import { seedOf } from './evals';
 import * as D from './seed-data';
 
 type Stmt = [string, unknown[]];
@@ -228,12 +229,23 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
     [speakerPersonaUserId, speakerPersonaEmail, D.SANDBOX_PERSONAS.speaker.name, stamp],
   ]);
 
-  // Organizer persona — Marta Keller owns the sandbox org. The visitor's
-  // session IS Marta; there is no throwaway owner user.
-  stmts.push([
-    `INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (?,?,?,?)`,
-    [orgId, personUserId.get('marta')!, 'owner', stamp],
-  ]);
+  // The whole roster joins the org: Marta Keller as owner (the organizer
+  // persona — the visitor's session IS Marta, there is no throwaway owner
+  // user), the program team as admins/collaborators, and the outside
+  // evaluators as collaborators so the reviewer picker can offer them.
+  D.PEOPLE.forEach((p) => {
+    stmts.push([
+      `INSERT INTO org_members (org_id, user_id, role, created_at) VALUES (?,?,?,?)`,
+      [orgId, personUserId.get(p.id)!, p.orgRole, stamp],
+    ]);
+  });
+
+  D.INVITES.forEach((i) => {
+    stmts.push([
+      `INSERT INTO invites (id, org_id, email, role, invited_by, status, created_at) VALUES (?,?,?,?,?,'pending',?)`,
+      [newId('inv'), orgId, D.suffixEmail(i.email, suffix), i.role, personUserId.get('marta')!, stamp],
+    ]);
+  });
 
   /* ---------------------------------------------------------- submissions */
   const submissionId = new Map<string, string>(); // 'SUB-147' -> row id
@@ -479,10 +491,18 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
     const key = s.form === 'sponsor' ? 'sponsor' : 'main';
     const plan = D.EVAL_PLANS.find((p) => p.id === key)!;
     const pid = planId.get(key)!;
-    const reviewers = plan.reviewers.filter((r) => personUserId.has(r.id));
+    const subId = submissionId.get(s.id)!;
+    // Score as the people the app itself assigns — `assignedFor()` in evals.ts
+    // hands each submission `reviewsPer` members, seeded by its id — so a
+    // part-reviewed submission names the right reviewers as still pending
+    // instead of showing done and pending rows for disjoint sets of people.
+    const members = plan.reviewers.filter((r) => r.role !== 'chair' && personUserId.has(r.id));
+    const rp = Math.max(1, Math.min(plan.reviewsPer, members.length));
+    const start = seedOf(subId) % members.length;
+    const assigned = Array.from({ length: rp }, (_, i) => members[(start + i) % members.length]);
     const matrix = scoreMatrix(s.avg, s.evalDone, plan.criteria.length);
     matrix.forEach((row, i) => {
-      const reviewer = reviewers[i % reviewers.length];
+      const reviewer = assigned[i % assigned.length];
       const scores: Record<string, number> = {};
       plan.criteria.forEach((c, ci) => {
         scores[c.name] = row[ci];
@@ -493,7 +513,7 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
         [
           newId('evl'),
           pid,
-          submissionId.get(s.id)!,
+          subId,
           personUserId.get(reviewer.id)!,
           JSON.stringify(scores),
           '',
@@ -567,8 +587,8 @@ export async function seedSandbox(db: D1Database): Promise<SandboxResult> {
 
   await batch(db, stmts);
 
-  // Marta and Deniz come from D.PEOPLE ('marta' owns the org above; 'deniz'
-  // sits on the Main CFP + AI second-opinion reviewer rosters via EVAL_PLANS).
+  // Marta and Deniz come from D.PEOPLE ('marta' owns the org; 'deniz' is a
+  // collaborator on the Main CFP + AI second-opinion rosters via EVAL_PLANS).
   const personas: SandboxResult['personas'] = {
     organizer: {
       userId: personUserId.get('marta')!,

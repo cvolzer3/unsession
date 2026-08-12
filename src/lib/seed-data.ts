@@ -181,15 +181,51 @@ export const SPEAKER_TASKS = [
   { name: 'Lena Fischer', session: 'Ship Your Design System', track: 'dx', t: ['p', 'p', 'p', 'p', 'p', 'p'] },
 ];
 
-export const PEOPLE = [
-  { id: 'marta', name: 'Marta Keller', email: 'marta@devconf.org', role: 'Organizer' },
-  { id: 'deniz', name: 'Deniz Aksoy', email: 'deniz@aksoy.dev', role: 'Evaluator' },
-  { id: 'priya', name: 'Priya Nair', email: 'priya.n@webfoundry.co', role: 'Evaluator' },
-  { id: 'sam', name: 'Sam Ortiz', email: 'sam@ortiz.codes', role: 'Evaluator' },
-  { id: 'jonas', name: 'Jonas Weber', email: 'jonas@sec-audit.de', role: 'Evaluator' },
-  { id: 'elif', name: 'Elif Şahin', email: 'elif@mlberlin.io', role: 'Evaluator' },
-  { id: 'tom', name: 'Tom Baker', email: 'tom@devrel.uk', role: 'Evaluator' },
-  { id: 'grace', name: 'Grace Osei', email: 'grace@platformlab.gh', role: 'Evaluator' },
+export type SeedPerson = {
+  id: string;
+  name: string;
+  email: string;
+  /** Drives `org_members.role` — what the Team screen shows and permissions key off. */
+  orgRole: 'owner' | 'admin' | 'collaborator';
+};
+
+/**
+ * The org's roster. Everyone here becomes a user *and* an org member, which is
+ * also what makes them offerable in the evaluation plan editor's reviewer
+ * picker — that dropdown is fed by the org's members plus anyone already on a
+ * plan, so an evaluator who is not a member is invisible to it.
+ */
+export const PEOPLE: SeedPerson[] = [
+  // Organizer — owns the sandbox org and is the visitor's organizer seat.
+  { id: 'marta', name: 'Marta Keller', email: 'marta@devconf.org', orgRole: 'owner' },
+
+  // Program team — the people who run the event day to day.
+  { id: 'nils', name: 'Nils Bergström', email: 'nils@devconf.org', orgRole: 'admin' },
+  { id: 'rosa', name: 'Rosa Delgado', email: 'rosa@devconf.org', orgRole: 'admin' },
+  { id: 'kenji', name: 'Kenji Mori', email: 'kenji@devconf.org', orgRole: 'collaborator' },
+  { id: 'hannah', name: 'Hannah Boateng', email: 'hannah@devconf.org', orgRole: 'collaborator' },
+  { id: 'luca', name: 'Luca Ferrari', email: 'luca@devconf.org', orgRole: 'collaborator' },
+  { id: 'zoe', name: 'Zoë Martens', email: 'zoe@devconf.org', orgRole: 'collaborator' },
+
+  // Evaluators — outside reviewers invited as collaborators. Some sit on plans
+  // below, the rest are unassigned so the reviewer picker has real choices.
+  { id: 'deniz', name: 'Deniz Aksoy', email: 'deniz@aksoy.dev', orgRole: 'collaborator' },
+  { id: 'priya', name: 'Priya Nair', email: 'priya.n@webfoundry.co', orgRole: 'collaborator' },
+  { id: 'sam', name: 'Sam Ortiz', email: 'sam@ortiz.codes', orgRole: 'collaborator' },
+  { id: 'jonas', name: 'Jonas Weber', email: 'jonas@sec-audit.de', orgRole: 'collaborator' },
+  { id: 'elif', name: 'Elif Şahin', email: 'elif@mlberlin.io', orgRole: 'collaborator' },
+  { id: 'tom', name: 'Tom Baker', email: 'tom@devrel.uk', orgRole: 'collaborator' },
+  { id: 'grace', name: 'Grace Osei', email: 'grace@platformlab.gh', orgRole: 'collaborator' },
+  { id: 'iris', name: 'Iris Lindholm', email: 'iris@stackcraft.fi', orgRole: 'collaborator' },
+  { id: 'omar', name: 'Omar Benali', email: 'omar@edgeworks.ma', orgRole: 'collaborator' },
+  { id: 'yuki', name: 'Yuki Tanaka', email: 'yuki@frontendjp.dev', orgRole: 'collaborator' },
+  { id: 'ana', name: 'Ana Sousa', email: 'ana@devbrasil.io', orgRole: 'collaborator' },
+];
+
+/** Invites that were sent but not accepted — the Team screen's pending rows. */
+export const INVITES = [
+  { email: 'petra@devconf.org', role: 'admin' },
+  { email: 'rafael@a11yworks.co', role: 'collaborator' },
 ];
 
 export const EVAL_PLANS = [
@@ -204,8 +240,9 @@ export const EVAL_PLANS = [
       { name: 'Delivery', hint: 'Will it land on stage?', scale: 5 },
     ],
     reviewers: [
-      { id: 'marta', role: 'chair' }, { id: 'deniz', role: 'member' }, { id: 'priya', role: 'member' },
-      { id: 'sam', role: 'member' }, { id: 'grace', role: 'member' },
+      { id: 'marta', role: 'chair' }, { id: 'nils', role: 'chair' },
+      { id: 'deniz', role: 'member' }, { id: 'priya', role: 'member' }, { id: 'sam', role: 'member' },
+      { id: 'grace', role: 'member' }, { id: 'jonas', role: 'member' }, { id: 'iris', role: 'member' },
     ],
     subs: ['SUB-147', 'SUB-143', 'SUB-141', 'SUB-138', 'SUB-136', 'SUB-133', 'SUB-131', 'SUB-129', 'SUB-128', 'SUB-127', 'SUB-126', 'SUB-125', 'SUB-124'],
   },
@@ -218,7 +255,10 @@ export const EVAL_PLANS = [
       { name: 'Novelty', hint: 'New ground, not a rehash?', scale: 5 },
       { name: 'Rigor', hint: 'Would an expert nod along?', scale: 5 },
     ],
-    reviewers: [{ id: 'elif', role: 'member' }, { id: 'deniz', role: 'member' }],
+    reviewers: [
+      { id: 'rosa', role: 'chair' }, { id: 'elif', role: 'member' }, { id: 'deniz', role: 'member' },
+      { id: 'omar', role: 'member' }, { id: 'yuki', role: 'member' },
+    ],
     subs: ['SUB-143', 'SUB-127', 'SUB-124'],
   },
   {
@@ -229,7 +269,7 @@ export const EVAL_PLANS = [
       { name: 'Audience value', hint: 'Useful even if you never buy?', scale: 5 },
       { name: 'Stage-ready', hint: 'Demo survives a live room?', scale: 5 },
     ],
-    reviewers: [{ id: 'marta', role: 'chair' }, { id: 'tom', role: 'member' }],
+    reviewers: [{ id: 'marta', role: 'chair' }, { id: 'tom', role: 'member' }, { id: 'hannah', role: 'member' }],
     subs: ['SUB-S01', 'SUB-S02'],
   },
 ];

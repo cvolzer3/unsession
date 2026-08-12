@@ -187,11 +187,14 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
   if (!rows.length) return [];
   const reviewers = await all<{ plan_id: string; user_id: string; role: string; name: string | null; email: string }>(
     db,
+    // Insertion order, explicitly: `assignedFor()` round-robins over this list,
+    // so an unspecified row order would silently reshuffle who reviews what.
     `SELECT r.plan_id, r.user_id, r.role, u.name, u.email
        FROM eval_plan_reviewers r
        JOIN users u ON u.id = r.user_id
        JOIN eval_plans p ON p.id = r.plan_id
-      WHERE p.event_id = ?`,
+      WHERE p.event_id = ?
+      ORDER BY r.rowid`,
     eventId
   );
   return rows.map((p) => ({
