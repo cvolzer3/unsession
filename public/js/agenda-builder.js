@@ -11,7 +11,7 @@
  *
  * OWNER: B4.
  */
-import { toast, api } from './ui.js';
+import { toast, api, openDialog } from './ui.js';
 import { wireNewSession } from './sessions.js';
 
 const root = document.getElementById('data-agenda');
@@ -78,6 +78,27 @@ function boot(D) {
     `padding:7px 13px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${
       on ? '#fff' : '#686b74'
     };white-space:nowrap;`;
+
+  /* ------------------------------------------------------------- filters */
+  const SEL_STYLE = 'padding:7px 8px;border:1px solid #d4d5db;font-size:12px;background:#fff;color:#33343c;';
+  const filterSel = (name, value, opts) =>
+    `<select data-filter="${name}" style="${SEL_STYLE}">` +
+    opts.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('') +
+    '</select>';
+  const trackOpts = () => [{ v: 'all', label: 'All tracks' }, ...D.tracks.map((t) => ({ v: t.id, label: t.name }))];
+  const roomOpts = () => [
+    { v: 'all', label: 'All rooms' },
+    { v: 'ALL', label: 'All-room blocks' },
+    ...D.rooms.map((r) => ({ v: r.id, label: r.name })),
+  ];
+  // Grid-view filters: venue-wide service bands always stay visible.
+  const passTrack = (p) => S.fTrack === 'all' || p.allRooms || p.trackId === S.fTrack;
+  const passRoom = (p) => {
+    if (p.allRooms) return true;
+    if (S.fRoom === 'all') return true;
+    if (S.fRoom === 'ALL') return false;
+    return p.roomId === S.fRoom;
+  };
 
   /** Prototype `conflicts()` — mirrored on the server in `lib/agenda.ts`. */
   function conflicts(item, placed) {
@@ -230,15 +251,22 @@ function boot(D) {
       h += '<div style="display:flex;border:1px solid #e2e3e8;background:#fff;">';
       for (const d of D.days) h += `<button type="button" data-day="${d.index}" style="${tabBtn(S.day === d.index)}">${esc(d.label)}</button>`;
       h += '</div>';
-      if (S.view === 'rooms') {
-        h +=
-          '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">' +
-          `<span style="font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;">LAYOUT</span>` +
-          '<div style="display:flex;border:1px solid #e2e3e8;background:#fff;">' +
-          `<button type="button" data-layout="cols" style="${tabBtn(S.layout === 'cols')}">Columns</button>` +
-          `<button type="button" data-layout="lanes" style="${tabBtn(S.layout === 'lanes')}">Lanes</button>` +
-          '</div></div>';
-      }
+    }
+    if (S.view === 'rooms') {
+      h +=
+        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">' +
+        filterSel('fTrack', S.fTrack, trackOpts()) +
+        `<span style="font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;">LAYOUT</span>` +
+        '<div style="display:flex;border:1px solid #e2e3e8;background:#fff;">' +
+        `<button type="button" data-layout="cols" style="${tabBtn(S.layout === 'cols')}">Columns</button>` +
+        `<button type="button" data-layout="lanes" style="${tabBtn(S.layout === 'lanes')}">Lanes</button>` +
+        '</div></div>';
+    } else if (S.view === 'day' || S.view === 'week') {
+      h +=
+        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">' +
+        filterSel('fTrack', S.fTrack, trackOpts()) +
+        filterSel('fRoom', S.fRoom, roomOpts()) +
+        '</div>';
     }
     daybar.innerHTML = h;
     daybar.style.display = h ? 'flex' : 'none';
@@ -260,7 +288,7 @@ function boot(D) {
         return (
           `<div draggable="true" data-drag data-sid="${b.id}" style="border:1px solid #e2e3e8;border-left:3px solid ${tr.color};padding:9px 11px;background:#fff;cursor:grab;">` +
           '<div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">' +
-          `<span style="display:inline-block;width:8px;height:8px;background:${tr.color};"></span>` +
+          `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};"></span>` +
           `<span style="font-family:${MONO};font-size:10px;color:#9a9da6;">${b.dur} MIN</span>` +
           `<span style="margin-left:auto;font-family:${MONO};font-size:9px;color:${statusColor};">${esc(status)}</span>` +
           '</div>' +
@@ -343,7 +371,7 @@ function boot(D) {
 
     let cols = `<div style="display:grid;grid-template-columns:repeat(${Math.max(1, D.rooms.length)},1fr);gap:6px;">`;
     for (const room of D.rooms) {
-      const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id);
+      const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id && passTrack(p));
       cols +=
         '<div style="min-width:0;">' +
         `<div style="height:${HEAD}px;font-size:12.5px;font-weight:700;padding:0 2px 6px;display:flex;align-items:flex-end;"><span>${esc(
@@ -387,7 +415,7 @@ function boot(D) {
 
     let lanes = '<div style="position:relative;">';
     for (const room of D.rooms) {
-      const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id);
+      const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id && passTrack(p));
       lanes +=
         '<div style="display:grid;grid-template-columns:120px 1fr;border-bottom:1px solid #e9eaee;">' +
         `<div style="padding:12px 10px;font-size:12.5px;font-weight:700;background:#fff;border-right:1px solid #e2e3e8;">${esc(
@@ -481,7 +509,7 @@ function boot(D) {
   }
 
   function pvLayout(day, fx0, fx1, cset) {
-    const items = dayPlaced(day);
+    const items = dayPlaced(day).filter((p) => passTrack(p) && passRoom(p));
     const out = [];
     for (const a of items.filter((x) => x.allRooms)) out.push(pvBlock(a, fx0, fx1, cset));
     for (const o of lay(items)) {
@@ -544,8 +572,6 @@ function boot(D) {
   }
 
   /* ------------------------------------------------------------ list view */
-  const SEL_STYLE = 'padding:7px 8px;border:1px solid #d4d5db;font-size:12px;background:#fff;color:#33343c;';
-
   function statusKey(p, cset) {
     return p.allRooms ? 'service' : cset.has(p.id) ? 'conflict' : p.type === 'sponsor' ? 'sponsor' : p.status || p.type;
   }
@@ -582,21 +608,12 @@ function boot(D) {
     const pageRows = rows.slice(page * PAGE, (page + 1) * PAGE);
     const hasFilters = !!fq || S.fDay !== 'all' || S.fTrack !== 'all' || S.fRoom !== 'all' || S.fStatus !== 'all';
 
-    const sel = (name, value, opts) =>
-      `<select data-filter="${name}" style="${SEL_STYLE}">` +
-      opts.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('') +
-      '</select>';
-
     let head = '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">';
     head += `<input data-filter="q" value="${esc(S.q)}" placeholder="Search title or speaker…" style="flex:1;min-width:180px;max-width:280px;padding:7px 10px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">`;
-    head += sel('fDay', S.fDay, [{ v: 'all', label: 'All days' }, ...D.days.map((d) => ({ v: String(d.index), label: d.label }))]);
-    head += sel('fTrack', S.fTrack, [{ v: 'all', label: 'All tracks' }, ...D.tracks.map((t) => ({ v: t.id, label: t.name }))]);
-    head += sel('fRoom', S.fRoom, [
-      { v: 'all', label: 'All rooms' },
-      { v: 'ALL', label: 'All-room blocks' },
-      ...D.rooms.map((r) => ({ v: r.id, label: r.name })),
-    ]);
-    head += sel('fStatus', S.fStatus, [
+    head += filterSel('fDay', S.fDay, [{ v: 'all', label: 'All days' }, ...D.days.map((d) => ({ v: String(d.index), label: d.label }))]);
+    head += filterSel('fTrack', S.fTrack, trackOpts());
+    head += filterSel('fRoom', S.fRoom, roomOpts());
+    head += filterSel('fStatus', S.fStatus, [
       { v: 'all', label: 'All statuses' },
       { v: 'confirmed', label: 'Confirmed' },
       { v: 'pending', label: 'Pending' },
@@ -649,7 +666,7 @@ function boot(D) {
         }">${esc(svc ? p.title.toUpperCase() : (p.type === 'sponsor' ? 'SP · ' : '') + p.title)}</span>` +
         `<div style="font-size:11.5px;color:#686b74;margin-top:2px;">${esc(svc ? '' : speakerNames(p))}</div></span>` +
         `<span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#33343c;">${
-          svc ? '' : `<span style="display:inline-block;width:8px;height:8px;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
+          svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
         }</span>` +
         `<span style="font-family:${MONO};font-size:10px;color:#9a9da6;">${esc(roomName(p))}</span>` +
         `<span style="font-family:${MONO};font-size:9.5px;color:${stColor};">${st}</span>` +
@@ -1014,24 +1031,16 @@ function boot(D) {
       return;
     }
 
-    if (t.closest('#add-service')) {
-      try {
-        const res = await api('/app/api/sessions/create', {
-          kind: 'service',
-          title: 'New break',
-          duration: 30,
-          allRooms: true,
-          day: S.day,
-          startMin: Math.min(DMAX - 30, D0 + 240),
-        });
-        upsert(res.session);
-        S.svcId = res.session.id;
-        S.selId = null;
-        markDirty();
-        render();
-      } catch (err) {
-        toast(err.message, false);
+    // Both sidebar buttons open the shared #new-session dialog with the right
+    // Type preselected (the change event shows the matching branch).
+    const addBtn = t.closest('#add-service') ? 'service' : t.closest('[data-dialog-open="#new-session"]') ? 'sponsor' : null;
+    if (addBtn) {
+      const kindSel = document.getElementById('ns-kind');
+      if (kindSel && kindSel.value !== addBtn) {
+        kindSel.value = addBtn;
+        kindSel.dispatchEvent(new Event('change'));
       }
+      if (t.closest('#add-service')) openDialog('#new-session');
       return;
     }
 

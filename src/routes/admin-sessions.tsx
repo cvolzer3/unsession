@@ -231,14 +231,8 @@ app.get('/app/sessions', async (c) => {
     durations: DURATIONS,
   };
 
-  const newSessionBtn = (
-    <button type="button" data-dialog-open="#new-session" style={CREATE_BTN}>
-      ＋ New session
-    </button>
-  );
-
   return c.html(
-    <AdminLayout {...props} headerActions={newSessionBtn} scripts={['/js/sessions.js']}>
+    <AdminLayout {...props} scripts={['/js/sessions.js']}>
       {jsonBlock('data-sessions', payload)}
       <style>{raw('@keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}')}</style>
       <div style="padding:22px 28px;">
@@ -254,12 +248,9 @@ app.get('/app/sessions', async (c) => {
             >
               Export CSV
             </a>
-            <a
-              href="/app/agenda"
-              style="display:inline-block;padding:7px 14px;background:#4c5fd5;color:#fff;font-size:13px;font-weight:600;text-decoration:none;"
-            >
-              Open Agenda Builder →
-            </a>
+            <button type="button" data-dialog-open="#new-session" style={CREATE_BTN}>
+              ＋ New session
+            </button>
           </div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
