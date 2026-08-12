@@ -12,7 +12,7 @@ import { Hono } from 'hono';
 import type { FC } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
-import { AdminLayout, MONO } from '../views/layout';
+import { AdminLayout, DrawerExpandButton, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
@@ -40,9 +40,12 @@ const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const ROW_COLS = '70px minmax(240px,1fr) 130px 170px 92px 150px 160px';
 const CELL_SELECT = 'width:100%;padding:5px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;';
 const DRAWER_LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;`;
-/** Panel width lives here, not inline, so the full-screen rule can override it. */
+/**
+ * Panel width lives here, not inline, so the shared full-screen rule can
+ * override it — and on a class, not `#drawer`, since an id would outrank it.
+ */
 const DRAWER_CSS =
-  '#drawer{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:50;' +
+  '.drawer-session{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:50;' +
   'box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;}';
 const DRAWER_SELECT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;';
 const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
@@ -421,24 +424,17 @@ app.get('/app/sessions', async (c) => {
 
       {/* ------------------------------------------------------------ drawer */}
       <div id="drawer-scrim" hidden style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:40;"></div>
-      <div
-        id="drawer"
-        hidden
-        style="position:fixed;top:0;right:0;bottom:0;width:460px;background:#fff;z-index:50;box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;"
-      >
-        <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+      <div id="drawer" class="us-drawer-panel drawer-session" data-drawer hidden>
+        <div style="padding:16px var(--band-x);border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
           <div id="d-num" style={`font-family:${MONO};font-size:12px;color:#9a9da6;`}></div>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
-            <button
-              type="button"
-              data-drawer-close
-              style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
-            >
+          <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
+            <DrawerExpandButton />
+            <button type="button" data-drawer-close class="us-icon-btn" aria-label="Close" style="font-size:18px;line-height:1;">
               ×
             </button>
           </div>
         </div>
-        <div style="flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:16px;">
+        <div style="flex:1;overflow-y:auto;padding:20px var(--band-x);display:flex;flex-direction:column;gap:16px;">
           <div id="d-sched" hidden style="background:#e7f1fb;border:1px solid #bcd8f0;padding:11px 12px 12px;display:flex;flex-direction:column;gap:8px;">
             <div style="display:flex;align-items:baseline;gap:12px;">
               <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#1c7ed6;`}>ON AGENDA</div>

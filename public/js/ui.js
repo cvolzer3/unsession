@@ -8,6 +8,7 @@
  *   data-dialog-open="#id"               opens a dialog overlay
  *   data-dialog-close                    closes the nearest dialog overlay
  *   data-drawer-expand                   toggles [data-expanded] on the nearest [data-drawer]
+ *   expandButton(expanded)               that button's markup, for JS-rendered drawers
  *   data-confirm="Sure?"                 destructive submits ask before posting
  */
 
@@ -45,6 +46,32 @@ export async function api(url, body, method = 'POST') {
     throw new Error(message);
   }
   return data;
+}
+
+/**
+ * Drawer header full-screen toggle for drawers rendered from JS — the twin of
+ * `DrawerExpandButton` in views/layout.tsx. Pass whether the drawer is already
+ * expanded: the icons follow [data-expanded] in CSS, but the accessible name
+ * has to be re-stated when the header is re-rendered under an open drawer.
+ */
+export function expandButton(expanded = false) {
+  const arrow = (cls, paths) =>
+    `<svg class="${cls}" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  return (
+    `<button type="button" class="us-icon-btn" data-drawer-expand title="Expand to full screen"` +
+    ` aria-label="${expanded ? 'Exit full screen' : 'Expand to full screen'}">` +
+    arrow(
+      'ic-max',
+      '<path d="M8 3H5a2 2 0 0 0-2 2v3" /><path d="M16 3h3a2 2 0 0 1 2 2v3" />' +
+        '<path d="M8 21H5a2 2 0 0 1-2-2v-3" /><path d="M16 21h3a2 2 0 0 0 2-2v-3" />'
+    ) +
+    arrow(
+      'ic-min',
+      '<path d="M8 3v3a2 2 0 0 1-2 2H3" /><path d="M16 3v3a2 2 0 0 0 2 2h3" />' +
+        '<path d="M8 21v-3a2 2 0 0 0-2-2H3" /><path d="M16 21v-3a2 2 0 0 1 2-2h3" />'
+    ) +
+    `</button>`
+  );
 }
 
 export function openDialog(sel) {

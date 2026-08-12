@@ -11,7 +11,7 @@
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
-import { AdminLayout, MONO } from '../views/layout';
+import { AdminLayout, DrawerExpandButton, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
@@ -76,17 +76,8 @@ const PAGE_CSS = `
   @keyframes drawerin{from{transform:translateX(32px);opacity:0}to{transform:none;opacity:1}}
   /* Width sits midway between the old fixed 420px and half the viewport, so it
      tracks the window instead of feeling cramped on wide screens. */
-  .us-drawer{--band-x:22px;position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;transition:width 0.16s ease;}
-  /* Full screen widens the shell, not the fields: the bands grow their side
-     padding so the content stays a readable column while the header and
-     footer rules still run edge to edge. */
-  .us-drawer[data-expanded]{width:100vw;--band-x:max(22px,calc((100vw - 880px) / 2));}
+  .us-drawer{position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;}
   #fb-save-btn:disabled{background:#f1f3f5;border-color:#e2e3e8;color:#b4b6be;cursor:default;}
-  .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
-  .us-icon-btn:hover{color:#16171d;}
-  .us-drawer .ic-min{display:none;}
-  .us-drawer[data-expanded] .ic-max{display:none;}
-  .us-drawer[data-expanded] .ic-min{display:block;}
 `;
 
 function statusBadge(status: string): string {
@@ -718,7 +709,7 @@ app.get('/app/forms', async (c) => {
 
       {/* ------------------------------------------------------ settings drawer */}
       <div id="form-settings" data-dialog hidden style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;">
-        <aside class="us-drawer" data-drawer>
+        <aside class="us-drawer us-drawer-panel" data-drawer>
           <form
             method="post"
             action={`/app/forms/${active.id}/settings`}
@@ -733,27 +724,7 @@ app.get('/app/forms', async (c) => {
                 </div>
               </div>
               <div style="margin-left:auto;display:flex;align-items:center;gap:4px;">
-                {/* Maximize / minimize (the corner-arrows "full screen" icon). */}
-                <button
-                  type="button"
-                  class="us-icon-btn"
-                  data-drawer-expand
-                  aria-label="Expand to full screen"
-                  title="Expand to full screen"
-                >
-                  <svg class="ic-max" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
-                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                  </svg>
-                  <svg class="ic-min" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                    <path d="M16 3v3a2 2 0 0 0 2 2h3" />
-                    <path d="M8 21v-3a2 2 0 0 0-2-2H3" />
-                    <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                  </svg>
-                </button>
+                <DrawerExpandButton />
                 <button
                   type="button"
                   class="us-icon-btn"

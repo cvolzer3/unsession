@@ -21,6 +21,20 @@ export const ADMIN_BASE_CSS = `
   [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  /* Side drawers. Every drawer header carries the full-screen toggle: ui.js
+     flips [data-expanded] on the nearest [data-drawer] and these rules widen
+     the panel to the viewport. Expanding widens the shell, not the text — the
+     bands take their side padding from --band-x, so the body stays a readable
+     ~880px column while header and footer rules still run edge to edge. A
+     panel's own width must live in CSS, not an inline style, or it outranks
+     the expanded rule. */
+  .us-drawer-panel{--band-x:22px;transition:width 0.16s ease;}
+  [data-expanded].us-drawer-panel,[data-expanded] .us-drawer-panel{width:100vw;max-width:100vw;--band-x:max(22px,calc((100vw - 880px) / 2));}
+  .us-icon-btn{background:none;border:none;color:#9a9da6;cursor:pointer;padding:4px;display:flex;align-items:center;line-height:0;}
+  .us-icon-btn:hover{color:#16171d;}
+  [data-drawer] .ic-min{display:none;}
+  [data-drawer][data-expanded] .ic-max{display:none;}
+  [data-drawer][data-expanded] .ic-min{display:block;}
   #sandbox-switcher summary::-webkit-details-marker{display:none;}
   .sw-input{appearance:none;-webkit-appearance:none;display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:0;background:none;cursor:pointer;}
   .sw-input::-webkit-color-swatch-wrapper{padding:0;}
@@ -431,6 +445,29 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
 };
 
 /* ------------------------------------------------------------------ shared bits */
+
+/**
+ * The corner-arrows full-screen toggle every drawer header carries, sitting
+ * left of the close button. ui.js flips `data-expanded` on the enclosing
+ * `[data-drawer]`; ADMIN_BASE_CSS widens the panel and swaps which icon shows.
+ * Drawers rendered client-side use `expandButton()` from ui.js — same markup.
+ */
+export const DrawerExpandButton: FC = () => (
+  <button type="button" class="us-icon-btn" data-drawer-expand aria-label="Expand to full screen" title="Expand to full screen">
+    <svg class="ic-max" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+      <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+      <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+      <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+    </svg>
+    <svg class="ic-min" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+      <path d="M16 3v3a2 2 0 0 0 2 2h3" />
+      <path d="M8 21v-3a2 2 0 0 0-2-2H3" />
+      <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+    </svg>
+  </button>
+);
 
 export const Card: FC<PropsWithChildren<{ label?: string; pad?: string }>> = ({ label, pad, children }) => (
   <div style={`background:#fff;border:1px solid #e2e3e8;padding:${pad ?? '18px 20px'};`}>
