@@ -4,9 +4,11 @@
  * versions on), with speaker/session association, the full version history
  * and the cross-role comment thread from migration 0021.
  *
- * Fully server-rendered, no island: the kind filter is a set of links, the
- * detail drawer opens via `?file=<id>`, closing it is an anchor back to
- * `/app/files`, and the organizer reply is a plain form POST.
+ * Server-rendered: the kind filter is a set of links, the detail drawer opens
+ * via `?file=<id>` and closing it is an anchor back to `/app/files`. The
+ * reply form is a real POST that also works with JavaScript off;
+ * public/js/files.js intercepts it to append the comment in place, because a
+ * reload would re-run the drawer's slide-in animation on every reply.
  */
 import { Hono } from 'hono';
 import type { FC } from 'hono/jsx';
@@ -243,9 +245,11 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
           ))}
         </div>
 
-        <div style={`${LABEL}margin:22px 0 8px;`}>{`COMMENTS · ${comments.length}`}</div>
+        <div style={`${LABEL}margin:22px 0 8px;`} data-comment-count={comments.length}>
+          {`COMMENTS · ${comments.length}`}
+        </div>
         {chain.subjectType && chain.subjectId ? (
-          <div style="border:1px solid #eceded;">
+          <div style="border:1px solid #eceded;" data-comment-thread>
             {comments.map((cm) => (
               <div style="padding:9px 12px;border-bottom:1px solid #f2f3f5;">
                 <div style={`font-family:${MONO};font-size:10px;color:${cm.author_role === 'organizer' ? '#4c5fd5' : '#9a9da6'};margin-bottom:2px;`}>
@@ -255,11 +259,11 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
               </div>
             ))}
             {comments.length === 0 ? (
-              <div style="padding:9px 12px;font-size:12px;color:#9a9da6;border-bottom:1px solid #f2f3f5;">
+              <div data-comment-empty style="padding:9px 12px;font-size:12px;color:#9a9da6;border-bottom:1px solid #f2f3f5;">
                 No comments yet.
               </div>
             ) : null}
-            <form method="post" action="/app/files/comment" style="display:flex;gap:6px;padding:9px 12px;margin:0;">
+            <form method="post" action="/app/files/comment" data-comment-form style="display:flex;gap:6px;padding:9px 12px;margin:0;">
               <input type="hidden" name="fileId" value={chain.fileId} />
               <input
                 name="body"
@@ -303,7 +307,7 @@ app.get('/app/files', async (c) => {
   const cols = 'minmax(220px,1.4fr) minmax(120px,1fr) minmax(140px,1.2fr) 150px 76px 90px';
 
   return c.html(
-    <AdminLayout {...props}>
+    <AdminLayout {...props} scripts={['/js/files.js']}>
       <style>{DRAWER_CSS}</style>
       <div style="padding:24px 28px;max-width:1160px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
@@ -386,18 +390,23 @@ app.get('/app/files', async (c) => {
 app.post('/app/files/comment', requireOrgRole('admin'), async (c) => {
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
+  // files.js posts the same form via fetch with an Accept header — answering
+  // JSON lets it append the comment in place instead of reloading the drawer.
+  const wantsJson = (c.req.header('accept') ?? '').includes('application/json');
+  const fail = (path: string, message: string) =>
+    wantsJson ? c.json({ ok: false, error: message }, 400) : redirectWithToast(c, path, message);
   const body = await c.req.parseBody();
   const fileId = String(body.fileId ?? '');
   const text = String(body.body ?? '').trim().slice(0, 2000);
   const file = await getFileRow(c.env, fileId);
-  if (!file || file.event_id !== event.id) return redirectWithToast(c, '/app/files', 'That file isn’t in this event');
+  if (!file || file.event_id !== event.id) return fail('/app/files', 'That file isn’t in this event');
   if (!file.subject_type || !file.subject_id) {
-    return redirectWithToast(c, '/app/files', 'Comments live on speaker deliverables — this file has no thread');
+    return fail('/app/files', 'Comments live on speaker deliverables — this file has no thread');
   }
-  if (!text) return redirectWithToast(c, `/app/files?file=${fileId}`, 'Write a comment first');
+  if (!text) return fail(`/app/files?file=${fileId}`, 'Write a comment first');
 
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
-  await addFileComment(c.env.DB, {
+  const comment = await addFileComment(c.env.DB, {
     eventId: event.id,
     kind: file.kind,
     subjectType: file.subject_type,
@@ -417,11 +426,16 @@ app.post('/app/files/comment', requireOrgRole('admin'), async (c) => {
     action: 'Commented on file',
     detail: `${file.filename} — ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`,
   });
-  return redirectWithToast(
-    c,
-    `/app/files?file=${fileId}`,
-    file.subject_type === 'task' ? 'Comment added — the speaker sees it in their portal' : 'Comment added'
-  );
+  const message =
+    file.subject_type === 'task' ? 'Comment added — the speaker sees it in their portal' : 'Comment added';
+  if (wantsJson) {
+    return c.json({
+      ok: true,
+      message,
+      comment: { author_name: comment.author_name, body: comment.body, when: fmtDateTime(comment.created_at) },
+    });
+  }
+  return redirectWithToast(c, `/app/files?file=${fileId}`, message);
 });
 
 export default app;
