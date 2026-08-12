@@ -16,7 +16,20 @@ import type { Bindings } from '../types';
 
 /* ------------------------------------------------------------------ types */
 
-export type Criterion = { name: string; hint: string; scale: number };
+export type CriterionType = 'scale' | 'select' | 'text';
+
+export type Criterion = {
+  name: string;
+  hint: string;
+  /** 'scale' = numeric rating, 'select' = dropdown, 'text' = free text. */
+  type: CriterionType;
+  /** Top of the numeric range — scale criteria only. */
+  scale: number;
+  /** Dropdown choices — select criteria only. */
+  options: string[];
+  /** Relative weight in the star aggregate — scale criteria only. */
+  weight: number;
+};
 
 export type Rules = {
   /** 'all' | taxonomy_options.id of the Track taxonomy */
@@ -88,7 +101,8 @@ export type Evaluation = {
   planId: string;
   submissionId: string;
   reviewerId: string;
-  scores: Record<string, number>;
+  /** Criterion name → number (scale), option string (select), or free text. */
+  scores: Record<string, number | string>;
   note: string;
   abstained: boolean;
   createdAt: string;
@@ -117,9 +131,9 @@ export const DEFAULT_AUTOMATION: Automation = {
 };
 
 export const DEFAULT_CRITERIA: Criterion[] = [
-  { name: 'Relevance', hint: 'Fits this audience?', scale: 5 },
-  { name: 'Depth', hint: 'Substance over hype?', scale: 5 },
-  { name: 'Delivery', hint: 'Will it land on stage?', scale: 5 },
+  { name: 'Relevance', hint: 'Fits this audience?', type: 'scale', scale: 5, options: [], weight: 1 },
+  { name: 'Depth', hint: 'Substance over hype?', type: 'scale', scale: 5, options: [], weight: 1 },
+  { name: 'Delivery', hint: 'Will it land on stage?', type: 'scale', scale: 5, options: [], weight: 1 },
 ];
 
 export const DEFAULT_RULES: Rules = { track: 'all', form: 'all', format: 'all', level: 'all', status: 'active' };
@@ -143,19 +157,24 @@ type PlanRow = {
   created_at: string;
 };
 
-function normalizeCriteria(raw: unknown): Criterion[] {
+export function normalizeCriteria(raw: unknown): Criterion[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((c) => {
+    .map((c): Criterion => {
       const o = (c ?? {}) as Record<string, unknown>;
       const scale = Number(o.scale);
+      const weight = Number(o.weight);
       return {
         name: String(o.name ?? '').trim(),
         hint: String(o.hint ?? ''),
+        // Rows saved before criterion types existed carry no `type` — they are scale.
+        type: o.type === 'select' || o.type === 'text' ? o.type : 'scale',
         scale: scale === 3 || scale === 5 || scale === 10 ? scale : 5,
+        options: Array.isArray(o.options) ? o.options.map((x) => String(x ?? '').trim()).filter(Boolean) : [],
+        weight: Number.isFinite(weight) && weight > 0 ? weight : 1,
       };
     })
-    .filter((c) => !!c.name);
+    .filter((c) => !!c.name && (c.type !== 'select' || c.options.length > 0));
 }
 
 function normalizeRules(raw: unknown): Rules {
@@ -374,7 +393,7 @@ export async function loadEvaluations(db: D1Database, eventId: string): Promise<
     planId: r.plan_id,
     submissionId: r.submission_id,
     reviewerId: r.reviewer_id,
-    scores: jsonParse<Record<string, number>>(r.scores_json, {}),
+    scores: jsonParse<Record<string, number | string>>(r.scores_json, {}),
     note: r.note ?? '',
     abstained: !!r.abstained,
     createdAt: r.created_at,
@@ -528,21 +547,27 @@ export function planSubmissions(plan: EvalPlan, subs: EvalSubmission[], evals: E
   return subs.filter((s) => inPlanScope(plan, s) || scored.has(s.id));
 }
 
+/** The criteria that carry a numeric rating — the only ones aggregates count. */
+export function scaleCriteria(criteria: Criterion[]): Criterion[] {
+  return criteria.filter((c) => c.type === 'scale');
+}
+
 export function cumMaxOf(criteria: Criterion[]): number {
-  return criteria.reduce((a, c) => a + (Number(c.scale) || 5), 0);
+  return scaleCriteria(criteria).reduce((a, c) => a + (Number(c.scale) || 5), 0);
 }
 
 export function cumulativeOf(plan: EvalPlan, e: Evaluation): number {
-  return plan.criteria.reduce((a, c) => a + (Number(e.scores[c.name]) || 0), 0);
+  return scaleCriteria(plan.criteria).reduce((a, c) => a + (Number(e.scores[c.name]) || 0), 0);
 }
 
-/** Mean criterion value of one evaluation, normalized to the 1–5 star scale. */
+/** Weighted mean criterion value of one evaluation, normalized to the 1–5 star scale. */
 export function starAvgOf(plan: EvalPlan, e: Evaluation): number | null {
-  const vals = plan.criteria
-    .map((c) => ({ v: Number(e.scores[c.name]), scale: Number(c.scale) || 5 }))
+  const vals = scaleCriteria(plan.criteria)
+    .map((c) => ({ v: Number(e.scores[c.name]), scale: Number(c.scale) || 5, w: Number(c.weight) > 0 ? Number(c.weight) : 1 }))
     .filter((x) => Number.isFinite(x.v) && x.v > 0);
   if (!vals.length) return null;
-  return vals.reduce((a, x) => a + (x.v / x.scale) * 5, 0) / vals.length;
+  const wSum = vals.reduce((a, x) => a + x.w, 0);
+  return vals.reduce((a, x) => a + x.w * (x.v / x.scale) * 5, 0) / wSum;
 }
 
 export type PlanProgress = { done: number; total: number; pct: number };
@@ -667,7 +692,7 @@ export type ScoreInput = {
   planId: string;
   submissionId: string;
   reviewerId: string;
-  scores: Record<string, number>;
+  scores: Record<string, number | string>;
   note: string;
   abstained: boolean;
 };

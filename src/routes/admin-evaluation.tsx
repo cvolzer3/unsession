@@ -43,6 +43,7 @@ import {
   planProgress,
   planSubmissions,
   reviewerLoad,
+  scaleCriteria,
   starAvgOf,
   submissionScore,
   type Automation,
@@ -625,6 +626,23 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
                         {e.abstained
                           ? [<div style="font-size:12px;color:#9a9da6;">Abstained — conflict of interest</div>]
                           : p.criteria.map((crit) => {
+                              if (crit.type === 'select' || crit.type === 'text') {
+                                const t = String(e.scores[crit.name] ?? '');
+                                return (
+                                  <div style="display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:baseline;font-size:11.5px;color:#686b74;">
+                                    <div>{crit.name}</div>
+                                    <div
+                                      style={
+                                        crit.type === 'select'
+                                          ? 'font-size:11.5px;font-weight:600;color:#16171d;'
+                                          : 'font-size:11.5px;color:#33343c;line-height:1.5;'
+                                      }
+                                    >
+                                      {t || '—'}
+                                    </div>
+                                  </div>
+                                );
+                              }
                               const v = Number(e.scores[crit.name]) || 0;
                               return (
                                 <div style="display:grid;grid-template-columns:80px 1fr 18px;gap:10px;align-items:center;font-size:11.5px;color:#686b74;">
@@ -753,7 +771,11 @@ function PlansList(opts: { ctx: PageCtx }) {
                 <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;">
                   {p.criteria.map((cr) => (
                     <span style="display:inline-block;padding:3px 8px;font-size:11px;font-weight:500;background:#eef0fb;color:#3a4ab8;">
-                      {cr.name}
+                      {cr.type === 'select'
+                        ? `${cr.name} · ${cr.options.length} options`
+                        : cr.type === 'text'
+                          ? `${cr.name} · text`
+                          : `${cr.name} · 1–${cr.scale}${cr.weight !== 1 ? ` ×${cr.weight}` : ''}`}
                     </span>
                   ))}
                 </div>
@@ -912,7 +934,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
                 <div style={MICRO}>CRITERIA</div>
                 <div style="font-size:11.5px;color:#9a9da6;">
-                  Reviewers score each one on its own scale; the sum is their cumulative score.
+                  Numeric ratings, dropdowns, or free text. Rating sums make the cumulative score; weights shape the star average.
                 </div>
               </div>
               <div id="crit-rows" style="display:grid;gap:8px;"></div>
@@ -1020,7 +1042,7 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
     .map((s) => {
       const evals = ctx.evaluations.filter((e) => e.planId === plan.id && e.submissionId === s.id && !e.abstained);
       const cum = evals.length ? evals.reduce((a, e) => a + cumulativeOf(plan, e), 0) / evals.length : null;
-      const critAvgs = plan.criteria.map((crit) => {
+      const critAvgs = scaleCriteria(plan.criteria).map((crit) => {
         const vals = evals.map((e) => Number(e.scores[crit.name])).filter((v) => Number.isFinite(v) && v > 0);
         return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
       });
@@ -1089,7 +1111,7 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
                 {r.cum == null ? (
                   <span style={chip('#f2f3f5', '#c0c2ca')}>no scores yet</span>
                 ) : (
-                  plan.criteria.map((crit, k) => (
+                  scaleCriteria(plan.criteria).map((crit, k) => (
                     <span style={chip('#eef0fb', '#33343c')}>{`${crit.name} ${num1(r.critAvgs[k])}`}</span>
                   ))
                 )}
@@ -1666,8 +1688,15 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
   const body = await c.req.json<PlanBody>();
 
   const name = (body.name ?? '').trim();
-  const criteria = (body.criteria ?? [])
-    .map((cr) => ({ name: String(cr.name ?? '').trim(), hint: String(cr.hint ?? ''), scale: Number(cr.scale) || 5 }))
+  const criteria: Criterion[] = (body.criteria ?? [])
+    .map((cr): Criterion => ({
+      name: String(cr.name ?? '').trim(),
+      hint: String(cr.hint ?? ''),
+      type: cr.type === 'select' || cr.type === 'text' ? cr.type : 'scale',
+      scale: Number(cr.scale) || 5,
+      options: Array.isArray(cr.options) ? cr.options.map((o) => String(o ?? '').trim()).filter(Boolean) : [],
+      weight: Number.isFinite(Number(cr.weight)) && Number(cr.weight) > 0 ? Number(cr.weight) : 1,
+    }))
     .filter((cr) => !!cr.name);
   const reviewers = (body.reviewers ?? []).filter((r) => !!r.userId);
   const memberCount = reviewers.filter((r) => r.role !== 'chair').length;
@@ -1675,6 +1704,8 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
 
   if (!name) return c.json({ ok: false, error: 'Name the plan first' }, 400);
   if (!criteria.length) return c.json({ ok: false, error: 'Add at least one criterion' }, 400);
+  const emptySelect = criteria.find((cr) => cr.type === 'select' && cr.options.length < 2);
+  if (emptySelect) return c.json({ ok: false, error: `Give “${emptySelect.name}” at least two dropdown options` }, 400);
   if (!memberCount) return c.json({ ok: false, error: 'Assign at least one member reviewer' }, 400);
 
   const subs = await loadEvalContext(c.env.DB, event.id);

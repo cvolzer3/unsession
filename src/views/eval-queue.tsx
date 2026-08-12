@@ -4,7 +4,8 @@
  * Rendered by BOTH the public `/{event}/evaluate` workspace and the admin
  * `/app/evaluation?tab=mine` tab, so the markup here is the island contract
  * for `public/js/evaluate.js`: the `#data-evaluate` JSON payload,
- * `[data-crit]` / `[data-star]` rows, `#submit-score` / `#note` / `#skip` /
+ * `[data-crit]` / `[data-star]` rows plus `[data-crit-select]` dropdowns and
+ * `[data-crit-text]` textareas, `#submit-score` / `#note` / `#skip` /
  * `#abstain`, and `form[data-autosubmit]`. Only the link base differs between
  * surfaces — `basePath` plus `fixedParams` (e.g. `{ tab: 'mine' }`) keep
  * pagination, plan chips, and filters on the hosting page. The score/abstain
@@ -15,6 +16,7 @@ import { raw } from 'hono/html';
 import { MONO } from './layout';
 import {
   cumMaxOf,
+  cumulativeOf,
   fmtDay,
   reviewerQueue,
   starAvgOf,
@@ -324,22 +326,41 @@ function ReviewCard(opts: {
       ) : null}
       <div style="padding:20px 26px;display:grid;gap:16px;">
         {plan.criteria.map((crit) => (
-          <div style="display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:center;">
+          <div style={`display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:${crit.type === 'text' ? 'start' : 'center'};`}>
             <div>
               <div style="font-size:13.5px;font-weight:600;">{crit.name}</div>
               <div style="font-size:11.5px;color:#9a9da6;">{crit.hint}</div>
             </div>
-            <div style="display:flex;gap:4px;" data-crit={crit.name}>
-              {Array.from({ length: crit.scale || 5 }, (_, i) => i + 1).map((n) => (
-                <button
-                  type="button"
-                  data-star={String(n)}
-                  style={`width:40px;height:36px;border:1px solid #e2e3e8;background:#fff;color:#686b74;font-size:13.5px;font-weight:600;cursor:pointer;font-family:${MONO};`}
-                >
-                  {String(n)}
-                </button>
-              ))}
-            </div>
+            {crit.type === 'select' ? (
+              <select
+                data-crit-select={crit.name}
+                style="max-width:280px;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
+              >
+                <option value="">Choose…</option>
+                {crit.options.map((o) => (
+                  <option value={o}>{o}</option>
+                ))}
+              </select>
+            ) : crit.type === 'text' ? (
+              <textarea
+                data-crit-text={crit.name}
+                rows={3}
+                placeholder={crit.hint || 'Your answer (optional)…'}
+                style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"
+              ></textarea>
+            ) : (
+              <div style="display:flex;gap:4px;" data-crit={crit.name}>
+                {Array.from({ length: crit.scale || 5 }, (_, i) => i + 1).map((n) => (
+                  <button
+                    type="button"
+                    data-star={String(n)}
+                    style={`width:40px;height:36px;border:1px solid #e2e3e8;background:#fff;color:#686b74;font-size:13.5px;font-weight:600;cursor:pointer;font-family:${MONO};`}
+                  >
+                    {String(n)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         <textarea
@@ -418,6 +439,17 @@ function ReviewedCard(opts: {
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>YOUR SCORES</div>
         {evaluation && !evaluation.abstained ? (
           plan.criteria.map((crit) => {
+            if (crit.type === 'select' || crit.type === 'text') {
+              const t = String(evaluation.scores[crit.name] ?? '');
+              return (
+                <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:baseline;font-size:12.5px;color:#686b74;">
+                  <div style="font-weight:600;color:#16171d;">{crit.name}</div>
+                  <div style={crit.type === 'select' ? 'font-weight:600;color:#16171d;' : 'color:#33343c;line-height:1.5;'}>
+                    {t || '—'}
+                  </div>
+                </div>
+              );
+            }
             const v = Number(evaluation.scores[crit.name]) || 0;
             return (
               <div style="display:grid;grid-template-columns:130px 1fr 30px;gap:12px;align-items:center;font-size:12.5px;color:#686b74;">
@@ -447,7 +479,7 @@ function ReviewedCard(opts: {
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>CUMULATIVE</div>
           <div style="font-size:24px;font-weight:700;">
             {evaluation && !evaluation.abstained
-              ? `${plan.criteria.reduce((a, cr) => a + (Number(evaluation.scores[cr.name]) || 0), 0)} / ${cumMaxOf(plan.criteria)}`
+              ? `${cumulativeOf(plan, evaluation)} / ${cumMaxOf(plan.criteria)}`
               : '—'}
           </div>
         </div>

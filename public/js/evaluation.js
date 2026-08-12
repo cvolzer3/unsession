@@ -133,7 +133,12 @@ function planEditor() {
   function renderCriteria() {
     critRows.innerHTML = '';
     draft.criteria.forEach((c, i) => {
-      const row = el('div', 'display:grid;grid-template-columns:170px 1fr 86px 30px;gap:8px;align-items:center;');
+      c.type = c.type === 'select' || c.type === 'text' ? c.type : 'scale';
+      if (!Array.isArray(c.options)) c.options = [];
+      if (!(Number(c.weight) > 0)) c.weight = 1;
+
+      const wrap = el('div', 'display:grid;gap:6px;');
+      const row = el('div', 'display:grid;grid-template-columns:170px 1fr 106px 30px;gap:8px;align-items:center;');
       const nm = el('input', 'padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-weight:600;outline-color:#4c5fd5;');
       nm.value = c.name;
       nm.placeholder = 'Criterion';
@@ -148,11 +153,16 @@ function planEditor() {
         c.hint = hint.value;
         renderPreview();
       });
-      const scale = el('select', 'padding:8px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
-      [3, 5, 10].forEach((n) => scale.appendChild(new Option(n === 3 ? '1–3' : n === 5 ? '1–5' : '1–10', String(n))));
-      scale.value = String(c.scale || 5);
-      scale.addEventListener('change', () => {
-        c.scale = Number(scale.value);
+      const type = el('select', 'padding:8px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
+      [
+        ['scale', 'Rating'],
+        ['select', 'Dropdown'],
+        ['text', 'Free text'],
+      ].forEach(([v, l]) => type.appendChild(new Option(l, v)));
+      type.value = c.type;
+      type.addEventListener('change', () => {
+        c.type = type.value;
+        renderCriteria();
         renderPreview();
       });
       const x = el('button', 'background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;', '✕');
@@ -162,8 +172,44 @@ function planEditor() {
         renderCriteria();
         renderPreview();
       });
-      row.append(nm, hint, scale, x);
-      critRows.appendChild(row);
+      row.append(nm, hint, type, x);
+      wrap.appendChild(row);
+
+      if (c.type === 'scale') {
+        const cfg = el('div', 'display:flex;gap:8px;align-items:center;padding-left:178px;');
+        const scale = el('select', 'padding:6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
+        [3, 5, 10].forEach((n) => scale.appendChild(new Option(n === 3 ? '1–3' : n === 5 ? '1–5' : '1–10', String(n))));
+        scale.value = String(c.scale || 5);
+        scale.addEventListener('change', () => {
+          c.scale = Number(scale.value);
+          renderPreview();
+        });
+        const wLabel = el('label', 'display:flex;gap:6px;align-items:center;font-size:11.5px;color:#686b74;', 'Weight ×');
+        const weight = el('input', 'width:56px;padding:6px;border:1px solid #e2e3e8;font-size:12px;outline-color:#4c5fd5;');
+        weight.type = 'number';
+        weight.min = '0.5';
+        weight.step = '0.5';
+        weight.value = String(c.weight);
+        weight.addEventListener('input', () => {
+          c.weight = Number(weight.value) > 0 ? Number(weight.value) : 1;
+          renderPreview();
+        });
+        wLabel.appendChild(weight);
+        cfg.append(scale, wLabel);
+        wrap.appendChild(cfg);
+      } else if (c.type === 'select') {
+        const cfg = el('div', 'padding-left:178px;');
+        const opts = el('input', 'width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;');
+        opts.value = c.options.join(', ');
+        opts.placeholder = 'Options, comma-separated — e.g. Accept, Maybe, Reject';
+        opts.addEventListener('input', () => {
+          c.options = opts.value.split(',').map((s) => s.trim()).filter(Boolean);
+          renderPreview();
+        });
+        cfg.appendChild(opts);
+        wrap.appendChild(cfg);
+      }
+      critRows.appendChild(wrap);
     });
   }
 
@@ -215,7 +261,7 @@ function planEditor() {
   });
 
   $('add-crit').addEventListener('click', () => {
-    draft.criteria.push({ name: '', hint: '', scale: 5 });
+    draft.criteria.push({ name: '', hint: '', type: 'scale', scale: 5, options: [], weight: 1 });
     renderCriteria();
     renderPreview();
   });
@@ -236,7 +282,8 @@ function planEditor() {
 
   function renderPreview() {
     const named = draft.criteria.filter((c) => c.name.trim());
-    const cumMax = named.reduce((a, c) => a + (Number(c.scale) || 5), 0);
+    const scaled = named.filter((c) => (c.type || 'scale') === 'scale');
+    const cumMax = scaled.reduce((a, c) => a + (Number(c.scale) || 5), 0);
     const matched = DATA.submissions.filter((s) => matches(s, draft.rules));
     const memberN = draft.reviewers.filter((r) => r.role !== 'chair').length;
     const rp = Math.max(1, Math.min(Number(reviewsPer.value) || 3, memberN || 1));
@@ -276,28 +323,43 @@ function planEditor() {
       const head = el('div', 'display:flex;gap:8px;align-items:baseline;');
       head.appendChild(el('span', 'font-size:12.5px;font-weight:600;', c.name));
       head.appendChild(el('span', 'font-size:11px;color:#9a9da6;', c.hint || ''));
-      box.appendChild(head);
-      const btns = el('div', 'display:flex;gap:3px;margin-top:5px;');
-      for (let n = 1; n <= (Number(c.scale) || 5); n++) {
-        const on = demo[c.name];
-        const b = el(
-          'button',
-          `flex:1;min-width:20px;height:26px;padding:0;border:1px solid ${on === n ? '#4c5fd5' : '#e2e3e8'};background:${
-            on && n <= on ? '#eef0fb' : '#fff'
-          };color:${on && n <= on ? '#4c5fd5' : '#686b74'};font-size:11px;font-weight:600;cursor:pointer;font-family:${MONO};`,
-          n
-        );
-        b.type = 'button';
-        b.addEventListener('click', () => {
-          demo[c.name] = n;
-          renderPreview();
-        });
-        btns.appendChild(b);
+      if ((c.type || 'scale') === 'scale' && Number(c.weight) > 0 && Number(c.weight) !== 1) {
+        head.appendChild(el('span', `margin-left:auto;font-family:${MONO};font-size:10px;color:#4c5fd5;`, `×${c.weight}`));
       }
-      box.appendChild(btns);
+      box.appendChild(head);
+      if (c.type === 'select') {
+        const sel = el('select', 'width:100%;margin-top:5px;padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
+        sel.appendChild(new Option('Choose…', ''));
+        (c.options || []).forEach((o) => sel.appendChild(new Option(o, o)));
+        box.appendChild(sel);
+      } else if (c.type === 'text') {
+        const ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:5px;padding:6px 8px;border:1px solid #e2e3e8;font-size:12px;font-family:inherit;resize:vertical;');
+        ta.rows = 2;
+        ta.placeholder = c.hint || 'Free-text answer…';
+        box.appendChild(ta);
+      } else {
+        const btns = el('div', 'display:flex;gap:3px;margin-top:5px;');
+        for (let n = 1; n <= (Number(c.scale) || 5); n++) {
+          const on = demo[c.name];
+          const b = el(
+            'button',
+            `flex:1;min-width:20px;height:26px;padding:0;border:1px solid ${on === n ? '#4c5fd5' : '#e2e3e8'};background:${
+              on && n <= on ? '#eef0fb' : '#fff'
+            };color:${on && n <= on ? '#4c5fd5' : '#686b74'};font-size:11px;font-weight:600;cursor:pointer;font-family:${MONO};`,
+            n
+          );
+          b.type = 'button';
+          b.addEventListener('click', () => {
+            demo[c.name] = n;
+            renderPreview();
+          });
+          btns.appendChild(b);
+        }
+        box.appendChild(btns);
+      }
       pv.appendChild(box);
     });
-    const demoSum = named.reduce((a, c) => a + (demo[c.name] || 0), 0);
+    const demoSum = scaled.reduce((a, c) => a + (demo[c.name] || 0), 0);
     $('demo-cum').textContent = demoSum ? String(demoSum) : '—';
 
     const scope = $('scope-lines');
@@ -322,6 +384,8 @@ function planEditor() {
     const named = draft.criteria.filter((c) => c.name.trim());
     if (!name.value.trim()) return toast('Name the plan first', false);
     if (!named.length) return toast('Add at least one criterion', false);
+    const emptySelect = named.find((c) => c.type === 'select' && (!c.options || c.options.length < 2));
+    if (emptySelect) return toast(`Give “${emptySelect.name}” at least two dropdown options`, false);
     if (!draft.reviewers.some((r) => r.role !== 'chair')) return toast('Assign at least one member reviewer', false);
     btn.disabled = true;
     try {

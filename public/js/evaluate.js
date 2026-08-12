@@ -21,8 +21,13 @@ if (DATA && DATA.current) card(DATA.current);
 function card(current) {
   const scores = {};
   const rows = [...document.querySelectorAll('[data-crit]')];
+  const selects = [...document.querySelectorAll('[data-crit-select]')];
+  const texts = [...document.querySelectorAll('[data-crit-text]')];
   const submitBtn = document.getElementById('submit-score');
   const note = document.getElementById('note');
+
+  // Free-text criteria are optional; ratings and dropdowns must be filled.
+  const required = (c) => c.type !== 'text';
 
   function paint() {
     rows.forEach((row) => {
@@ -36,7 +41,7 @@ function card(current) {
         b.style.color = on ? '#4c5fd5' : '#686b74';
       });
     });
-    const full = current.criteria.every((c) => scores[c.name]);
+    const full = current.criteria.filter(required).every((c) => scores[c.name]);
     submitBtn.style.background = full ? '#4c5fd5' : '#c0c5e8';
     submitBtn.style.cursor = full ? 'pointer' : 'not-allowed';
   }
@@ -51,6 +56,23 @@ function card(current) {
     });
   });
 
+  selects.forEach((sel) => {
+    const name = sel.getAttribute('data-crit-select');
+    sel.addEventListener('change', () => {
+      if (sel.value) scores[name] = sel.value;
+      else delete scores[name];
+      paint();
+    });
+  });
+
+  texts.forEach((ta) => {
+    const name = ta.getAttribute('data-crit-text');
+    ta.addEventListener('input', () => {
+      if (ta.value.trim()) scores[name] = ta.value;
+      else delete scores[name];
+    });
+  });
+
   function go(url, message) {
     const u = new URL(url, location.origin);
     if (message) u.searchParams.set('ok', message);
@@ -58,9 +80,9 @@ function card(current) {
   }
 
   async function submit() {
-    const missing = current.criteria.find((c) => !scores[c.name]);
+    const missing = current.criteria.find((c) => required(c) && !scores[c.name]);
     if (missing) {
-      toast(`Score all ${current.criteria.length} criteria first (keys 1–5)`, false);
+      toast(`Fill in every criterion first (“${missing.name}” is missing)`, false);
       return;
     }
     submitBtn.disabled = true;
@@ -106,7 +128,8 @@ function card(current) {
     const tag = e.target.tagName;
     if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
     if (e.key >= '1' && e.key <= '5') {
-      const next = current.criteria.find((c) => !scores[c.name]) || current.criteria[current.criteria.length - 1];
+      const scaled = current.criteria.filter((c) => (c.type || 'scale') === 'scale');
+      const next = scaled.find((c) => !scores[c.name]) || scaled[scaled.length - 1];
       const n = Number(e.key);
       if (next && n <= (next.scale || 5)) {
         scores[next.name] = n;

@@ -24,6 +24,7 @@ import { logActivity } from '../lib/activity';
 import {
   assignedFor,
   cumMaxOf,
+  scaleCriteria,
   loadEvalContext,
   loadEvaluatorFields,
   loadSubmissionFileNames,
@@ -165,7 +166,7 @@ type ScoreBody = {
   slug?: string;
   planId?: string;
   submissionId?: string;
-  scores?: Record<string, number>;
+  scores?: Record<string, number | string>;
   note?: string;
 };
 
@@ -196,13 +197,26 @@ app.post('/p/api/evaluate/score', async (c) => {
   const g = await guardedItem(c, body);
   if (g.error || !g.plan || !g.sub || !user) return c.json({ ok: false, error: g.error ?? 'Not allowed' }, 400);
 
-  const scores: Record<string, number> = {};
+  const scores: Record<string, number | string> = {};
   for (const crit of g.plan.criteria) {
-    const v = Number((body.scores ?? {})[crit.name]);
-    if (!Number.isFinite(v) || v < 1 || v > (crit.scale || 5)) {
-      return c.json({ ok: false, error: `Score every criterion first (${crit.name} is missing)` }, 400);
+    const raw = (body.scores ?? {})[crit.name];
+    if (crit.type === 'select') {
+      const v = String(raw ?? '');
+      if (!crit.options.includes(v)) {
+        return c.json({ ok: false, error: `Pick an option for ${crit.name} first` }, 400);
+      }
+      scores[crit.name] = v;
+    } else if (crit.type === 'text') {
+      // Free text is optional — store it only when the reviewer wrote something.
+      const v = String(raw ?? '').trim();
+      if (v) scores[crit.name] = v;
+    } else {
+      const v = Number(raw);
+      if (!Number.isFinite(v) || v < 1 || v > (crit.scale || 5)) {
+        return c.json({ ok: false, error: `Score every criterion first (${crit.name} is missing)` }, 400);
+      }
+      scores[crit.name] = Math.round(v);
     }
-    scores[crit.name] = Math.round(v);
   }
 
   const res = await recordEvaluation(c.env.DB, {
@@ -221,9 +235,10 @@ app.post('/p/api/evaluate/score', async (c) => {
     subjectId: g.sub.id,
     actor: user.name || user.email,
     action: 'Scored',
-    detail: `“${g.plan.name}” · cumulative ${Object.values(scores).reduce((a, b) => a + b, 0)} of ${cumMaxOf(
-      g.plan.criteria
-    )}`,
+    detail: `“${g.plan.name}” · cumulative ${scaleCriteria(g.plan.criteria).reduce(
+      (a, cr) => a + (Number(scores[cr.name]) || 0),
+      0
+    )} of ${cumMaxOf(g.plan.criteria)}`,
   });
   return c.json({ ok: true });
 });
