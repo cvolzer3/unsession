@@ -27,6 +27,7 @@ import { queueDecisions, listDecisionQueue, OUTBOX_SEND_LIMIT } from '../lib/dec
 import { csvHeaders, parseCsvTable, toCsv, type CsvRow } from '../lib/csv';
 import { assignedFor, members, type PlanReviewer } from '../lib/evals';
 import { toXlsx, xlsxHeaders } from '../lib/xlsx';
+import { roleLabel } from '../lib/speaker-roles';
 
 const app = new Hono<Ctx>();
 
@@ -131,6 +132,7 @@ type SpeakerRow = {
   name: string;
   email: string;
   bio: string;
+  role: string;
   headshot_file_id: string | null;
 };
 type SubmissionRow = {
@@ -1142,7 +1144,7 @@ async function exportTable(
       track: r.trackName,
       format: r.formatLong,
       level: r.level,
-      speakers: r.speakers.map((s) => `${s.name} <${s.email}>`).join(' ; '),
+      speakers: r.speakers.map((s) => `${s.name} <${s.email}> (${roleLabel(s.role, s.position)})`).join(' ; '),
       score: r.avg === null ? '' : r.avg.toFixed(2),
       evalDone: r.done,
       evalTotal: r.total,
@@ -1328,11 +1330,13 @@ app.get('/app/api/submissions/:id', async (c) => {
       ruled,
       assigned,
       reviewers: revList,
+      // Anyone not already pinned is offered — picking a member who is only
+      // auto-assigned pins them, so the round-robin can no longer move them.
       addable:
         ruled || assigned
           ? members(stub)
-              .filter((m) => !slots.some((s) => s.userId === m.userId))
-              .map((m) => ({ id: m.userId, name: m.name }))
+              .filter((m) => !pinned.has(m.userId))
+              .map((m) => ({ id: m.userId, name: m.name, email: m.email }))
           : [],
     };
   });
@@ -1373,6 +1377,7 @@ app.get('/app/api/submissions/:id', async (c) => {
         name: s.name,
         email: s.email,
         bio: s.bio,
+        role: roleLabel(s.role, s.position),
         initials: initials(s.name || s.email),
         headshot: s.headshot_file_id ? `/files/${s.headshot_file_id}` : null,
       })),

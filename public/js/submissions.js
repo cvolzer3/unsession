@@ -268,6 +268,17 @@ function boot(DATA) {
     }
   }
 
+  /** Repaint the open drawer with fresh data, keeping it open and in place. */
+  async function refreshDrawer(id) {
+    if (!drawerPanel || state.drawer !== id) return;
+    const res = await api(`/app/api/submissions/${encodeURIComponent(id)}`, undefined, 'GET');
+    if (state.drawer !== id) return;
+    const scroll = drawerPanel.scrollTop;
+    drawerPanel.innerHTML = drawerHtml(res.sub);
+    wireDrawer(res.sub);
+    drawerPanel.scrollTop = scroll;
+  }
+
   function card(label, inner) {
     return `<div style="border:1px solid #e2e3e8;padding:10px 12px;"><div style="font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;">${label}</div><div style="font-size:13px;font-weight:600;margin-top:3px;display:flex;align-items:center;gap:6px;">${inner}</div></div>`;
   }
@@ -322,7 +333,7 @@ function boot(DATA) {
               ? `<img src="${esc(sp.headshot)}" alt="" style="width:38px;height:38px;object-fit:cover;flex-shrink:0;">`
               : `<div style="width:38px;height:38px;background:#eef0fb;color:#4c5fd5;display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;">${esc(sp.initials)}</div>`
           }
-          <div><div style="font-size:13.5px;font-weight:600;">${esc(sp.name)}</div><div style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</div><div style="font-size:12.5px;color:#686b74;margin-top:3px;">${esc(sp.bio)}</div></div>
+          <div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div style="font-size:13.5px;font-weight:600;">${esc(sp.name)}</div><span style="font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;">${esc((sp.role || '').toUpperCase())}</span></div><div style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</div><div style="font-size:12.5px;color:#686b74;margin-top:3px;">${esc(sp.bio)}</div></div>
         </div>`
       )
       .join('')}</div>`;
@@ -362,19 +373,21 @@ function boot(DATA) {
               ${r.scored ? `<span style="font-size:11px;color:#2b8a3e;">✓ scored</span>` : ''}
               ${
                 r.pinned && !r.scored && DATA.canWrite
-                  ? `<button type="button" data-unassign-reviewer="${esc(p.id)}:${esc(r.id)}" style="margin-left:auto;background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;">Remove</button>`
+                  ? `<button type="button" data-unassign-reviewer="${esc(p.id)}:${esc(r.id)}" aria-label="Remove reviewer" style="margin-left:auto;background:none;border:none;color:#9a9da6;font-size:14px;cursor:pointer;">✕</button>`
                   : ''
               }
             </div>`
           )
           .join('');
         const addable = DATA.canWrite ? p.addable || [] : [];
+        // Same pattern as the plan editor: a dashed "+ Add reviewer…" select
+        // that assigns as soon as a person is picked.
         const addCtl = addable.length
-          ? `<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid #f0f1f4;">
-              <select data-assign-reviewer-select="${esc(p.id)}" style="flex:1;padding:6px 10px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;">
-                ${addable.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}
+          ? `<div style="padding:8px 12px;border-top:1px solid #f0f1f4;">
+              <select data-assign-reviewer="${esc(p.id)}" style="width:100%;padding:7px 10px;border:1px dashed #c9cbd2;background:#fafafc;font-size:12.5px;color:#686b74;">
+                <option value="">+ Add reviewer…</option>
+                ${addable.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}${m.email ? ` · ${esc(m.email)}` : ''}</option>`).join('')}
               </select>
-              <button type="button" data-assign-reviewer="${esc(p.id)}" style="padding:6px 12px;background:#fff;color:#4c5fd5;border:1px solid #4c5fd5;font-size:12px;font-weight:600;cursor:pointer;">Assign reviewer</button>
             </div>`
           : '';
         return `<div style="border:1px solid #e2e3e8;">
@@ -463,9 +476,9 @@ function boot(DATA) {
       .querySelectorAll('[data-drawer-action]')
       .forEach((b) => b.addEventListener('click', () => openDecision(b.dataset.drawerAction, [s.id])));
 
-    // Assign to / unassign from an evaluation plan. Membership feeds the row's
-    // status chip and expected-review counts, so reload with the drawer reopened
-    // rather than patching the table piecemeal.
+    // Assign to / unassign from an evaluation plan — in place, like the
+    // reviewer controls below. The table's chips/counts stay as-is until the
+    // next reload rather than yanking the row out from under the open drawer.
     const assignBtn = drawerPanel.querySelector('[data-assign-plan]');
     if (assignBtn)
       assignBtn.addEventListener('click', async () => {
@@ -475,7 +488,8 @@ function boot(DATA) {
         assignBtn.disabled = true;
         try {
           await api('/app/api/submissions/assign-plan', { submissionId: s.id, planId: sel.value });
-          reloadWith({ open: s.id, ok: `Assigned to “${name}” — its reviewers will see it in their queues` });
+          toast(`Assigned to “${name}” — its reviewers will see it in their queues`);
+          await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
           assignBtn.disabled = false;
@@ -490,7 +504,8 @@ function boot(DATA) {
             planId: b.dataset.unassignPlan,
             remove: true,
           });
-          reloadWith({ open: s.id, ok: `Removed from “${res.planName}”` });
+          toast(`Removed from “${res.planName}”`);
+          await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
           b.disabled = false;
@@ -498,24 +513,25 @@ function boot(DATA) {
       })
     );
 
-    // Pin a specific reviewer onto this submission (or drop the pin). Pins
-    // change who sees it in their queue and the expected-review counts, so
-    // reload with the drawer reopened, same as plan assignment above.
-    drawerPanel.querySelectorAll('[data-assign-reviewer]').forEach((btn) =>
-      btn.addEventListener('click', async () => {
-        const sel = drawerPanel.querySelector(`[data-assign-reviewer-select="${btn.dataset.assignReviewer}"]`);
-        if (!sel || !sel.value) return;
-        btn.disabled = true;
+    // Pin a specific reviewer onto this submission (or drop the pin) — the
+    // drawer stays open and repaints in place. The table behind keeps its
+    // review counts until the next reload; only membership changes need one.
+    drawerPanel.querySelectorAll('[data-assign-reviewer]').forEach((sel) =>
+      sel.addEventListener('change', async () => {
+        if (!sel.value) return;
+        sel.disabled = true;
         try {
           const res = await api('/app/api/submissions/assign-reviewer', {
             submissionId: s.id,
-            planId: btn.dataset.assignReviewer,
+            planId: sel.dataset.assignReviewer,
             userId: sel.value,
           });
-          reloadWith({ open: s.id, ok: `Assigned to ${res.reviewerName} — it's now in their queue` });
+          toast(`Assigned to ${res.reviewerName} — it's now in their queue`);
+          await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
-          btn.disabled = false;
+          sel.disabled = false;
+          sel.value = '';
         }
       })
     );
@@ -530,7 +546,8 @@ function boot(DATA) {
             userId,
             remove: true,
           });
-          reloadWith({ open: s.id, ok: `Unassigned ${res.reviewerName}` });
+          toast(`Unassigned ${res.reviewerName}`);
+          await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
           b.disabled = false;
