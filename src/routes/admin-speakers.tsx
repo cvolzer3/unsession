@@ -1462,9 +1462,9 @@ type DrawerTask = {
 app.get('/app/api/speakers/detail/:id', async (c) => {
   const event = c.var.event;
   if (!event) return c.json({ ok: false, error: 'No event' }, 400);
-  const profile = await one<ProfileRow>(
+  const profile = await one<ProfileRow & { travel_notes: string | null }>(
     c.env.DB,
-    `SELECT id, name, email, bio, slug, headshot_file_id FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    `SELECT id, name, email, bio, slug, headshot_file_id, travel_notes FROM speaker_profiles WHERE id = ? AND event_id = ?`,
     c.req.param('id'),
     event.id
   );
@@ -1598,7 +1598,14 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
   const badge = sub?.session_status === 'confirmed' ? 'confirmed' : (sub?.status ?? '');
   return c.json({
     ok: true,
-    speaker: { id: profile.id, name: profile.name, email: profile.email, bio: profile.bio, slug: profile.slug },
+    speaker: {
+      id: profile.id,
+      name: profile.name,
+      email: profile.email,
+      bio: profile.bio,
+      slug: profile.slug,
+      travel: profile.travel_notes ?? '',
+    },
     submission: sub
       ? {
           id: sub.id,
@@ -1625,6 +1632,34 @@ app.get('/app/api/speakers/detail/:id', async (c) => {
       })),
     eventSlug: event.slug,
   });
+});
+
+/**
+ * Travel & logistics notes — the drawer's organizer-entered CRM field
+ * (arrival details, seating, dietary needs). Free text on the profile;
+ * never shown to the speaker.
+ */
+app.post('/app/api/speakers/travel', requireOrgRole('collaborator'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No event' }, 400);
+  const body = await c.req.json<{ speakerProfileId: string; travel: string }>();
+  const profile = await one<{ id: string; name: string }>(
+    c.env.DB,
+    `SELECT id, name FROM speaker_profiles WHERE id = ? AND event_id = ?`,
+    body.speakerProfileId,
+    event.id
+  );
+  if (!profile) return c.json({ ok: false, error: 'Speaker not found' }, 404);
+  const travel = (body.travel ?? '').trim().slice(0, 4000);
+  await run(c.env.DB, `UPDATE speaker_profiles SET travel_notes = ? WHERE id = ?`, travel || null, profile.id);
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'speaker',
+    subjectId: profile.id,
+    actor: c.var.user?.name || c.var.user?.email || 'Organizer',
+    action: travel ? 'Updated travel & logistics notes' : 'Cleared travel & logistics notes',
+  });
+  return c.json({ ok: true, travel });
 });
 
 /* ------------------------------------------------------- template CRUD */

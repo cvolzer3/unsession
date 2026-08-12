@@ -267,6 +267,18 @@ function drawerHtml(d, animate = true) {
     )
     .join('');
 
+  // Organizer-entered CRM field (migration 0020) — arrival details, seating,
+  // dietary needs. Saved to the profile; the speaker never sees it.
+  const travel = `
+    <div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+        <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TRAVEL &amp; LOGISTICS</div>
+        <div style="margin-left:auto;font-size:11px;color:#9a9da6;">Internal — not shown to the speaker</div>
+      </div>
+      <textarea id="travel-notes" rows="3" placeholder="Arrival and departure, seating preferences, dietary needs…" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;">${esc(s.travel || '')}</textarea>
+      <button id="travel-save" style="margin-top:6px;padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Save notes</button>
+    </div>`;
+
   const assign = `
     <div style="border-top:1px solid #f2f3f5;padding-top:14px;display:grid;gap:8px;">
       <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">ASSIGN A TASK</div>
@@ -323,6 +335,7 @@ function drawerHtml(d, animate = true) {
       </div>`
           : ''
       }
+      ${travel}
       <div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
           <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TASKS</div>
@@ -380,6 +393,23 @@ document.addEventListener('click', async (e) => {
     } catch (err) {
       toast(err.message, false);
     }
+    return;
+  }
+
+  const travelSave = e.target.closest('#travel-save');
+  if (travelSave) {
+    travelSave.disabled = true;
+    try {
+      const res = await api('/app/api/speakers/travel', {
+        speakerProfileId: current.speaker.id,
+        travel: $('#travel-notes').value,
+      });
+      current.speaker.travel = res.travel;
+      toast('Saved — travel & logistics notes are on the profile');
+    } catch (err) {
+      toast(err.message, false);
+    }
+    travelSave.disabled = false;
     return;
   }
 
