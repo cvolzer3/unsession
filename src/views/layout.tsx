@@ -164,8 +164,6 @@ export const SandboxCookieFallback: FC = () => (
 
 export type NavItem = { label: string; href: string; external?: boolean };
 
-export type CfpPill = { label: string; color: string } | null;
-
 export type AdminLayoutProps = PropsWithChildren<{
   title: string;
   user: User | null;
@@ -174,7 +172,6 @@ export type AdminLayoutProps = PropsWithChildren<{
   path: string;
   headerTitle?: string;
   headerActions?: unknown;
-  cfp?: CfpPill;
   publicFormSlug?: string | null;
   publicForms?: { slug: string; name: string }[];
   toast?: string | null;
@@ -323,14 +320,6 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
               </div>
               <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
                 {props.headerActions as never}
-                {props.cfp ? (
-                  <div style="display:flex;align-items:center;gap:7px;">
-                    <span style={`width:7px;height:7px;border-radius:50%;background:${props.cfp.color};`}></span>
-                    <span style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#686b74;`}>
-                      {props.cfp.label}
-                    </span>
-                  </div>
-                ) : null}
               </div>
             </header>
             {children}

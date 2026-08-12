@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import type { Ctx } from '../types';
-import { cfpStatus, firstFormSlug } from '../lib/events';
+import { firstFormSlug } from '../lib/events';
 import { all, one } from '../lib/db';
 import { SANDBOX_PERSONAS, personaKeyForEmail } from '../lib/seed-data';
 import type { AdminLayoutProps, SandboxWidget } from './layout';
@@ -12,9 +12,8 @@ export async function adminProps(
   extra: Partial<AdminLayoutProps> = {}
 ): Promise<Omit<AdminLayoutProps, 'children'>> {
   const event = c.var.event;
-  const [cfp, formSlug, publicForms, orgRow] = event
+  const [formSlug, publicForms, orgRow] = event
     ? await Promise.all([
-        cfpStatus(c.env.DB, event.id),
         firstFormSlug(c.env.DB, event.id),
         all<{ slug: string; name: string }>(
           c.env.DB,
@@ -23,7 +22,7 @@ export async function adminProps(
         ),
         one<{ is_sandbox: number }>(c.env.DB, `SELECT is_sandbox FROM orgs WHERE id = ?`, event.org_id),
       ])
-    : [null, null, [] as { slug: string; name: string }[], null];
+    : [null, [] as { slug: string; name: string }[], null];
 
   // Sandbox orgs get the bottom-right role-switcher chip on every admin page.
   let sandbox: SandboxWidget | null = null;
@@ -45,7 +44,6 @@ export async function adminProps(
     event,
     events: c.var.events,
     path: new URL(c.req.url).pathname,
-    cfp,
     publicFormSlug: formSlug,
     publicForms,
     toast: c.req.query('ok') ?? null,

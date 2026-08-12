@@ -51,7 +51,7 @@ import { AdminLayout } from '../views/layout';
 import { adminProps } from '../views/chrome';
 
 app.get('/app/thing', async (c) => {
-  const props = await adminProps(c, 'Thing');           // sidebar, header, switcher, CFP pill, toast
+  const props = await adminProps(c, 'Thing');           // sidebar, header, switcher, toast
   if (!c.var.event) return c.redirect('/app/events/new');
   return c.html(<AdminLayout {...props}>…</AdminLayout>);
 });

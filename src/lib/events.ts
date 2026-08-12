@@ -1,5 +1,5 @@
 /** Event creation + the defaults every new event is stamped with. */
-import { all, batch, now, one, run } from './db';
+import { batch, now, one, run } from './db';
 import { newId } from './ids';
 import { uniqueSlug } from './slugify';
 import { DEFAULT_EMAIL_TEMPLATES, DEFAULT_ROOMS, DEFAULT_TAXONOMIES } from './defaults';
@@ -134,37 +134,6 @@ export async function ensureOrgForUser(
     stamp
   );
   return orgId;
-}
-
-/** The CFP pill in the admin header: green while a form is open. */
-export async function cfpStatus(
-  db: D1Database,
-  eventId: string
-): Promise<{ label: string; color: string } | null> {
-  const forms = await all<{ status: string; closes_at: string | null }>(
-    db,
-    `SELECT status, closes_at FROM forms WHERE event_id = ?`,
-    eventId
-  );
-  if (!forms.length) return { label: 'NO FORMS YET', color: '#c9cbd3' };
-  const open = forms.filter((f) => f.status === 'open');
-  if (open.length) {
-    const closes = open
-      .map((f) => f.closes_at)
-      .filter((d): d is string => !!d)
-      .sort()[0];
-    const suffix = closes ? ` · CLOSES ${monthDay(closes).toUpperCase()}` : '';
-    return { label: `CFP OPEN${suffix}`, color: '#2b8a3e' };
-  }
-  if (forms.some((f) => f.status === 'closed')) return { label: 'CFP CLOSED', color: '#868e96' };
-  return { label: 'CFP DRAFT', color: '#b08800' };
-}
-
-function monthDay(iso: string): string {
-  const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const [, m, d] = iso.slice(0, 10).split('-').map(Number);
-  if (!m || !d) return iso;
-  return `${M[m - 1]} ${d}`;
 }
 
 export async function firstFormSlug(db: D1Database, eventId: string): Promise<string | null> {
