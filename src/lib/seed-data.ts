@@ -445,7 +445,7 @@ export const TASK_TEMPLATES: SeedTaskTemplate[] = [
   TT({
     id: 't1', name: 'Confirm participation', type: 'checkbox', required: true, trigger: 'acceptance',
     due: { mode: 'after', n: 7 },
-    description: 'Confirm you can make it — this puts {{session_title}} on the public agenda and unlocks your checklist.',
+    description: 'Confirm you can make it.',
   }),
   TT({
     id: 't2', name: 'Complete profile', type: 'profile', required: true,
@@ -464,12 +464,12 @@ export const TASK_TEMPLATES: SeedTaskTemplate[] = [
     grace: { mode: 'lock', days: 2 },
     settings: { ext: 'pdf, key', capMb: 100, maxFiles: 1, sampleFile: 'DevConf-2027-slide-template.key', review: true },
     reminders: { on: true, days: [14, 7, 3, 1], subject: REM_SUBJ, body: REM_BODY },
-    description: 'One deck per session — any co-speaker can upload for {{session_title}}.',
+    description: 'One deck per session.',
   }),
   TT({
     id: 't5', name: 'AV requirements', type: 'form', target: 'session',
     settings: { formSpec: 'AV requirements (mini-form)' },
-    description: 'Stage setup for {{session_title}} — mics, demos, machine or ours.',
+    description: 'Stage setup — mics, demos, your machine or ours.',
   }),
   TT({
     id: 't6', name: 'Travel details', type: 'form',

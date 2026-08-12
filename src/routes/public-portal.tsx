@@ -89,7 +89,6 @@ type ChecklistTask = {
   graceLocked: boolean;
   settings: T.TaskSettings;
   reviewNote: string | null;
-  completedBy: string | null;
   sessionId: string | null;
   sessionTitle: string | null;
   files: { id: string; filename: string; version: number; created_at: string }[];
@@ -240,7 +239,6 @@ async function loadPortal(env: Ctx['Bindings'], event: Event, email: string): Pr
       graceLocked: T.isGraceLocked(t, grace, today),
       settings,
       reviewNote: t.review_note,
-      completedBy: t.completed_by,
       sessionId: t.session_id,
       sessionTitle: session?.title ?? null,
       files,
@@ -295,10 +293,9 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
   const nameStyle = `font-size:14px;font-weight:600;${done ? 'color:var(--muted);text-decoration:line-through;' : ''}`;
 
   const cap = T.capMbOf(task.settings);
+  // Done rows show no status line — the ticked box and strikethrough say it all.
   const dueLine = done
-    ? task.completedBy
-      ? `Done — ${task.completedBy} ✓`
-      : 'Done — thank you!'
+    ? null
     : review
       ? 'Pending review — the organizers will email you'
       : task.type === 'profile'
@@ -334,7 +331,7 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
               <span style={`font-family:${MONO};font-size:9px;color:#b08800;margin-left:7px;`}>REQUIRED</span>
             ) : null}
           </div>
-          <div style={`font-size:11.5px;color:${dueColor};`}>{dueLine}</div>
+          {dueLine ? <div style={`font-size:11.5px;color:${dueColor};`}>{dueLine}</div> : null}
           {task.description ? (
             <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.45;">{task.description}</div>
           ) : null}
@@ -881,7 +878,7 @@ async function guard(c: Context<Ctx>): Promise<Guard | Response> {
     found.event.id,
     user.email
   );
-  // Completions are attributed by name — co-speakers read "Done — Maria ✓".
+  // Completions are attributed by name (completed_by, activity log, admin views).
   return {
     event: found.event,
     email: user.email,
