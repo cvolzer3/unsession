@@ -79,6 +79,12 @@ function tabStyle(active: boolean): string {
   }`;
 }
 
+/** Underlined page-level tab, matching `/app/evaluation`. */
+const subTab = (on: boolean) =>
+  `padding:0 2px 10px;border-bottom:2px solid ${on ? '#4c5fd5' : 'transparent'};margin-bottom:-1px;font-size:13.5px;font-weight:600;color:${
+    on ? '#16171d' : '#686b74'
+  };text-decoration:none;display:inline-block;`;
+
 app.get('/app/emails', async (c) => {
   const event = c.var.event;
   const props = await adminProps(c, 'Emails');
@@ -139,19 +145,20 @@ app.get('/app/emails', async (c) => {
     : null;
 
   const tabs = (
-    <div style="display:flex;border:1px solid #e2e3e8;width:fit-content;">
-      <a href="/app/emails" style={tabStyle(tab === 'templates')}>
+    <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
+      <a href="/app/emails" style={subTab(tab === 'templates')}>
         Templates
       </a>
-      <a href="/app/emails?tab=log" style={tabStyle(tab === 'log')}>
+      <a href="/app/emails?tab=log" style={subTab(tab === 'log')}>
         Log
       </a>
     </div>
   );
 
   return c.html(
-    <AdminLayout {...props} headerActions={tabs}>
+    <AdminLayout {...props}>
       <div style="padding:24px 28px;max-width:1160px;">
+        {tabs}
         {tab === 'templates' ? (
           <div style="display:grid;gap:18px;max-width:860px;">
             {sections.map((s) => (
@@ -159,30 +166,20 @@ app.get('/app/emails', async (c) => {
                 <div style={`${MICRO}margin-bottom:6px;`}>{s.label.toUpperCase()}</div>
                 <div style="background:#fff;border:1px solid #e2e3e8;">
                   {s.rows.map((t) => (
-                    <div style="display:flex;align-items:stretch;border-bottom:1px solid #f2f3f5;">
-                      <a
-                        href={`/app/emails/t/${t.id}`}
-                        style="flex:1;min-width:0;display:grid;grid-template-columns:220px minmax(0,1fr) 80px;gap:14px;align-items:center;padding:11px 14px;color:#16171d;text-decoration:none;"
-                      >
-                        <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          {t.name}
-                        </div>
-                        <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                          {t.subject}
-                        </div>
-                        <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;text-align:right;`}>
-                          {`${sentByKey.get(t.key) ?? 0} sent`}
-                        </div>
-                      </a>
-                      <form method="post" action={`/app/emails/t/${t.id}/duplicate`} style="display:flex;border-left:1px solid #f2f3f5;">
-                        <button
-                          type="submit"
-                          style="background:none;border:none;padding:0 14px;font-size:12px;color:#4c5fd5;cursor:pointer;"
-                        >
-                          Duplicate
-                        </button>
-                      </form>
-                    </div>
+                    <a
+                      href={`/app/emails/t/${t.id}`}
+                      style="display:grid;grid-template-columns:220px minmax(0,1fr) 80px;gap:14px;align-items:center;padding:11px 14px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                    >
+                      <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {t.name}
+                      </div>
+                      <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {t.subject}
+                      </div>
+                      <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;text-align:right;`}>
+                        {`${sentByKey.get(t.key) ?? 0} sent`}
+                      </div>
+                    </a>
                   ))}
                 </div>
               </div>
