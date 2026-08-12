@@ -707,23 +707,27 @@ app.get('/:event/portal', async (c) => {
           <div>
             <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Headshot</div>
             <div style="display:flex;gap:12px;align-items:center;">
-              <div
-                id="headshot-preview"
-                style={`width:56px;height:56px;border:1px solid var(--border-strong);background:${
-                  data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
-                };display:grid;place-items:center;font-family:${MONO};font-size:9.5px;color:var(--muted);flex:none;`}
-              >
-                {data.profile?.headshot_file_id ? '' : 'NONE'}
-              </div>
               {files ? (
-                <label style={`${SMALL_BTN}display:inline-block;`}>
-                  {data.profile?.headshot_file_id ? 'Replace headshot' : 'Upload headshot'}
+                <label
+                  id="headshot-preview"
+                  title={data.profile?.headshot_file_id ? 'Replace headshot' : 'Upload headshot'}
+                  style={`width:96px;height:96px;border:2px dashed var(--border-strong);background:${
+                    data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
+                  };display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--muted);flex:none;cursor:pointer;`}
+                >
+                  {data.profile?.headshot_file_id ? '' : <span data-headshot-hint>Upload headshot</span>}
                   <input type="file" name="headshot" accept="image/*" hidden data-headshot />
                 </label>
               ) : (
-                <span title="File storage not yet enabled" style={`${SMALL_BTN}color:var(--faint);cursor:not-allowed;`}>
-                  Upload headshot
-                </span>
+                <div
+                  id="headshot-preview"
+                  title="File storage not yet enabled"
+                  style={`width:96px;height:96px;border:2px dashed var(--border);background:${
+                    data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
+                  };display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--faint);flex:none;cursor:not-allowed;`}
+                >
+                  {data.profile?.headshot_file_id ? '' : 'Upload headshot'}
+                </div>
               )}
               <span id="headshot-name" style={`font-family:${MONO};font-size:11px;color:var(--muted);`}></span>
             </div>

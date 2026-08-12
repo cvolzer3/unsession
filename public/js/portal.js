@@ -39,7 +39,8 @@ if (headshot) {
     if (preview) {
       const url = URL.createObjectURL(file);
       preview.style.background = `url(${url}) center/cover`;
-      preview.textContent = '';
+      const hint = preview.querySelector('[data-headshot-hint]');
+      if (hint) hint.remove();
     }
   });
 }
