@@ -704,7 +704,20 @@ function boot(D) {
   }
 
   /* ------------------------------------------------------ selection cards */
-  const CARD = 'position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);';
+  const CARD = 'position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);touch-action:none;';
+
+  // Drag offsets per card kind, kept only while the same item stays open so
+  // re-renders (day/time/room changes) don't snap the card back.
+  const cardDrag = { sel: null, svc: null, sched: null };
+
+  function cardPos(key, id) {
+    const d = cardDrag[key];
+    if (!d || d.id !== String(id)) {
+      cardDrag[key] = null;
+      return '';
+    }
+    return `transform:translate(${d.x}px,${d.y}px);`;
+  }
 
   function timeOpts(selected, filterFn) {
     let out = '';
@@ -728,12 +741,15 @@ function boot(D) {
     const sel = S.selId ? byId(S.selId) : null;
     const svc = S.svcId ? byId(S.svcId) : null;
     const sched = S.schedId ? byId(S.schedId) : null;
+    if (!sel || sel.day === null) cardDrag.sel = null;
+    if (!svc || svc.day === null) cardDrag.svc = null;
+    if (!sched) cardDrag.sched = null;
 
     if (sel && sel.day !== null) {
       const dur = sel.end - sel.start;
       h +=
-        `<div style="${CARD}z-index:50;">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;">' +
+        `<div data-card="sel" data-card-id="${esc(String(sel.id))}" style="${CARD}z-index:50;${cardPos('sel', sel.id)}">` +
+        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;cursor:move;">' +
         `<div><div style="font-size:14px;font-weight:700;line-height:1.3;">${esc(sel.title)}</div>` +
         `<div style="font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:2px;">${span(sel)} · ${esc(roomName(sel))} · ${esc(
           String(sel.status || sel.type).toUpperCase()
@@ -777,8 +793,8 @@ function boot(D) {
     if (svc && svc.day !== null) {
       const nextDay = (svc.day + 1) % nDays;
       h +=
-        `<div style="${CARD}z-index:60;">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:center;gap:8px;">' +
+        `<div data-card="svc" data-card-id="${esc(String(svc.id))}" style="${CARD}z-index:60;${cardPos('svc', svc.id)}">` +
+        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:center;gap:8px;cursor:move;">' +
         '<div style="font-size:14px;font-weight:700;">Service block</div>' +
         `<div style="font-family:${MONO};font-size:10px;color:#9a9da6;">${svc.allRooms ? 'SPANS ALL ROOMS' : esc(roomName(svc))}</div>` +
         '<button type="button" data-close="svc" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button></div>' +
@@ -809,8 +825,8 @@ function boot(D) {
 
     if (sched) {
       h +=
-        `<div style="${CARD}z-index:70;">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;">' +
+        `<div data-card="sched" data-card-id="${esc(String(S.schedId))}" style="${CARD}z-index:70;${cardPos('sched', S.schedId)}">` +
+        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;cursor:move;">' +
         `<div><div style="font-size:14px;font-weight:700;line-height:1.3;">${esc(sched.title)}</div>` +
         `<div style="font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:2px;">SCHEDULE · ${sched.dur} MIN</div></div>` +
         '<button type="button" data-close="sched" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button></div>' +
@@ -844,6 +860,31 @@ function boot(D) {
     }
     cardsEl.innerHTML = h;
   }
+
+  cardsEl.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const card = e.target.closest('[data-card]');
+    if (!card || e.target.closest('button, select, input, textarea, a, label')) return;
+    const key = card.dataset.card;
+    const id = card.dataset.cardId;
+    const prev = cardDrag[key] && cardDrag[key].id === id ? cardDrag[key] : { id, x: 0, y: 0 };
+    const baseX = prev.x - e.clientX;
+    const baseY = prev.y - e.clientY;
+    const onMove = (ev) => {
+      cardDrag[key] = { id, x: baseX + ev.clientX, y: baseY + ev.clientY };
+      card.style.transform = `translate(${cardDrag[key].x}px,${cardDrag[key].y}px)`;
+    };
+    const onUp = () => {
+      card.removeEventListener('pointermove', onMove);
+      card.removeEventListener('pointerup', onUp);
+      card.removeEventListener('pointercancel', onUp);
+    };
+    card.setPointerCapture(e.pointerId);
+    card.addEventListener('pointermove', onMove);
+    card.addEventListener('pointerup', onUp);
+    card.addEventListener('pointercancel', onUp);
+    e.preventDefault();
+  });
 
   /* --------------------------------------------------------- interactions */
   document.addEventListener('click', async (e) => {
