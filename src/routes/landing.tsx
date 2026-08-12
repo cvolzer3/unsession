@@ -1,8 +1,17 @@
-/** Landing page `/` + the sandbox provisioner `POST /sandbox` (spec §5.1, §5.11). */
+/**
+ * Landing page `/`, the public event directory `/events`, and the sandbox
+ * provisioner `POST /sandbox` (spec §5.1, §5.11).
+ *
+ * `/events` is the path from the bare origin to any published event site —
+ * name, dates, venue, and a link to the event's public pages. Sandbox orgs'
+ * events are excluded: every visitor mints one, so listing them would bury
+ * the real events under demo copies.
+ */
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
-import type { Ctx } from '../types';
-import { GOOGLE_FONTS } from '../views/layout';
+import type { Ctx, Event } from '../types';
+import { GOOGLE_FONTS, fmtDateRange } from '../views/layout';
+import { all } from '../lib/db';
 import { seedSandbox } from '../lib/seed';
 import { GITHUB_URL } from '../lib/defaults';
 
@@ -504,6 +513,7 @@ app.get('/', (c) => {
             <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">Unsession</div>
             <div class="nav-links">
               <a href="#how">How it works</a>
+              <a href="/events">Events</a>
               <a href="#oss">Open source</a>
             </div>
             <div class="nav-cta">
@@ -710,10 +720,122 @@ app.get('/', (c) => {
           <div class="wrap footer-inner">
             <span>UNSESSION</span>
             <span class="right">
+              <a href="/events">EVENTS</a>
               <a href={GITHUB}>SOURCE</a>
               <span>AGPL-3.0</span>
             </span>
           </div>
+        </div>
+      </body>
+    </html>
+  );
+});
+
+/* -------------------------------------------------------- event directory */
+
+const EVENTS_CSS = `
+  :root{--ink:#16171d;--ink2:#555a63;--ink3:#8b857a;--paper:#faf8f5;--line:#ece7de;--indigo:#4c5fd5;--mono:'IBM Plex Mono',monospace;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
+  a{color:var(--indigo);text-decoration:none;} a:hover{text-decoration:underline;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px;}
+  .nav{border-bottom:1px solid var(--line);background:#fff;}
+  .nav-inner{display:flex;align-items:center;gap:12px;padding:14px 0;}
+  .logo-mark{width:26px;height:26px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:600;}
+  .card{display:block;background:#fff;border:1px solid var(--line);padding:18px 20px;color:var(--ink);}
+  .card:hover{border-color:var(--indigo);text-decoration:none;}
+  .card + .card{margin-top:10px;}
+`;
+
+/**
+ * Public directory of published events — the way in from the bare origin to an
+ * event's attendee pages without knowing its slug.
+ */
+app.get('/events', async (c) => {
+  const rows = await all<Event>(
+    c.env.DB,
+    `SELECT e.* FROM events e JOIN orgs o ON o.id = e.org_id
+      WHERE e.published = 1 AND o.is_sandbox = 0
+      ORDER BY e.start_date DESC LIMIT 100`
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = rows.filter((e) => (e.end_date || e.start_date) >= today).reverse();
+  const past = rows.filter((e) => (e.end_date || e.start_date) < today);
+
+  const card = (e: Event) => (
+    <a class="card" href={`/${e.slug}/agenda`}>
+      <div style="font-size:16.5px;font-weight:700;letter-spacing:-0.01em;">{e.name}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:5px;">
+        {[fmtDateRange(e.start_date, e.end_date), e.venue || null, e.mode === 'online' ? 'online' : e.mode === 'hybrid' ? 'hybrid' : null]
+          .filter(Boolean)
+          .join(' · ')}
+      </div>
+      <div style="display:flex;gap:14px;font-size:12.5px;color:var(--indigo);margin-top:9px;">
+        <span>Agenda</span>
+        <span>Sessions</span>
+        <span>Speakers</span>
+      </div>
+    </a>
+  );
+
+  return c.html(
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Unsession — Events</title>
+        <meta name="description" content="Published events running on Unsession — browse each event's agenda, sessions, and speakers." />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href={GOOGLE_FONTS} rel="stylesheet" />
+        <style>{raw(EVENTS_CSS)}</style>
+      </head>
+      <body>
+        <div class="nav">
+          <div class="wrap nav-inner">
+            <a href="/" style="display:flex;align-items:center;gap:10px;color:var(--ink);">
+              <span class="logo-mark">U</span>
+              <span style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Unsession</span>
+            </a>
+            <a href="/signin" style="margin-left:auto;font-size:13.5px;font-weight:600;color:var(--ink);">
+              Sign in
+            </a>
+          </div>
+        </div>
+        <div class="wrap" style="padding-top:44px;padding-bottom:80px;">
+          <div style="font-family:var(--mono);font-size:11px;letter-spacing:0.16em;color:var(--indigo);font-weight:600;">
+            EVENT DIRECTORY
+          </div>
+          <h1 style="margin:12px 0 6px;font-size:30px;letter-spacing:-0.025em;">Events on Unsession</h1>
+          <p style="margin:0 0 28px;font-size:14.5px;line-height:1.6;color:var(--ink2);">
+            Every published event site — agenda, sessions, speaker directory and gallery — is open to everyone, no
+            account needed.
+          </p>
+          {upcoming.length ? (
+            <div style="margin-bottom:28px;">
+              <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;color:var(--ink3);margin-bottom:10px;">
+                UPCOMING
+              </div>
+              {upcoming.map(card)}
+            </div>
+          ) : null}
+          {past.length ? (
+            <div>
+              <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:0.14em;color:var(--ink3);margin-bottom:10px;">
+                PAST
+              </div>
+              {past.map(card)}
+            </div>
+          ) : null}
+          {rows.length === 0 ? (
+            <div style="background:#fff;border:1px solid var(--line);padding:36px 24px;text-align:center;">
+              <div style="font-size:16px;font-weight:700;">No published events yet</div>
+              <div style="font-size:13px;color:var(--ink2);margin-top:6px;line-height:1.6;">
+                When an organizer publishes an event's agenda, its public site shows up here.
+                <br />
+                Running an event? <a href="/signin">Sign in</a> or try the <a href="/">sandbox</a>.
+              </div>
+            </div>
+          ) : null}
         </div>
       </body>
     </html>
