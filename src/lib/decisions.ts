@@ -54,6 +54,11 @@ export type ApplyDecisionInput = {
   perRecipientFeedback?: Record<string, string>;
   /** Accept only. Off = status flips to accepted and the email omits the link. */
   requestConfirmation?: boolean;
+  /**
+   * False = run everything (status flip, session copy, confirmation token)
+   * but send no email — the API's `sendEmail: false`. UI callers omit it.
+   */
+  sendEmail?: boolean;
   actorName: string;
 };
 
@@ -263,9 +268,10 @@ export async function applyDecision(env: Bindings, input: ApplyDecisionInput): P
       slot_time: 'to be scheduled',
     };
 
+    const suppressEmail = input.sendEmail === false;
     let emailId: string | null = null;
     let emailStatus: DecisionItem['emailStatus'] = null;
-    if (owner?.email) {
+    if (owner?.email && !suppressEmail) {
       const sent = await sendEmail(env, {
         eventId: event.id,
         to: owner.email,
@@ -282,11 +288,14 @@ export async function applyDecision(env: Bindings, input: ApplyDecisionInput): P
       if (sent.status === 'simulated') result.simulated++;
     }
 
-    const detail = owner?.email
-      ? `Decision email sent to ${owner.email} (template “${result.templateName}”)` +
-        (individual ? ' · individual feedback merged' : '') +
-        (confirmationLink ? ' · confirmation requested' : '')
-      : 'No speaker email on file — status changed without an email';
+    const detail = !owner?.email
+      ? 'No speaker email on file — status changed without an email'
+      : suppressEmail
+        ? 'Email suppressed (sendEmail: false) — status changed without an email' +
+          (confirmationLink ? ' · confirmation link minted' : '')
+        : `Decision email sent to ${owner.email} (template “${result.templateName}”)` +
+          (individual ? ' · individual feedback merged' : '') +
+          (confirmationLink ? ' · confirmation requested' : '');
     await logActivity(env.DB, {
       eventId: event.id,
       subjectType: 'submission',

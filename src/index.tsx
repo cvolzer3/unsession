@@ -10,6 +10,8 @@ import type { Ctx } from './types';
 import { getSession, requireUser } from './lib/auth';
 import { runScheduledJobs } from './lib/jobs';
 
+import api from './routes/api';
+import mcp from './routes/mcp';
 import landing from './routes/landing';
 import auth from './routes/auth';
 import sandbox from './routes/sandbox';
@@ -20,6 +22,7 @@ import adminEvents from './routes/admin-events';
 import adminSetup from './routes/admin-setup';
 import adminTeam from './routes/admin-team';
 import adminEmails from './routes/admin-emails';
+import adminApi from './routes/admin-api';
 import adminSubmissions from './routes/admin-submissions';
 import adminForms from './routes/admin-forms';
 import adminEvaluation from './routes/admin-evaluation';
@@ -34,6 +37,12 @@ import publicSpeaker from './routes/public-speaker';
 import publicForm from './routes/public-form';
 
 const app = new Hono<Ctx>();
+
+// Public API + MCP (Bearer tokens, spec C) — registered BEFORE the session
+// middleware so /api/* never touches cookie auth, and before the /:event
+// catch-alls so `api` can never be read as an event slug.
+app.route('/', api);
+app.route('/', mcp);
 
 app.use('*', getSession);
 app.use('/app', requireUser);
@@ -54,6 +63,7 @@ app.route('/', adminEvents);
 app.route('/', adminSetup);
 app.route('/', adminTeam);
 app.route('/', adminEmails);
+app.route('/', adminApi);
 app.route('/', adminSubmissions);
 app.route('/', adminForms);
 app.route('/', adminEvaluation);

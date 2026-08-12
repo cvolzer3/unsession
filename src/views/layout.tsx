@@ -244,6 +244,13 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             <div style={SECTION_LABEL}>PUBLIC</div>
             {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true))}
             {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true)}
+            {/* Sandbox orgs can't mint API tokens — hide the page entirely. */}
+            {props.sandbox ? null : (
+              <>
+                <div style={SECTION_LABEL}>WORKSPACE</div>
+                {navLink('/app/api', 'API', isActive('/app/api'))}
+              </>
+            )}
             <div style="margin-top:auto;padding:14px 20px 0;border-top:1px solid #eceded;">
               <div style="display:flex;align-items:center;gap:9px;">
                 <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>
