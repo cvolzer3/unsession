@@ -2,7 +2,7 @@
  * `/app` — port of `Dashboard.dc.html` with every number computed from D1 for
  * the session's active event. Reworked per DECISIONS review R1: task-oriented
  * dashboard — KPI row, a full-width NEEDS ATTENTION feed with quick actions,
- * and a right rail (my reviews / deadlines / review progress).
+ * and a right rail (review progress / my reviews / deadlines).
  */
 import { Hono } from 'hono';
 import type { Ctx } from '../types';
@@ -423,6 +423,22 @@ app.get('/app', async (c) => {
           </div>
 
           <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+              <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
+                REVIEW PROGRESS
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{`${review.pct}%`}</div>
+                <div style="font-size:11.5px;color:#686b74;">{`${review.done} of ${review.total} reviews submitted`}</div>
+              </div>
+              <div style="height:6px;background:#f0f1f4;margin-top:9px;">
+                <div style={`height:100%;width:${review.pct}%;background:#4c5fd5;`}></div>
+              </div>
+              <div style="font-size:11.5px;margin-top:9px;">
+                <a href="/app/evaluation">Open evaluation →</a>
+              </div>
+            </div>
+
             {myQueue ? (
               <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
                 <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
@@ -464,22 +480,6 @@ app.get('/app', async (c) => {
               ) : (
                 <div style="padding:14px 16px;font-size:12.5px;color:#9a9da6;">Nothing scheduled yet.</div>
               )}
-            </div>
-
-            <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
-              <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
-                REVIEW PROGRESS
-              </div>
-              <div style="display:flex;align-items:baseline;gap:8px;">
-                <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{`${review.pct}%`}</div>
-                <div style="font-size:11.5px;color:#686b74;">{`${review.done} of ${review.total} reviews submitted`}</div>
-              </div>
-              <div style="height:6px;background:#f0f1f4;margin-top:9px;">
-                <div style={`height:100%;width:${review.pct}%;background:#4c5fd5;`}></div>
-              </div>
-              <div style="font-size:11.5px;margin-top:9px;">
-                <a href="/app/evaluation">Open evaluation →</a>
-              </div>
             </div>
           </div>
         </div>
