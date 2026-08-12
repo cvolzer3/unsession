@@ -198,15 +198,37 @@ function planEditor() {
         cfg.append(scale, wLabel);
         wrap.appendChild(cfg);
       } else if (c.type === 'select') {
-        const cfg = el('div', 'padding-left:178px;');
-        const opts = el('input', 'width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;');
-        opts.value = c.options.join(', ');
-        opts.placeholder = 'Options, comma-separated — e.g. Accept, Maybe, Reject';
-        opts.addEventListener('input', () => {
-          c.options = opts.value.split(',').map((s) => s.trim()).filter(Boolean);
-          renderPreview();
+        const cfg = el('div', 'padding-left:178px;display:grid;gap:6px;');
+        c.options.forEach((opt, oi) => {
+          const line = el('div', 'display:grid;grid-template-columns:1fr 30px;gap:8px;align-items:center;');
+          const inp = el('input', 'padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;');
+          inp.value = opt;
+          inp.placeholder = `Option ${oi + 1}`;
+          inp.addEventListener('input', () => {
+            c.options[oi] = inp.value;
+            renderPreview();
+          });
+          const rm = el('button', 'background:none;border:none;color:#9a9da6;font-size:13px;cursor:pointer;', '✕');
+          rm.type = 'button';
+          rm.addEventListener('click', () => {
+            c.options.splice(oi, 1);
+            renderCriteria();
+            renderPreview();
+          });
+          line.append(inp, rm);
+          cfg.appendChild(line);
         });
-        cfg.appendChild(opts);
+        const add = el('button', 'justify-self:start;padding:6px 12px;background:#fafafc;border:1px dashed #c9cbd2;color:#686b74;font-size:12px;cursor:pointer;', '+ Add option');
+        add.type = 'button';
+        add.addEventListener('click', () => {
+          c.options.push('');
+          renderCriteria();
+          renderPreview();
+          // renderCriteria rebuilt the rows — focus the new option in the fresh DOM.
+          const fresh = critRows.children[i] && critRows.children[i].querySelectorAll('input[placeholder^="Option"]');
+          if (fresh && fresh.length) fresh[fresh.length - 1].focus();
+        });
+        cfg.appendChild(add);
         wrap.appendChild(cfg);
       }
       critRows.appendChild(wrap);
@@ -330,7 +352,7 @@ function planEditor() {
       if (c.type === 'select') {
         const sel = el('select', 'width:100%;margin-top:5px;padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
         sel.appendChild(new Option('Choose…', ''));
-        (c.options || []).forEach((o) => sel.appendChild(new Option(o, o)));
+        (c.options || []).filter((o) => o.trim()).forEach((o) => sel.appendChild(new Option(o, o)));
         box.appendChild(sel);
       } else if (c.type === 'text') {
         const ta = el('textarea', 'width:100%;box-sizing:border-box;margin-top:5px;padding:6px 8px;border:1px solid #e2e3e8;font-size:12px;font-family:inherit;resize:vertical;');
@@ -384,7 +406,9 @@ function planEditor() {
     const named = draft.criteria.filter((c) => c.name.trim());
     if (!name.value.trim()) return toast('Name the plan first', false);
     if (!named.length) return toast('Add at least one criterion', false);
-    const emptySelect = named.find((c) => c.type === 'select' && (!c.options || c.options.length < 2));
+    const emptySelect = named.find(
+      (c) => c.type === 'select' && (!c.options || c.options.filter((o) => o.trim()).length < 2)
+    );
     if (emptySelect) return toast(`Give “${emptySelect.name}” at least two dropdown options`, false);
     if (!draft.reviewers.some((r) => r.role !== 'chair')) return toast('Assign at least one member reviewer', false);
     btn.disabled = true;

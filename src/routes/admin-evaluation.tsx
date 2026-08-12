@@ -931,12 +931,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               </textarea>
             </div>
             <div>
-              <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
-                <div style={MICRO}>CRITERIA</div>
-                <div style="font-size:11.5px;color:#9a9da6;">
-                  Numeric ratings, dropdowns, or free text. Rating sums make the cumulative score; weights shape the star average.
-                </div>
-              </div>
+              <div style={`${MICRO}margin-bottom:8px;`}>CRITERIA</div>
               <div id="crit-rows" style="display:grid;gap:8px;"></div>
               <div style="display:flex;gap:16px;align-items:center;margin-top:10px;flex-wrap:wrap;">
                 <button type="button" id="add-crit" style="padding:7px 14px;background:#fafafc;border:1px dashed #c9cbd2;color:#686b74;font-size:12.5px;cursor:pointer;">
