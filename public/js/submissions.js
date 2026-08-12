@@ -351,17 +351,45 @@ function boot(DATA) {
     const inPlans = allPlans.filter((p) => p.ruled || p.assigned);
     const outPlans = allPlans.filter((p) => !p.ruled && !p.assigned);
     const planRows = inPlans
-      .map(
-        (p) => `<div style="display:flex;align-items:center;gap:8px;border:1px solid #e2e3e8;padding:8px 12px;">
-          <span style="font-size:13px;font-weight:600;">${esc(p.name)}</span>
-          <span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#9a9da6;">${p.ruled ? 'VIA RULES' : 'ASSIGNED'}</span>
-          ${
-            !p.ruled && p.assigned && DATA.canWrite
-              ? `<button type="button" data-unassign-plan="${esc(p.id)}" style="margin-left:auto;background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;">Remove</button>`
-              : ''
-          }
-        </div>`
-      )
+      .map((p) => {
+        // Who reviews this one: pinned reviewers hold their slot, the rest are
+        // the plan's round-robin. Pinning someone puts it in their queue now.
+        const revRows = (p.reviewers || [])
+          .map(
+            (r) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-top:1px solid #f0f1f4;">
+              <span style="font-size:12.5px;">${esc(r.name)}</span>
+              <span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#9a9da6;">${r.pinned ? 'PINNED' : 'AUTO'}</span>
+              ${r.scored ? `<span style="font-size:11px;color:#2b8a3e;">✓ scored</span>` : ''}
+              ${
+                r.pinned && !r.scored && DATA.canWrite
+                  ? `<button type="button" data-unassign-reviewer="${esc(p.id)}:${esc(r.id)}" style="margin-left:auto;background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;">Remove</button>`
+                  : ''
+              }
+            </div>`
+          )
+          .join('');
+        const addable = DATA.canWrite ? p.addable || [] : [];
+        const addCtl = addable.length
+          ? `<div style="display:flex;gap:6px;padding:8px 12px;border-top:1px solid #f0f1f4;">
+              <select data-assign-reviewer-select="${esc(p.id)}" style="flex:1;padding:6px 10px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;">
+                ${addable.map((m) => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}
+              </select>
+              <button type="button" data-assign-reviewer="${esc(p.id)}" style="padding:6px 12px;background:#fff;color:#4c5fd5;border:1px solid #4c5fd5;font-size:12px;font-weight:600;cursor:pointer;">Assign reviewer</button>
+            </div>`
+          : '';
+        return `<div style="border:1px solid #e2e3e8;">
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;">
+            <span style="font-size:13px;font-weight:600;">${esc(p.name)}</span>
+            <span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#9a9da6;">${p.ruled ? 'VIA RULES' : 'ASSIGNED'}</span>
+            ${
+              !p.ruled && p.assigned && DATA.canWrite
+                ? `<button type="button" data-unassign-plan="${esc(p.id)}" style="margin-left:auto;background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;">Remove</button>`
+                : ''
+            }
+          </div>
+          ${revRows}${addCtl}
+        </div>`;
+      })
       .join('');
     const assignControl =
       DATA.canWrite && outPlans.length
@@ -463,6 +491,46 @@ function boot(DATA) {
             remove: true,
           });
           reloadWith({ open: s.id, ok: `Removed from “${res.planName}”` });
+        } catch (err) {
+          toast(err.message, false);
+          b.disabled = false;
+        }
+      })
+    );
+
+    // Pin a specific reviewer onto this submission (or drop the pin). Pins
+    // change who sees it in their queue and the expected-review counts, so
+    // reload with the drawer reopened, same as plan assignment above.
+    drawerPanel.querySelectorAll('[data-assign-reviewer]').forEach((btn) =>
+      btn.addEventListener('click', async () => {
+        const sel = drawerPanel.querySelector(`[data-assign-reviewer-select="${btn.dataset.assignReviewer}"]`);
+        if (!sel || !sel.value) return;
+        btn.disabled = true;
+        try {
+          const res = await api('/app/api/submissions/assign-reviewer', {
+            submissionId: s.id,
+            planId: btn.dataset.assignReviewer,
+            userId: sel.value,
+          });
+          reloadWith({ open: s.id, ok: `Assigned to ${res.reviewerName} — it's now in their queue` });
+        } catch (err) {
+          toast(err.message, false);
+          btn.disabled = false;
+        }
+      })
+    );
+    drawerPanel.querySelectorAll('[data-unassign-reviewer]').forEach((b) =>
+      b.addEventListener('click', async () => {
+        const [planId, userId] = b.dataset.unassignReviewer.split(':');
+        b.disabled = true;
+        try {
+          const res = await api('/app/api/submissions/assign-reviewer', {
+            submissionId: s.id,
+            planId,
+            userId,
+            remove: true,
+          });
+          reloadWith({ open: s.id, ok: `Unassigned ${res.reviewerName}` });
         } catch (err) {
           toast(err.message, false);
           b.disabled = false;

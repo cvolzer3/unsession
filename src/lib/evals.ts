@@ -5,8 +5,9 @@
  * materialized — exactly like the prototype's `matchesRules`, plus any explicit
  * per-submission includes (`eval_plan_includes`, migration 0014) an organizer
  * added from the submission drawer. Assignment is the prototype's round-robin
- * `assignedFor`, seeded by submission id and capped by `reviews_per`; chairs
- * see everything and score nothing.
+ * `assignedFor`, seeded by submission id and capped by `reviews_per`; explicit
+ * reviewer pins (`eval_reviewer_pins`, migration 0018) fill a submission's
+ * slots ahead of the round-robin. Chairs see everything and score nothing.
  */
 import { all, jsonParse, now, one, run } from './db';
 import { newId } from './ids';
@@ -58,6 +59,8 @@ export type EvalPlan = {
   reviewers: PlanReviewer[];
   /** Submissions explicitly assigned to this plan, beyond what the rules match. */
   includeIds: string[];
+  /** Reviewers explicitly pinned to a submission (submission id → user ids, pin order). */
+  pins: Record<string, string[]>;
 };
 
 export type EvalSpeaker = { name: string; email: string; bio: string };
@@ -207,6 +210,19 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
        JOIN eval_plans p ON p.id = i.plan_id WHERE p.event_id = ?`,
     eventId
   );
+  const pins = await all<{ plan_id: string; submission_id: string; user_id: string }>(
+    db,
+    // Pin order matters: pins fill the first review slots in that order.
+    `SELECT n.plan_id, n.submission_id, n.user_id FROM eval_reviewer_pins n
+       JOIN eval_plans p ON p.id = n.plan_id WHERE p.event_id = ? ORDER BY n.rowid`,
+    eventId
+  );
+  const pinsByPlan = new Map<string, Record<string, string[]>>();
+  for (const n of pins) {
+    const bySub = pinsByPlan.get(n.plan_id) ?? {};
+    (bySub[n.submission_id] ??= []).push(n.user_id);
+    pinsByPlan.set(n.plan_id, bySub);
+  }
   return rows.map((p) => ({
     id: p.id,
     eventId: p.event_id,
@@ -229,6 +245,7 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
         email: r.email,
       })),
     includeIds: includes.filter((i) => i.plan_id === p.id).map((i) => i.submission_id),
+    pins: pinsByPlan.get(p.id) ?? {},
   }));
 }
 
@@ -453,11 +470,11 @@ export function matchesRules(s: EvalSubmission, r: Rules): boolean {
   return true;
 }
 
-export function members(plan: EvalPlan): PlanReviewer[] {
+export function members(plan: Pick<EvalPlan, 'reviewers'>): PlanReviewer[] {
   return plan.reviewers.filter((r) => r.role !== 'chair');
 }
 
-export function effRp(plan: EvalPlan): number {
+export function effRp(plan: Pick<EvalPlan, 'reviewsPer' | 'reviewers'>): number {
   const m = members(plan).length;
   return Math.max(1, Math.min(plan.reviewsPer, m || 1));
 }
@@ -468,12 +485,28 @@ export function seedOf(id: string): number {
   return n;
 }
 
-/** Round-robin assignment, seeded by submission id (prototype `assignedFor`). */
-export function assignedFor(plan: EvalPlan, sub: EvalSubmission): PlanReviewer[] {
+/**
+ * Who reviews this submission: pinned reviewers (migration 0018) fill the
+ * first slots in pin order, round-robin seeded by submission id (prototype
+ * `assignedFor`) fills the rest. Pinning more members than `reviews_per`
+ * grows the slot count; a pin whose user left the plan is ignored.
+ */
+export function assignedFor(
+  plan: Pick<EvalPlan, 'reviewsPer' | 'reviewers' | 'pins'>,
+  sub: Pick<EvalSubmission, 'id'>
+): PlanReviewer[] {
   const sc = members(plan);
   if (!sc.length) return [];
+  const out = (plan.pins[sub.id] ?? [])
+    .map((uid) => sc.find((r) => r.userId === uid))
+    .filter((r): r is PlanReviewer => !!r);
+  const slots = Math.max(effRp(plan), out.length);
   const start = seedOf(sub.id) % sc.length;
-  return Array.from({ length: effRp(plan) }, (_, i) => sc[(start + i) % sc.length]);
+  for (let i = 0; out.length < slots && i < sc.length; i++) {
+    const r = sc[(start + i) % sc.length];
+    if (!out.includes(r)) out.push(r);
+  }
+  return out;
 }
 
 /** Rule match OR explicit include — the plan's live scope. */
@@ -515,13 +548,16 @@ export function starAvgOf(plan: EvalPlan, e: Evaluation): number | null {
 export type PlanProgress = { done: number; total: number; pct: number };
 
 export function planProgress(plan: EvalPlan, subs: EvalSubmission[], evals: Evaluation[]): PlanProgress {
-  const rp = effRp(plan);
   const list = planSubmissions(plan, subs, evals);
-  const total = list.length * rp;
-  const done = list.reduce((a, s) => {
+  let total = 0;
+  let done = 0;
+  list.forEach((s) => {
+    // Per submission, not a flat reviews_per: pins can grow a slot count.
+    const slots = assignedFor(plan, s).length || effRp(plan);
     const n = evals.filter((e) => e.planId === plan.id && e.submissionId === s.id && !e.abstained).length;
-    return a + Math.min(n, rp);
-  }, 0);
+    total += slots;
+    done += Math.min(n, slots);
+  });
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
@@ -556,7 +592,7 @@ export function submissionScore(
   const stars: number[] = [];
   plans.forEach((p) => {
     if (!planSubmissions(p, subs, evals).some((s) => s.id === sub.id)) return;
-    expected += effRp(p);
+    expected += assignedFor(p, sub).length || effRp(p);
     evals
       .filter((e) => e.planId === p.id && e.submissionId === sub.id && !e.abstained)
       .forEach((e) => {

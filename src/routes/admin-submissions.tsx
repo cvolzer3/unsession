@@ -25,6 +25,7 @@ import { renderTemplate, sendEmail } from '../lib/email';
 import { isDecision, type DecisionKind } from '../lib/decisions';
 import { queueDecisions, listDecisionQueue, OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import { csvHeaders, parseCsvTable, toCsv, type CsvRow } from '../lib/csv';
+import { assignedFor, members, type PlanReviewer } from '../lib/evals';
 import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 
 const app = new Hono<Ctx>();
@@ -144,7 +145,7 @@ type SubmissionRow = {
   form_id: string;
   form_version_id: string | null;
 };
-type EvalRow = { submission_id: string; plan_id: string; scores_json: string; abstained: number };
+type EvalRow = { submission_id: string; plan_id: string; reviewer_id: string; scores_json: string; abstained: number };
 type PlanRow = { id: string; name: string; reviews_per: number; rules_json: string; criteria_json: string };
 type FileRow = { id: string; filename: string; size: number; subject_type: string | null; subject_id: string | null };
 
@@ -245,7 +246,7 @@ function meanOf(values: number[]): number | null {
 }
 
 async function loadBoard(env: Bindings, event: Event): Promise<Board> {
-  const [forms, versions, options, subs, speakers, evals, plans, includes] = await Promise.all([
+  const [forms, versions, options, subs, speakers, evals, plans, includes, pins] = await Promise.all([
     all<FormRow>(
       env.DB,
       `SELECT id, name, slug, status, created_at FROM forms WHERE event_id = ?
@@ -280,7 +281,7 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
     ),
     all<EvalRow>(
       env.DB,
-      `SELECT ev.submission_id, ev.plan_id, ev.scores_json, ev.abstained FROM evaluations ev
+      `SELECT ev.submission_id, ev.plan_id, ev.reviewer_id, ev.scores_json, ev.abstained FROM evaluations ev
          JOIN submissions s ON s.id = ev.submission_id WHERE s.event_id = ?`,
       event.id
     ),
@@ -289,6 +290,12 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
       env.DB,
       `SELECT i.plan_id, i.submission_id FROM eval_plan_includes i
          JOIN eval_plans p ON p.id = i.plan_id WHERE p.event_id = ?`,
+      event.id
+    ),
+    all<{ plan_id: string; submission_id: string }>(
+      env.DB,
+      `SELECT n.plan_id, n.submission_id FROM eval_reviewer_pins n
+         JOIN eval_plans p ON p.id = n.plan_id WHERE p.event_id = ?`,
       event.id
     ),
   ]);
@@ -324,6 +331,12 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
   }));
   // Explicit per-submission assignments (migration 0014) — additive to the rules.
   const included = new Set(includes.map((i) => `${i.plan_id}:${i.submission_id}`));
+  // Pinned reviewers (migration 0018) — can grow a submission's slot count.
+  const pinCounts = new Map<string, number>();
+  for (const n of pins) {
+    const key = `${n.plan_id}:${n.submission_id}`;
+    pinCounts.set(key, (pinCounts.get(key) ?? 0) + 1);
+  }
 
   const counts: Record<string, number> = {};
   const rows: BoardRow[] = subs.map((s) => {
@@ -351,7 +364,8 @@ async function loadBoard(env: Bindings, event: Event): Promise<Board> {
     };
     let expected = 0;
     for (const p of parsedPlans) {
-      if (planCovers(p.rules, shape) || included.has(`${p.id}:${s.id}`)) expected += p.reviews_per;
+      if (planCovers(p.rules, shape) || included.has(`${p.id}:${s.id}`))
+        expected += Math.max(p.reviews_per, pinCounts.get(`${p.id}:${s.id}`) ?? 0);
     }
 
     const chip = chipFor(s.status, expected);
@@ -1177,7 +1191,7 @@ app.get('/app/api/submissions/:id', async (c) => {
   const row = board.rows.find((r) => r.id === id);
   if (!row) return c.json({ ok: false, error: 'Submission not found' }, 404);
 
-  const [files, comments, activity, evals, plans, planIncludes] = await Promise.all([
+  const [files, comments, activity, evals, plans, planIncludes, planReviewers, reviewerPins] = await Promise.all([
     all<FileRow>(
       c.env.DB,
       `SELECT id, filename, size, subject_type, subject_id FROM files WHERE event_id = ?`,
@@ -1196,13 +1210,32 @@ app.get('/app/api/submissions/:id', async (c) => {
         WHERE subject_type = 'submission' AND subject_id = ? ORDER BY created_at`,
       id
     ),
-    all<EvalRow>(c.env.DB, `SELECT submission_id, plan_id, scores_json, abstained FROM evaluations WHERE submission_id = ?`, id),
+    all<EvalRow>(
+      c.env.DB,
+      `SELECT submission_id, plan_id, reviewer_id, scores_json, abstained FROM evaluations WHERE submission_id = ?`,
+      id
+    ),
     all<PlanRow>(
       c.env.DB,
       `SELECT id, name, reviews_per, rules_json, criteria_json FROM eval_plans WHERE event_id = ? ORDER BY created_at`,
       event.id
     ),
     all<{ plan_id: string }>(c.env.DB, `SELECT plan_id FROM eval_plan_includes WHERE submission_id = ?`, id),
+    all<{ plan_id: string; user_id: string; role: string; name: string | null; email: string }>(
+      c.env.DB,
+      // Insertion order — assignedFor() round-robins over this list (see loadPlans).
+      `SELECT r.plan_id, r.user_id, r.role, u.name, u.email
+         FROM eval_plan_reviewers r
+         JOIN users u ON u.id = r.user_id
+         JOIN eval_plans p ON p.id = r.plan_id
+        WHERE p.event_id = ? ORDER BY r.rowid`,
+      event.id
+    ),
+    all<{ plan_id: string; user_id: string }>(
+      c.env.DB,
+      `SELECT plan_id, user_id FROM eval_reviewer_pins WHERE submission_id = ? ORDER BY rowid`,
+      id
+    ),
   ]);
 
   const filesById = new Map(files.map((f) => [f.id, f]));
@@ -1259,12 +1292,50 @@ app.get('/app/api/submissions/:id', async (c) => {
   // renders both and lets an admin assign to (or unassign from) the rest.
   const assignedPlanIds = new Set(planIncludes.map((p) => p.plan_id));
   const shape = { formId: row.formId, trackId: row.trackId, formatId: row.formatId, levelId: row.levelId, status: row.status };
-  const planList = plans.map((p) => ({
-    id: p.id,
-    name: p.name,
-    ruled: planCovers(jsonParse<Record<string, string>>(p.rules_json, {}), shape),
-    assigned: assignedPlanIds.has(p.id),
-  }));
+  const planList = plans.map((p) => {
+    const ruled = planCovers(jsonParse<Record<string, string>>(p.rules_json, {}), shape);
+    const assigned = assignedPlanIds.has(p.id);
+    // Per-plan reviewer slots (lib/evals assignedFor: pins first, round-robin
+    // fill) so the drawer can show who reviews this and pin someone specific.
+    const reviewers: PlanReviewer[] = planReviewers
+      .filter((r) => r.plan_id === p.id)
+      .map((r) => ({
+        userId: r.user_id,
+        role: r.role === 'chair' ? 'chair' : 'member',
+        name: r.name || r.email.split('@')[0],
+        email: r.email,
+      }));
+    const pinnedIds = reviewerPins.filter((n) => n.plan_id === p.id).map((n) => n.user_id);
+    const stub = { reviewsPer: p.reviews_per || 1, reviewers, pins: { [id]: pinnedIds } };
+    const slots = ruled || assigned ? assignedFor(stub, { id }) : [];
+    const scoredBy = new Set(evals.filter((e) => e.plan_id === p.id).map((e) => e.reviewer_id));
+    const pinned = new Set(pinnedIds);
+    const revList = slots.map((r) => ({
+      id: r.userId,
+      name: r.name,
+      pinned: pinned.has(r.userId),
+      scored: scoredBy.has(r.userId),
+    }));
+    // A score from someone no longer in the slots (rules or roster changed)
+    // still counts — keep the reviewer visible.
+    for (const r of reviewers) {
+      if (scoredBy.has(r.userId) && !revList.some((x) => x.id === r.userId))
+        revList.push({ id: r.userId, name: r.name, pinned: false, scored: true });
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      ruled,
+      assigned,
+      reviewers: revList,
+      addable:
+        ruled || assigned
+          ? members(stub)
+              .filter((m) => !slots.some((s) => s.userId === m.userId))
+              .map((m) => ({ id: m.userId, name: m.name }))
+          : [],
+    };
+  });
 
   const activityLines = [
     ...(row.submittedAt
@@ -1373,6 +1444,78 @@ app.post('/app/api/submissions/assign-plan', requireOrgRole('admin'), async (c) 
   });
 
   return c.json({ ok: true, planName: plan.name });
+});
+
+/* -------------------------------------------------------- reviewer assign */
+
+/**
+ * Pin a specific reviewer onto one submission's review slots (or drop the pin
+ * again). Pins fill slots ahead of the round-robin (`assignedFor` in
+ * lib/evals), so the pinned reviewer sees the submission in their queue
+ * immediately. Removing a pin never touches a recorded evaluation.
+ */
+app.post('/app/api/submissions/assign-reviewer', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event' }, 400);
+  const input = await c.req.json<{ submissionId?: string; planId?: string; userId?: string; remove?: boolean }>();
+
+  const sub = await one<{ id: string }>(
+    c.env.DB,
+    `SELECT id FROM submissions WHERE id = ? AND event_id = ?`,
+    input.submissionId ?? '',
+    event.id
+  );
+  if (!sub) return c.json({ ok: false, error: 'Submission not found' }, 404);
+  const plan = await one<{ id: string; name: string }>(
+    c.env.DB,
+    `SELECT id, name FROM eval_plans WHERE id = ? AND event_id = ?`,
+    input.planId ?? '',
+    event.id
+  );
+  if (!plan) return c.json({ ok: false, error: 'That evaluation plan no longer exists' }, 404);
+  const reviewer = await one<{ user_id: string; role: string; name: string | null; email: string }>(
+    c.env.DB,
+    `SELECT r.user_id, r.role, u.name, u.email FROM eval_plan_reviewers r
+       JOIN users u ON u.id = r.user_id WHERE r.plan_id = ? AND r.user_id = ?`,
+    plan.id,
+    input.userId ?? ''
+  );
+  if (!input.remove) {
+    if (!reviewer) return c.json({ ok: false, error: 'That person is not a reviewer on this plan' }, 400);
+    if (reviewer.role === 'chair')
+      return c.json({ ok: false, error: 'Chairs see everything but do not score — pick a member' }, 400);
+  }
+  const reviewerName = reviewer ? reviewer.name || reviewer.email.split('@')[0] : 'a former reviewer';
+
+  if (input.remove) {
+    await run(
+      c.env.DB,
+      `DELETE FROM eval_reviewer_pins WHERE plan_id = ? AND submission_id = ? AND user_id = ?`,
+      plan.id,
+      sub.id,
+      input.userId ?? ''
+    );
+  } else {
+    await run(
+      c.env.DB,
+      `INSERT OR IGNORE INTO eval_reviewer_pins (plan_id, submission_id, user_id, created_at) VALUES (?,?,?,?)`,
+      plan.id,
+      sub.id,
+      input.userId,
+      now()
+    );
+  }
+
+  await logActivity(c.env.DB, {
+    eventId: event.id,
+    subjectType: 'submission',
+    subjectId: sub.id,
+    actor: c.var.user?.name || c.var.user?.email || 'Organizer',
+    action: input.remove ? 'Unassigned reviewer' : 'Assigned reviewer',
+    detail: `${reviewerName} — “${plan.name}”`,
+  });
+
+  return c.json({ ok: true, reviewerName, planName: plan.name });
 });
 
 /* ---------------------------------------------------------------- decisions */
