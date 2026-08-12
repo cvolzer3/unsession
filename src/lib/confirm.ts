@@ -35,6 +35,27 @@ export async function confirmParticipation(
 
   const tasks = await generateTasksOnTrigger(env, { submissionId: sub.id, trigger: 'confirmation' });
 
+  // The built-in "Confirm participation" checkbox task (tasks-spec §8 Q7: the
+  // documented on-acceptance exception) completes itself the moment the speaker
+  // actually confirms — never leave it dangling in the portal.
+  await run(
+    env.DB,
+    `UPDATE tasks SET status = 'done', completed_by = ?, completed_at = ?
+     WHERE event_id = ? AND status = 'open'
+       AND template_id IN (SELECT id FROM task_templates WHERE event_id = ? AND type = 'checkbox' AND name LIKE 'Confirm participation%')
+       AND speaker_profile_id IN (
+         SELECT sp.id FROM speaker_profiles sp
+         JOIN submission_speakers ss ON ss.email = sp.email COLLATE NOCASE
+         WHERE sp.event_id = ? AND ss.submission_id = ?
+       )`,
+    actor,
+    now(),
+    sub.event_id,
+    sub.event_id,
+    sub.event_id,
+    sub.id
+  );
+
   await logActivity(env.DB, {
     eventId: sub.event_id,
     subjectType: 'submission',
