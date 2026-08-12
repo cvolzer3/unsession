@@ -101,7 +101,8 @@ const EmbedDialog: FC<{ event: Event; origin: string }> = ({ event, origin }) =>
         <div style={DIALOG_BODY}>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;">
             Paste a snippet into any page on your site. Embeds show the published agenda and update live whenever you
-            re-publish — no need to touch the snippet again.
+            re-publish — no need to touch the snippet again. For all five widget types, more output formats (JSON, XML,
+            iCal) and branding options, head to <a href="/app/embeds">Embeds</a>.
           </div>
           <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;">
             <input id="embed-transparent" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;" />

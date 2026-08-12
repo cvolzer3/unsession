@@ -30,8 +30,10 @@ import adminSessions from './routes/admin-sessions';
 import adminSpeakers from './routes/admin-speakers';
 import adminFiles from './routes/admin-files';
 import adminAgenda from './routes/admin-agenda';
+import adminEmbeds from './routes/admin-embeds';
 import publicAgenda from './routes/public-agenda';
 import publicEmbed from './routes/public-embed';
+import publicWidgets from './routes/public-widgets';
 import publicPortal from './routes/public-portal';
 import publicEvaluate from './routes/public-evaluate';
 import publicSpeaker from './routes/public-speaker';
@@ -72,12 +74,14 @@ app.route('/', adminSessions);
 app.route('/', adminSpeakers);
 app.route('/', adminFiles);
 app.route('/', adminAgenda);
+app.route('/', adminEmbeds);
 
 // Public, event-themed surfaces — order-sensitive, `/:event/:form` last.
 app.route('/', publicPortal);
 app.route('/', publicEvaluate);
 app.route('/', publicSpeaker);
 app.route('/', publicEmbed);
+app.route('/', publicWidgets);
 app.route('/', publicAgenda);
 app.route('/', publicForm);
 

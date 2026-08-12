@@ -10,7 +10,7 @@
  */
 import { Hono } from 'hono';
 import type { Ctx, Event } from '../types';
-import { PublicLayout } from '../views/layout';
+import { PublicLayout, publicNav } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
 import { eventDays, fmtSpan, loadAgenda, roomNamer, type SessionRow } from '../lib/agenda';
@@ -73,16 +73,19 @@ app.get('/:event/speakers/:slug', async (c) => {
       : [];
 
   const backLink = (
-    <div style="display:flex;align-items:center;gap:10px;margin-top:18px;">
-      <a href={`/${event.slug}/agenda`} style="margin-left:auto;font-size:13px;">
-        ← Full agenda
+    <div style="display:flex;align-items:center;gap:14px;margin-top:18px;">
+      <a href={`/${event.slug}/speakers`} style="margin-left:auto;font-size:13px;">
+        ← All speakers
+      </a>
+      <a href={`/${event.slug}/agenda`} style="font-size:13px;">
+        Full agenda
       </a>
     </div>
   );
 
   if (!profile || !mine.length) {
     return c.html(
-      <PublicLayout title="Speaker" event={event} theme={theme} maxWidth={840}>
+      <PublicLayout title="Speaker" event={event} theme={theme} maxWidth={840} nav={publicNav(event.slug, 'speakers')}>
         <div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
           {backLink}
           <div style="margin-top:60px;text-align:center;">
@@ -131,7 +134,7 @@ app.get('/:event/speakers/:slug', async (c) => {
   if (links.other) linkItems.push({ label: hostLabel(links.other), url: links.other });
 
   return c.html(
-    <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={840}>
+    <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={840} nav={publicNav(event.slug, 'speakers')}>
       <div style="max-width:840px;margin:0 auto;padding:24px 28px 72px;">
         {backLink}
         <div style="display:flex;gap:30px;align-items:flex-start;margin-top:34px;flex-wrap:wrap;">

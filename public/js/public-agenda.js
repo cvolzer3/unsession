@@ -319,6 +319,8 @@ function boot(D) {
     }
     const tr = trackOf(a.trackId);
     const dayLabel = ((D.days[a.day] || {}).long || '').toUpperCase();
+    const fmt = (D.formats || []).find((f) => f.id === a.formatId);
+    const fmtLabel = fmt ? (fmt.duration ? `${fmt.name} (${fmt.duration} min)` : fmt.name) : '';
     detailEl.innerHTML =
       '<div style="position:fixed;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 40px);background:var(--card);border:1px solid var(--border);box-shadow:0 16px 48px rgba(26,26,46,0.18);z-index:50;">' +
       '<div style="padding:14px 16px;border-bottom:1px solid var(--chip);display:flex;align-items:flex-start;gap:8px;"><div>' +
@@ -333,7 +335,11 @@ function boot(D) {
       `<div style="font-size:15px;font-weight:700;line-height:1.3;">${esc(a.title)}</div>` +
       `<div style="font-family:${MONO};font-size:10.5px;color:var(--muted);margin-top:3px;">${span(a)} · ${esc(dayLabel)} · ${esc(
         roomLabel(a).toUpperCase()
-      )}</div></div>` +
+      )}</div>` +
+      (fmtLabel
+        ? `<div style="font-family:${MONO};font-size:10px;color:var(--muted);margin-top:3px;">FORMAT: ${esc(fmtLabel.toUpperCase())}</div>`
+        : '') +
+      '</div>' +
       '<button type="button" data-close-detail style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;">✕</button></div>' +
       '<div style="padding:16px;display:grid;gap:16px;">' +
       `<div style="font-size:13px;line-height:1.7;color:var(--text-secondary);padding-bottom:16px;border-bottom:1px solid var(--chip);">${esc(

@@ -278,9 +278,12 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink('/app/speakers', 'Speakers & Tasks', isActive('/app/speakers'))}
             {navLink('/app/files', 'Files', isActive('/app/files'))}
             {navLink('/app/agenda', 'Agenda', isActive('/app/agenda'))}
+            {navLink('/app/embeds', 'Embeds', isActive('/app/embeds'))}
             <div style={SECTION_LABEL}>PUBLIC</div>
             {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true))}
             {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true)}
+            {navLink(`/${slug}/sessions`, 'Sessions Page ↗', false, true)}
+            {navLink(`/${slug}/speakers`, 'Speakers Page ↗', false, true)}
             {/* Sandbox orgs can't mint API tokens — hide the page entirely. */}
             {props.sandbox ? null : (
               <>
@@ -379,6 +382,21 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
 
 /* ------------------------------------------------------------------ public */
 
+/**
+ * The attendee-facing nav row (Agenda / Sessions / Speakers / Gallery /
+ * Itinerary). Pass the current page's key so it renders bold; content pages
+ * (forms, portal) simply don't pass `nav` and keep their chrome unchanged.
+ */
+export function publicNav(slug: string, active: string): { label: string; href: string; active: boolean }[] {
+  return [
+    ['Agenda', 'agenda'],
+    ['Sessions', 'sessions'],
+    ['Speakers', 'speakers'],
+    ['Gallery', 'gallery'],
+    ['Itinerary', 'itinerary'],
+  ].map(([label, key]) => ({ label, href: `/${slug}/${key}`, active: key === active }));
+}
+
 export type PublicLayoutProps = PropsWithChildren<{
   title: string;
   event: { name: string; slug: string };
@@ -387,6 +405,8 @@ export type PublicLayoutProps = PropsWithChildren<{
   scripts?: string[];
   maxWidth?: number;
   kicker?: string;
+  /** Attendee nav links (from `publicNav`) — omitted on forms/portal pages. */
+  nav?: { label: string; href: string; active: boolean }[];
   /**
    * Pass when the route already knows the event's org is a sandbox (renders
    * the role switcher server-side). When omitted, a cookie-driven fallback
@@ -426,6 +446,20 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
               {initialsOf(props.event.name)}
             </div>
             <div style="font-weight:700;font-size:14.5px;">{props.event.name}</div>
+            {props.nav ? (
+              <nav style="margin-left:18px;display:flex;gap:2px;overflow-x:auto;">
+                {props.nav.map((n) => (
+                  <a
+                    href={n.href}
+                    style={`padding:6px 10px;font-size:13px;white-space:nowrap;text-decoration:none;${
+                      n.active ? 'color:var(--primary);font-weight:700;background:var(--chip);' : 'color:var(--text-secondary);'
+                    }`}
+                  >
+                    {n.label}
+                  </a>
+                ))}
+              </nav>
+            ) : null}
             {props.kicker ? (
               <div style="margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);">
                 {props.kicker}

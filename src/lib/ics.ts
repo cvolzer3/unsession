@@ -194,6 +194,42 @@ export function sessionIcs(event: Event, session: IcsSession, speakers: IcsSpeak
   return calendar(event, 'REQUEST', body);
 }
 
+/**
+ * VCALENDAR/METHOD:PUBLISH containing every scheduled session passed in — the
+ * public agenda feed and the itinerary's "add to calendar" export. Unscheduled
+ * sessions are skipped. One VTIMEZONE (from the event's first day) covers all
+ * components.
+ */
+export function agendaIcs(
+  event: Event,
+  sessions: { session: IcsSession; speakers?: IcsSpeaker[]; roomName?: string | null; url?: string | null }[],
+  opts: { from?: string; url?: string | null } = {}
+): string {
+  const parts: string[] = [];
+  for (const s of sessions) {
+    const body = buildEvent(
+      event,
+      s.session,
+      s.speakers ?? [],
+      { roomName: s.roomName, from: opts.from, url: s.url ?? opts.url },
+      'REQUEST'
+    );
+    if (body) parts.push(...body.lines);
+  }
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    `PRODID:${PRODID}`,
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${escText(event.name)}`,
+    ...vtimezone(event.timezone, event.start_date),
+    ...parts,
+    'END:VCALENDAR',
+  ];
+  return lines.map(fold).join('\r\n') + '\r\n';
+}
+
 /** VCALENDAR/METHOD:CANCEL — same UID, SEQUENCE bumped by the caller. */
 export function cancelIcs(event: Event, session: IcsSession, speakers: IcsSpeaker[] = [], opts: IcsOptions = {}): string {
   const body = buildEvent(event, session, speakers, opts, 'CANCEL');

@@ -15,7 +15,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, MONO, fmtDateRange } from '../views/layout';
+import { PublicLayout, MONO, fmtDateRange, publicNav } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one } from '../lib/db';
 import {
@@ -30,6 +30,7 @@ import {
   type SessionRow,
 } from '../lib/agenda';
 import { icsFilename, sessionIcs } from '../lib/ics';
+import { loadEmbedConfig, trackFiltered } from './public-embed';
 
 const app = new Hono<Ctx>();
 
@@ -94,7 +95,7 @@ export async function withCache(c: Context<Ctx>, key: string, build: () => Promi
 
 function notPublished(event: { name: string; slug: string }, theme: Theme) {
   return (
-    <PublicLayout title="Agenda" event={event} theme={theme} maxWidth={680}>
+    <PublicLayout title="Agenda" event={event} theme={theme} maxWidth={680} nav={publicNav(event.slug, 'agenda')}>
       <div style="max-width:680px;margin:0 auto;padding:64px 20px 100px;text-align:center;">
         <div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);margin-bottom:10px;">
           AGENDA
@@ -144,6 +145,7 @@ app.get('/:event/agenda', async (c) => {
         room: s.all_rooms ? null : roomName(s.room_id),
         allRooms: !!s.all_rooms,
         trackId: s.track_option_id,
+        formatId: s.format_option_id,
         sponsorName: s.sponsor_name,
         sponsorBadge: s.type === 'sponsor' && !!s.sponsor_badge,
         speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({ name: p.name, slug: p.slug, bio: p.bio })),
@@ -158,6 +160,7 @@ app.get('/:event/agenda', async (c) => {
       dayEnd: event.day_end_min,
       rooms: bundle.rooms.map((r) => r.name),
       tracks: bundle.tracks.map((t) => ({ id: t.id, name: t.name, color: t.color })),
+      formats: bundle.formats.map((f) => ({ id: f.id, name: f.name, duration: f.duration_min })),
       sessions: view,
     };
 
@@ -229,7 +232,14 @@ app.get('/:event/agenda', async (c) => {
       };color:${on ? '#fff' : 'var(--text-secondary)'};font-size:11.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
 
     const html = (
-      <PublicLayout title="Agenda" event={event} theme={theme} maxWidth={PAGE_MAX} scripts={['/js/public-agenda.js']}>
+      <PublicLayout
+        title="Agenda"
+        event={event}
+        theme={theme}
+        maxWidth={PAGE_MAX}
+        nav={publicNav(event.slug, 'agenda')}
+        scripts={['/js/public-agenda.js']}
+      >
         {jsonBlock('data-public-agenda', payload)}
         <div style={`max-width:${PAGE_MAX}px;margin:0 auto;padding:24px 28px 60px;`}>
           <div style="display:flex;align-items:flex-end;gap:12px;">
@@ -333,11 +343,14 @@ app.get('/:event/agenda.json', async (c) => {
   if (!found) return c.json({ ok: false, error: 'Event not found' }, 404);
   const { event } = found;
   if (!event.published) return c.json({ ok: false, error: 'Agenda not published yet' }, 404);
+  const { config, disabled, cacheSuffix } = await loadEmbedConfig(c.env.DB, event.id, c.req.query('eid'));
+  if (disabled) return c.json({ ok: false, error: 'This embed is disabled' }, 404);
 
-  return withCache(c, `${event.slug}/${publishedRev(event)}/agenda.json`, async () => {
+  return withCache(c, `${event.slug}/${publishedRev(event)}/agenda.json${cacheSuffix}`, async () => {
     const bundle = await loadAgenda(c.env.DB, event.id);
     const roomName = roomNamer(bundle);
     const trackById = new Map(bundle.tracks.map((t) => [t.id, t]));
+    const formatById = new Map(bundle.formats.map((f) => [f.id, f]));
     const days = eventDays(event);
     const body = {
       event: {
@@ -352,7 +365,7 @@ app.get('/:event/agenda.json', async (c) => {
       days: days.map((d) => ({ index: d.index, date: d.date })),
       rooms: bundle.rooms.map((r) => r.name),
       tracks: bundle.tracks.map((t) => ({ name: t.name, color: t.color })),
-      sessions: publicSessions(event, bundle).map((s) => ({
+      sessions: trackFiltered(publicSessions(event, bundle), config).map((s) => ({
         id: s.id,
         title: s.title,
         abstract: s.abstract,
@@ -368,10 +381,12 @@ app.get('/:event/agenda.json', async (c) => {
         room: s.all_rooms ? null : roomName(s.room_id),
         all_rooms: !!s.all_rooms,
         track: s.track_option_id ? trackById.get(s.track_option_id)?.name ?? null : null,
+        format: s.format_option_id ? formatById.get(s.format_option_id)?.name ?? null : null,
         level: s.level,
         speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({
           name: p.name,
           slug: p.slug,
+          tagline: p.tagline,
           url: `${c.env.APP_ORIGIN}/${event.slug}/speakers/${p.slug}`,
         })),
       })),
