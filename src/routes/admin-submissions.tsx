@@ -1330,12 +1330,13 @@ app.get('/app/api/submissions/:id', async (c) => {
       ruled,
       assigned,
       reviewers: revList,
-      // Anyone not already pinned is offered — picking a member who is only
-      // auto-assigned pins them, so the round-robin can no longer move them.
+      // Only people not already reviewing this one are offered: anyone
+      // holding a review slot (picked or via the plan's rotation) or who
+      // already scored it is excluded.
       addable:
         ruled || assigned
           ? members(stub)
-              .filter((m) => !pinned.has(m.userId))
+              .filter((m) => !slots.some((r) => r.userId === m.userId) && !scoredBy.has(m.userId))
               .map((m) => ({ id: m.userId, name: m.name, email: m.email }))
           : [],
     };
