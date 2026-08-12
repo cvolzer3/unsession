@@ -433,7 +433,7 @@ app.get('/app', async (c) => {
                   <div style="font-size:11.5px;color:#686b74;">{`${myQueue.done} in · ${myQueue.remaining} to go`}</div>
                 </div>
                 <div style="font-size:11.5px;margin-top:9px;">
-                  <a href={`/${event.slug}/evaluate`}>Open my queue →</a>
+                  <a href="/app/evaluation?tab=mine">Open my queue →</a>
                 </div>
               </div>
             ) : null}
