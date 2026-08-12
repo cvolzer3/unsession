@@ -28,6 +28,7 @@ import adminForms from './routes/admin-forms';
 import adminEvaluation from './routes/admin-evaluation';
 import adminSessions from './routes/admin-sessions';
 import adminSpeakers from './routes/admin-speakers';
+import adminFiles from './routes/admin-files';
 import adminAgenda from './routes/admin-agenda';
 import publicAgenda from './routes/public-agenda';
 import publicEmbed from './routes/public-embed';
@@ -69,6 +70,7 @@ app.route('/', adminForms);
 app.route('/', adminEvaluation);
 app.route('/', adminSessions);
 app.route('/', adminSpeakers);
+app.route('/', adminFiles);
 app.route('/', adminAgenda);
 
 // Public, event-themed surfaces — order-sensitive, `/:event/:form` last.

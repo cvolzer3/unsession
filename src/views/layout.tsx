@@ -276,6 +276,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink('/app/evaluation', 'Evaluation', isActive('/app/evaluation'))}
             {navLink('/app/sessions', 'Sessions', isActive('/app/sessions'))}
             {navLink('/app/speakers', 'Speakers & Tasks', isActive('/app/speakers'))}
+            {navLink('/app/files', 'Files', isActive('/app/files'))}
             {navLink('/app/agenda', 'Agenda', isActive('/app/agenda'))}
             <div style={SECTION_LABEL}>PUBLIC</div>
             {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true))}
