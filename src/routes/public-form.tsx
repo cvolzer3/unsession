@@ -58,7 +58,7 @@ const DRAFT_COOKIE = 'us_draft';
 const MONO_VAR = 'var(--font-mono)';
 const LABEL = 'font-size:14px;font-weight:600;margin-bottom:6px;';
 const SECTION =
-  'font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;';
+  'font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;';
 const HINT = 'font-size:12px;color:var(--muted);margin-bottom:6px;';
 
 function inputStyle(bad?: boolean): string {

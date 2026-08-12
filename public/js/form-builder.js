@@ -138,8 +138,6 @@ function boot(D) {
       if (res.bumped) {
         version = res.version;
         flash(`Version v${version} created — previous versions keep their submissions’ answers`);
-        const note = document.querySelector('[data-version-note]');
-        if (note) note.textContent = `v${version} · previous versions keep their submissions’ answers`;
       }
       setSaveState('ALL CHANGES SAVED', '#c9cbd3');
     } catch (err) {

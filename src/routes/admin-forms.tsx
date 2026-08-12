@@ -363,7 +363,7 @@ app.get('/app/forms', async (c) => {
               type="button"
               data-toggle="#form-picker"
               title="Switch form"
-              style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:8px 12px;cursor:pointer;max-width:540px;"
+              style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;cursor:pointer;max-width:540px;"
             >
               <span style="font-weight:700;font-size:16px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 {active.name}
@@ -371,10 +371,10 @@ app.get('/app/forms', async (c) => {
               <span style={statusBadge(active.status)}>{active.status.toUpperCase()}</span>
               <span style="color:#686b74;font-size:11px;border-left:1px solid #d8d9de;padding-left:10px;">▾</span>
             </button>
-            <form method="post" action="/app/forms/new" style="flex:none;">
+            <form method="post" action="/app/forms/new" style="flex:none;margin:0;">
               <button
                 type="submit"
-                style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8d9de;padding:8px 12px;font-size:13px;font-weight:600;color:#4c5fd5;cursor:pointer;"
+                style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;font-size:13px;font-weight:600;color:#4c5fd5;cursor:pointer;"
               >
                 ＋ New form
               </button>
@@ -472,12 +472,7 @@ app.get('/app/forms', async (c) => {
       {mode === 'build' ? (
         <div style="display:grid;grid-template-columns:1fr 360px;gap:0;align-items:start;">
           <div style="padding:22px 28px;max-width:760px;">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;min-height:14px;">
-              <span data-version-note style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`}>
-                {loaded.version.version > 1
-                  ? `v${loaded.version.version} · previous versions keep their submissions’ answers`
-                  : ''}
-              </span>
+            <div style="display:flex;align-items:center;margin-bottom:10px;min-height:14px;">
               <span id="fb-save-state" style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
             </div>
             {settings.welcomeEnabled ? (

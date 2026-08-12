@@ -219,7 +219,7 @@ export function renderPreview(root, state) {
       const v = answers[f.id];
       let control = '';
       if (f.type === 'HDR') {
-        return `<div style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.14em;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;">${escapeHtml(f.label.toUpperCase())}</div>`;
+        return `<div style="font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;">${escapeHtml(f.label.toUpperCase())}</div>`;
       } else if (f.type === 'SEL') {
         const opts = (f.opts || [])
           .map((o) => `<option value="${escapeHtml(o)}"${String(v ?? '') === o ? ' selected' : ''}>${escapeHtml(o)}</option>`)
