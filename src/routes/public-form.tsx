@@ -146,6 +146,30 @@ function rememberDraft(c: Context<Ctx>, id: string, ids: string[]) {
   });
 }
 
+/* ------------------------------------------------------------------ organizer preview */
+
+/**
+ * `?preview=1` — the form builder's Preview tab frames this very page, so what
+ * an organizer previews *is* the live page rather than a second renderer that
+ * drifts. The flag only bypasses the open/draft window and the draft resume:
+ * everything else renders exactly as a first-time visitor sees it (anonymous,
+ * so the email block shows), and `public-form.js` blocks autosave, uploads and
+ * the real POST. Anyone who isn't on the event's org gets the ordinary page —
+ * the flag is ignored, never an error.
+ */
+async function previewingAs(c: Context<Ctx>, orgId: string): Promise<boolean> {
+  if (c.req.query('preview') !== '1') return false;
+  const user = c.var.user;
+  if (!user) return false;
+  const member = await one<{ role: string }>(
+    c.env.DB,
+    `SELECT role FROM org_members WHERE org_id = ? AND user_id = ?`,
+    orgId,
+    user.id
+  );
+  return !!member;
+}
+
 /* ------------------------------------------------------------------ layout helpers */
 
 type Item = { kind: 'section'; label: string; desc?: string } | { kind: 'field'; field: FormField };
@@ -156,8 +180,8 @@ type Item = { kind: 'section'; label: string; desc?: string } | { kind: 'field';
  * the prototype's own CFP) get the prototype's rhythm generated for them:
  * 01 · YOUR SESSION → 02 · SPEAKERS → … → CONSENT.
  *
- * Mirrored in `public/js/public-form.js` (layoutItems) for the builder preview —
- * keep the two in sync.
+ * The builder's Preview tab frames this page, so this is the only
+ * implementation — nothing to mirror client-side.
  */
 export function layoutItems(fields: FormField[]): Item[] {
   const hasHdr = fields.some((f) => f.type === 'HDR');
@@ -637,8 +661,12 @@ function renderPage(opts: {
   showWelcome: boolean;
   user: User | null;
   toast?: string | null;
+  /** Organizer preview — same page, minus the parts that would write anything. */
+  preview?: boolean;
 }) {
   const { event, form, settings, schema, state, filesOn, late } = opts;
+  const preview = !!opts.preview;
+  const self = `/${event.slug}/${form.slug}${preview ? '?preview=1' : ''}`;
   // The welcome block is always in the DOM when the form has one, just hidden —
   // that's what lets "Start →" / "← BACK TO INTRO" toggle without a round trip.
   const hasWelcome = !!(settings.welcomeEnabled && settings.welcomeMd);
@@ -647,7 +675,7 @@ function renderPage(opts: {
   const cap = speakerCap(fields, settings);
   const items = layoutItems(fields);
   // B1: public name + page heading come from form settings, with the old
-  // hardcoded values as fallbacks. Mirrored in the builder preview.
+  // hardcoded values as fallbacks.
   const publicName = settings.externalName.trim() || form.name;
   const heading = settings.pageHeading.trim() || `Speak at ${event.name}`;
 
@@ -684,8 +712,12 @@ function renderPage(opts: {
           allowDrafts: settings.allowDrafts,
           filesEnabled: filesOn,
           needEmail: !opts.user && !state.draftId,
+          preview,
         }).replace(/</g, '\\u003c')}</script>`
       )}
+      {/* The sandbox role chip belongs to the surrounding app, not the form —
+          inside the builder's preview frame it just doubles the admin one. */}
+      {preview ? raw('<style>#sandbox-switcher{display:none !important;}</style>') : null}
       <div style="max-width:620px;margin:0 auto;padding:28px 20px 80px;">
         {late ? (
           <div
@@ -723,7 +755,7 @@ function renderPage(opts: {
               {raw(richMessageHtml(settings.welcomeMd))}
             </div>
             <a
-              href="?start=1"
+              href={preview ? '?preview=1&start=1' : '?start=1'}
               id="pf-start"
               style="display:inline-block;margin-top:22px;padding:11px 26px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;text-decoration:none;"
             >
@@ -735,7 +767,7 @@ function renderPage(opts: {
         <div id="pf-body" hidden={opts.showWelcome}>
           {hasWelcome ? (
             <a
-              href="?welcome=1"
+              href={preview ? '?preview=1&welcome=1' : '?welcome=1'}
               id="pf-back"
               style={`display:inline-block;margin-bottom:18px;font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);text-decoration:none;`}
             >
@@ -755,7 +787,7 @@ function renderPage(opts: {
             <div id="pf-errors" hidden style="border:1px solid #e03131;background:var(--card);padding:14px 16px;margin-bottom:20px;"></div>
           )}
 
-          <form id="pf-form" method="post" action={`/${event.slug}/${form.slug}`} style="display:grid;gap:22px;">
+          <form id="pf-form" method="post" action={self} style="display:grid;gap:22px;">
             <input type="hidden" name="submission_id" id="pf-submission-id" value={state.draftId ?? ''} />
             {late ? <input type="hidden" name="key" value={settings.lateLinkSecret ?? ''} /> : null}
 
@@ -1023,6 +1055,7 @@ app.get('/:event/:form', async (c) => {
   const publicName = settings.externalName.trim() || loaded.form.name;
   const user = c.var.user;
   const cookies = draftIds(c);
+  const preview = await previewingAs(c, found.event.org_id);
 
   /* ------------------------------------------------------------ post-submit */
   const submittedId = c.req.query('submitted');
@@ -1091,7 +1124,7 @@ app.get('/:event/:form', async (c) => {
 
   /* ------------------------------------------------------------ open window */
   const state = openState(loaded.form, settings, found.event.timezone, c.req.query('key'));
-  if (!state.open) {
+  if (!state.open && !preview) {
     return c.html(
       <PublicLayout title={publicName} event={found.event} theme={found.theme} maxWidth={620}>
         <div style="max-width:620px;margin:0 auto;padding:64px 20px;text-align:center;">
@@ -1119,8 +1152,10 @@ app.get('/:event/:form', async (c) => {
   }
 
   /* ------------------------------------------------------------ draft resume */
+  // A preview starts from a blank form every time — an organizer's own draft on
+  // their own call would be a confusing thing to open inside the builder.
   let draft: SubmissionRow | null = null;
-  const wanted = c.req.query('draft');
+  const wanted = preview ? null : c.req.query('draft');
   if (wanted) {
     const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, wanted);
     if (sub && sub.form_id === loaded.form.id && sub.status === 'draft' && canAccess(sub, user, cookies)) {
@@ -1128,7 +1163,7 @@ app.get('/:event/:form', async (c) => {
       rememberDraft(c, sub.id, cookies);
     }
   }
-  if (!draft && user) {
+  if (!preview && !draft && user) {
     draft = await one<SubmissionRow>(
       c.env.DB,
       `SELECT * FROM submissions WHERE form_id = ? AND owner_user_id = ? AND status = 'draft' ORDER BY updated_at DESC LIMIT 1`,
@@ -1136,7 +1171,7 @@ app.get('/:event/:form', async (c) => {
       user.id
     );
   }
-  if (!draft && cookies.length) {
+  if (!preview && !draft && cookies.length) {
     draft = await one<SubmissionRow>(
       c.env.DB,
       `SELECT * FROM submissions WHERE form_id = ? AND status = 'draft' AND id IN (${cookies.map(() => '?').join(',')})
@@ -1164,9 +1199,12 @@ app.get('/:event/:form', async (c) => {
       settings,
       schema,
       filesOn: filesEnabled(c.env),
-      late: state.late,
+      late: !preview && state.late,
       showWelcome,
-      user,
+      // Previewing renders the first-time visitor's view, not the organizer's:
+      // the email block is part of what they're checking.
+      user: preview ? null : user,
+      preview,
       toast: c.req.query('ok') ?? null,
       state: {
         answers,
@@ -1255,6 +1293,17 @@ app.post('/:event/:form', async (c) => {
   if (!found) return c.notFound();
   const loaded = await loadForm(c.env.DB, found.event.id, c.req.param('form'));
   if (!loaded) return c.notFound();
+
+  // A preview never writes. The island already blocks this; the redirect is the
+  // no-JS path, and it lands back on the preview rather than the live form.
+  if (c.req.query('preview') === '1') {
+    const back = `/${found.event.slug}/${loaded.form.slug}?preview=1`;
+    return c.redirect(
+      (await previewingAs(c, found.event.org_id))
+        ? `${back}&ok=${encodeURIComponent('Preview — nothing was submitted')}`
+        : `/${found.event.slug}/${loaded.form.slug}`
+    );
+  }
 
   const body = (await c.req.parseBody({ all: true })) as Record<string, unknown>;
   const taxonomies = await loadTaxonomies(c.env.DB, found.event.id);

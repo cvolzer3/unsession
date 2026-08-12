@@ -8,8 +8,8 @@
  *   · live word counters, co-speaker cards, agent mode, headshot/file uploads
  *   · client-side error summary + scroll-to-first-error before the real POST
  *
- * It also exports the renderer the admin builder's Preview mode imports, so the
- * preview and the public form stay one implementation.
+ * The admin builder's Preview tab frames this same page with `?preview=1`, so
+ * the preview and the public form are one implementation, not two.
  */
 import { toast, api } from './ui.js';
 
@@ -79,41 +79,6 @@ export function requiredWhenVisible(f) {
   return !!f.required || !!(f.cond && f.cond.alsoReq);
 }
 
-/**
- * Mirror of `src/routes/public-form.tsx` layoutItems — sections come from HDR
- * fields (label = title, help = description), schemas without any get the
- * prototype's auto-sectioning. Keep the two in sync.
- */
-export function layoutItems(fields) {
-  const hasHdr = fields.some((f) => f.type === 'HDR');
-  const items = [];
-  if (hasHdr) {
-    for (const f of fields) {
-      if (f.type === 'HDR') items.push({ kind: 'section', label: (f.label || '').toUpperCase(), desc: (f.help || '').trim() });
-      else items.push({ kind: 'field', field: f });
-    }
-  } else {
-    let current = '';
-    const open = (label) => {
-      if (current === label) return;
-      current = label;
-      items.push({ kind: 'section', label });
-    };
-    for (const f of fields) {
-      const consent = f.type === 'CHK' && !!(f.validation && f.validation.mustCheck);
-      if (f.type === 'GRP') open('SPEAKERS');
-      else if (consent) open('CONSENT');
-      else if (current === '') open('YOUR SESSION');
-      else if (current === 'SPEAKERS' || current === 'CONSENT') open('MORE DETAIL');
-      items.push({ kind: 'field', field: f });
-    }
-  }
-  let n = 0;
-  return items.map((it) =>
-    it.kind === 'section' ? { ...it, label: `${String(++n).padStart(2, '0')} · ${it.label}` } : it
-  );
-}
-
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function escapeHtml(s) {
@@ -122,43 +87,6 @@ export function escapeHtml(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-/**
- * Consent copy with links — `[code of conduct](https://…)` and bare URLs become
- * anchors, everything else is escaped. Port of `inlineLinks` in
- * `src/lib/forms.ts` so the builder preview renders CoC links like the public
- * form does — keep the two in sync.
- */
-export function inlineLinks(text) {
-  // `u` comes out of the already-escaped string, so it is attribute-safe as is.
-  const safeUrl = (u) => (/^https?:\/\//i.test(u) || u.startsWith('/') ? u : '#');
-  const anchor = (url, label) =>
-    `<a href="${safeUrl(url)}" target="_blank" rel="noreferrer" style="color:var(--primary);">${label}</a>`;
-  let out = escapeHtml(text);
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_m, label, url) => anchor(url, label));
-  out = out.replace(/(^|[\s(])((?:https?:\/\/)[^\s<)]+)/g, (_m, pre, url) => `${pre}${anchor(url, url)}`);
-  return out;
-}
-
-const SPEAKER_LINKS = [
-  ['linkedin', 'LinkedIn'],
-  ['x', 'X'],
-  ['website', 'Website'],
-  ['other', 'Other'],
-];
-
-/** Mirrors `src/lib/speaker-links.ts` normalizeLink — https:// on bare domains, http(s) only. */
-function normalizeLink(raw) {
-  let value = raw.trim();
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    return url.href;
-  } catch {
-    return null;
-  }
 }
 
 /** Mirrors `src/lib/conditions.ts` validateSubmission for the hard checks the UI shows. */
@@ -222,16 +150,6 @@ export function validate(fields, answers, speakers, cap) {
         if (!emailOk) errors[`sp${i}.email`] = 'A valid email is required.';
         list.push(`Speaker ${i + 1} — name and a valid email required`);
       }
-      SPEAKER_LINKS.forEach(([key, label]) => {
-        const raw = ((s.links && s.links[key]) || '').trim();
-        if (raw && !normalizeLink(raw)) {
-          fail(
-            `sp${i}.link_${key}`,
-            `The ${label} link needs to be a web address (https://…).`,
-            `Speaker ${i + 1} — ${label} link is not a web address`
-          );
-        }
-      });
     });
   }
   return { errors, list };
@@ -245,7 +163,7 @@ const INPUT = (bad) =>
 export function speakerCardHtml(i, s, opts) {
   const label =
     opts.agentMode && i === 0
-      ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)'
+      ? 'SPEAKER 1 · THE ACTUAL SPEAKER'
       : `SPEAKER ${i + 1}${i === 0 && !opts.agentMode ? ' · YOU' : ''}`;
   const slot = opts.filesEnabled
     ? `<label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
@@ -264,133 +182,10 @@ export function speakerCardHtml(i, s, opts) {
       <div><input name="sp_name[]" value="${escapeHtml(s.name || '')}" placeholder="Full name *" style="${INPUT(false)}"></div>
       <div><input name="sp_email[]" type="email" inputmode="email" value="${escapeHtml(s.email || '')}" placeholder="Email *" style="${INPUT(false)}"></div>
     </div>
-    <input name="sp_tagline[]" maxlength="120" value="${escapeHtml(s.tagline || '')}" placeholder="Tagline — role &amp; company, e.g. “CTO at Acme”" style="${INPUT(false)}">
     <textarea name="sp_bio[]" rows="2" placeholder="Short bio (shown on the public agenda)" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);font-size:13.5px;resize:vertical;font-family:inherit;background:var(--card);">${escapeHtml(s.bio || '')}</textarea>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <input name="sp_link_linkedin[]" inputmode="url" value="${escapeHtml((s.links && s.links.linkedin) || '')}" placeholder="LinkedIn (optional)" style="${INPUT(false)}">
-      <input name="sp_link_x[]" inputmode="url" value="${escapeHtml((s.links && s.links.x) || '')}" placeholder="X (optional)" style="${INPUT(false)}">
-      <input name="sp_link_website[]" inputmode="url" value="${escapeHtml((s.links && s.links.website) || '')}" placeholder="Website (optional)" style="${INPUT(false)}">
-      <input name="sp_link_other[]" inputmode="url" value="${escapeHtml((s.links && s.links.other) || '')}" placeholder="Other link (optional)" style="${INPUT(false)}">
-    </div>
     <input type="hidden" name="sp_headshot[]" value="${escapeHtml(s.headshotFileId || '')}">
     ${slot}
   </div>`;
-}
-
-/**
- * Renders a schema the way the public form does — used by the admin builder's
- * Preview mode. `state.answers` is throwaway; `onAnswer` fires on every edit.
- */
-export function renderPreview(root, state) {
-  const fields = state.fields || [];
-  const answers = state.answers || {};
-  const vis = visibleIds(fields, answers);
-  const kicker = `${(state.eventName || '').toUpperCase()} · ${(state.formName || '').toUpperCase()}`;
-
-  if (state.welcomeOn && !state.started) {
-    root.innerHTML = `
-      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;color:var(--primary);margin-bottom:6px;">${escapeHtml(kicker)}</div>
-      <div style="font-size:21px;font-weight:700;margin-bottom:18px;">${escapeHtml(state.title || 'Submit a proposal')}</div>
-      <div style="font-size:14px;line-height:1.65;color:#33343c;">${state.welcomeHtml || ''}</div>
-      <button type="button" data-preview-start style="margin-top:22px;padding:11px 26px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;">Start →</button>`;
-    const start = root.querySelector('[data-preview-start]');
-    if (start) start.addEventListener('click', () => state.onStart && state.onStart());
-    return;
-  }
-
-  // Same string as SECTION in src/routes/public-form.tsx — keep them in sync.
-  const SECTION =
-    'font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:0.14em;color:var(--text);border-bottom:2px solid var(--border-strong);padding-bottom:8px;margin-top:14px;';
-
-  // Preview runs the exact auto-sectioning the public page does (layoutItems),
-  // so section rhythm and numbering match production.
-  const rows = layoutItems(fields)
-    .map((it) => {
-      if (it.kind === 'section') {
-        const desc = it.desc
-          ? `<div style="font-size:13px;color:var(--muted);line-height:1.5;margin-top:8px;">${escapeHtml(it.desc)}</div>`
-          : '';
-        return `<div><div style="${SECTION}">${escapeHtml(it.label)}</div>${desc}</div>`;
-      }
-      const f = it.field;
-      if (!vis.has(f.id)) return '';
-      const req = requiredWhenVisible(f);
-      const star = req ? '<span style="color:#c92a2a;">*</span>' : '';
-      const fired = f.cond ? '<span style="font-family:var(--font-mono);font-size:10px;color:#b08800;">← CONDITION FIRED</span>' : '';
-      const label = f.type === 'GRP' ? 'Speaker name' : f.label;
-      const v = answers[f.id];
-      let control = '';
-      if (f.type === 'SEL') {
-        const opts = (f.opts || [])
-          .map((o) => `<option value="${escapeHtml(o)}"${String(v ?? '') === o ? ' selected' : ''}>${escapeHtml(o)}</option>`)
-          .join('');
-        control = `<select data-pv="${f.id}" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:13.5px;background:#fff;"><option value="">Choose…</option>${opts}</select>`;
-      } else if (f.type === 'MULTI') {
-        const chosen = asList(v);
-        control = `<div style="display:grid;gap:6px;">${(f.opts || [])
-          .map(
-            (o) =>
-              `<label style="display:flex;gap:8px;font-size:13px;align-items:center;color:#33343c;"><input type="checkbox" data-pv-multi="${f.id}" value="${escapeHtml(o)}"${
-                chosen.includes(o) ? ' checked' : ''
-              } style="accent-color:var(--primary);">${escapeHtml(o)}</label>`
-          )
-          .join('')}</div>`;
-      } else if (f.type === 'LONG') {
-        const words = wordCount(String(v ?? ''));
-        control =
-          `<textarea data-pv="${f.id}" rows="3" placeholder="${escapeHtml(f.placeholder || '')}" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:13.5px;resize:vertical;font-family:inherit;">${escapeHtml(v ?? '')}</textarea>` +
-          (f.validation && f.validation.maxWords
-            ? `<div style="font-family:var(--font-mono);font-size:10.5px;color:${
-                words > f.validation.maxWords ? '#c92a2a' : '#9a9da6'
-              };text-align:right;">${words} / ${f.validation.maxWords} words</div>`
-            : '');
-      } else if (f.type === 'CHK') {
-        // Same text source and link rendering as the public form's CHK branch,
-        // so a code-of-conduct link previews as a link.
-        control = `<label style="display:flex;gap:8px;font-size:13px;align-items:flex-start;color:#33343c;"><input type="checkbox" data-pv-check="${f.id}"${
-          v === true || v === 'true' ? ' checked' : ''
-        } style="accent-color:var(--primary);margin-top:2px;"><span>${inlineLinks(
-          f.placeholder || f.help || f.label
-        )}</span></label>`;
-        return `<div><div style="font-size:13.5px;font-weight:600;margin-bottom:5px;">${escapeHtml(label)} ${star} ${fired}</div>${control}</div>`;
-      } else if (f.type === 'GRP') {
-        control = `<input placeholder="Full name" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:13.5px;">`;
-      } else if (f.type === 'FILE') {
-        control = `<div style="border:1px dashed #d8d9de;padding:11px;text-align:center;font-size:12.5px;color:#9a9da6;">Tap to upload${
-          f.validation && f.validation.fileExts ? ` · ${escapeHtml(f.validation.fileExts)}` : ''
-        }</div>`;
-      } else {
-        const t = f.type === 'DATE' ? 'date' : f.type === 'NUM' ? 'number' : f.type === 'EML' ? 'email' : 'text';
-        control = `<input type="${t}" data-pv="${f.id}" value="${escapeHtml(v ?? '')}" placeholder="${escapeHtml(
-          f.placeholder || (f.type === 'URL' ? 'https://…' : '')
-        )}" style="width:100%;padding:9px 10px;border:1px solid #e2e3e8;font-size:13.5px;">`;
-      }
-      return `<div><div style="font-size:13.5px;font-weight:600;margin-bottom:5px;">${escapeHtml(label)} ${star} ${fired}</div>${control}</div>`;
-    })
-    .filter(Boolean)
-    .join('');
-
-  root.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;color:var(--primary);margin-bottom:6px;">${escapeHtml(kicker)}</div>
-    <div style="font-size:21px;font-weight:700;margin-bottom:18px;">${escapeHtml(state.title || 'Submit a proposal')}</div>
-    <div style="display:grid;gap:16px;">${rows}
-      <button type="button" style="justify-self:start;padding:11px 26px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;">Submit session</button>
-    </div>`;
-
-  const emit = (id, value) => state.onAnswer && state.onAnswer(id, value);
-  root.querySelectorAll('[data-pv]').forEach((el) => {
-    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => emit(el.getAttribute('data-pv'), el.value));
-  });
-  root.querySelectorAll('[data-pv-check]').forEach((el) => {
-    el.addEventListener('change', () => emit(el.getAttribute('data-pv-check'), el.checked));
-  });
-  root.querySelectorAll('[data-pv-multi]').forEach((el) => {
-    el.addEventListener('change', () => {
-      const id = el.getAttribute('data-pv-multi');
-      const picked = [...root.querySelectorAll(`[data-pv-multi="${id}"]`)].filter((x) => x.checked).map((x) => x.value);
-      emit(id, picked);
-    });
-  });
 }
 
 /* ------------------------------------------------------------------ the public form island */
@@ -416,6 +211,9 @@ function init() {
   const speakersWrap = document.getElementById('pf-speakers');
   const addSpeakerBtn = document.getElementById('pf-add-speaker');
   const cap = D.cap || 3;
+  // Organizer preview (the builder's Preview tab frames this page): everything
+  // renders and validates for real, nothing is written.
+  const preview = !!D.preview;
 
   function setSaveState(text, colour) {
     if (saveLabel) saveLabel.textContent = text;
@@ -462,13 +260,6 @@ function init() {
       name: (card.querySelector('[name="sp_name[]"]') || {}).value || '',
       email: (card.querySelector('[name="sp_email[]"]') || {}).value || '',
       bio: (card.querySelector('[name="sp_bio[]"]') || {}).value || '',
-      tagline: (card.querySelector('[name="sp_tagline[]"]') || {}).value || '',
-      links: {
-        linkedin: (card.querySelector('[name="sp_link_linkedin[]"]') || {}).value || '',
-        x: (card.querySelector('[name="sp_link_x[]"]') || {}).value || '',
-        website: (card.querySelector('[name="sp_link_website[]"]') || {}).value || '',
-        other: (card.querySelector('[name="sp_link_other[]"]') || {}).value || '',
-      },
       headshotFileId: (card.querySelector('[name="sp_headshot[]"]') || {}).value || null,
     }));
   }
@@ -517,7 +308,7 @@ function init() {
       if (label) {
         label.textContent =
           agentMode() && i === 0
-            ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)'
+            ? 'SPEAKER 1 · THE ACTUAL SPEAKER'
             : `SPEAKER ${i + 1}${i === 0 && !agentMode() ? ' · YOU' : ''}`;
       }
     });
@@ -560,6 +351,10 @@ function init() {
   }
 
   async function upload(file, extra) {
+    if (preview) {
+      toast('Preview — uploads are disabled here', false);
+      return null;
+    }
     const id = await ensureDraft();
     if (!id) return null;
     const fd = new FormData();
@@ -614,6 +409,7 @@ function init() {
   /* ---------------------------------------------------------- autosave */
 
   async function save(opts) {
+    if (preview) return;
     if (!D.allowDrafts) return;
     if (saving) return;
     const email = emailInput ? emailInput.value.trim() : '';
@@ -665,6 +461,7 @@ function init() {
   }
 
   function queueSave() {
+    if (preview) return;
     dirty = true;
     setSaveState('SAVING…', '#e6a817');
     clearTimeout(saveTimer);
@@ -696,7 +493,7 @@ function init() {
     }
     let first = null;
     Object.keys(result.errors).forEach((key) => {
-      const m = /^sp(\d+)\.(name|email|link_linkedin|link_x|link_website|link_other)$/.exec(key);
+      const m = /^sp(\d+)\.(name|email)$/.exec(key);
       if (m) {
         const card = form.querySelector(`[data-speaker="${m[1]}"]`);
         const el = card && card.querySelector(`[name="sp_${m[2]}[]"]`);
@@ -770,6 +567,13 @@ function init() {
     if (result.list.length) {
       e.preventDefault();
       showErrors(result);
+      return;
+    }
+    if (preview) {
+      // Validation ran for real above — this is the only step a preview skips.
+      e.preventDefault();
+      clearErrors();
+      toast('Preview — nothing was submitted', true);
       return;
     }
     clearTimeout(saveTimer);

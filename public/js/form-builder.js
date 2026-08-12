@@ -7,13 +7,13 @@
  *     flags, conditional visibility, archive)
  *   · explicit "Save changes" (header button) posting to
  *     /app/api/forms/:id/schema (copy-on-write versioning happens server-side)
- *   · Preview mode, rendered by the *public* form's renderer
+ *   · Preview mode is not rendered here at all — it frames the real public
+ *     page (`/{event}/{form}?preview=1`), so there is only one renderer
  */
 import { toast, api, copy, openDialog } from './ui.js';
-import { renderPreview } from './public-form.js';
 // Importing rich-editor.js also auto-mounts the drawer's `data-rich-editor`
 // textareas (post-submit message) as a side effect.
-import { mountRichEditor, sanitizeHtml, looksRich } from './rich-editor.js';
+import { mountRichEditor, sanitizeHtml } from './rich-editor.js';
 
 const MONO = "'IBM Plex Mono',monospace";
 const TYPE_CHIP = `font-family:${MONO};font-size:9.5px;background:#eef0fb;color:#4c5fd5;padding:3px 6px;font-weight:600;min-width:34px;text-align:center;line-height:1.4;flex:none;`;
@@ -26,33 +26,6 @@ function esc(s) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function renderMd(src) {
-  const inline = (s) => esc(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  const out = [];
-  let list = null;
-  const flush = () => {
-    if (list) {
-      out.push(`<ul style="margin:8px 0;padding-left:22px;">${list.join('')}</ul>`);
-      list = null;
-    }
-  };
-  (src || '').split('\n').forEach((ln) => {
-    const t = ln.trim();
-    if (t.startsWith('- ')) {
-      if (!list) list = [];
-      list.push(`<li style="margin-bottom:3px;">${inline(t.slice(2))}</li>`);
-      return;
-    }
-    flush();
-    if (!t) return;
-    if (t.startsWith('## ')) out.push(`<div style="font-size:17px;font-weight:700;margin:14px 0 6px;">${inline(t.slice(3))}</div>`);
-    else if (t.startsWith('# ')) out.push(`<div style="font-size:19px;font-weight:700;margin:14px 0 6px;">${inline(t.slice(2))}</div>`);
-    else out.push(`<p style="margin:8px 0;">${inline(t)}</p>`);
-  });
-  flush();
-  return out.join('');
 }
 
 function boot(D) {
@@ -98,7 +71,7 @@ function boot(D) {
     });
   });
 
-  if (D.mode === 'preview') return mountPreview(D);
+  // Preview mode is a server-rendered iframe of the public page — nothing to mount.
   if (D.mode !== 'build') return;
 
   /* ---------------------------------------------------------- state */
@@ -784,39 +757,6 @@ function boot(D) {
 
   renderList();
   renderRail();
-}
-
-/* ------------------------------------------------------------------ preview */
-
-function mountPreview(D) {
-  const root = document.getElementById('fb-preview');
-  if (!root) return;
-  const fields = (D.schema && D.schema.fields ? D.schema.fields : []).map((f) => ({ ...f }));
-  const settings = D.settings || {};
-  // Same heading logic as the public page (public-form.tsx renderPage):
-  // external name falls back to the internal name, the heading to the default.
-  const state = {
-    fields,
-    answers: {},
-    eventName: D.eventName,
-    formName: (settings.externalName || '').trim() || D.formName,
-    title: (settings.pageHeading || '').trim() || `Speak at ${D.eventName}`,
-    welcomeOn: !!(D.settings && D.settings.welcomeEnabled && D.settings.welcomeMd),
-    welcomeHtml: (() => {
-      const w = (D.settings && D.settings.welcomeMd) || '';
-      return looksRich(w) ? sanitizeHtml(w) : renderMd(w);
-    })(),
-    started: false,
-    onStart: () => {
-      state.started = true;
-      renderPreview(root, state);
-    },
-    onAnswer: (id, value) => {
-      state.answers = { ...state.answers, [id]: value };
-      renderPreview(root, state);
-    },
-  };
-  renderPreview(root, state);
 }
 
 const dataEl = document.getElementById('fb-data');

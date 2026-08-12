@@ -2,9 +2,9 @@
  * `/app/forms` — full port of `prototype/design_handoff_program/design/Forms.dc.html`.
  *
  * Server renders the picker bar, the setup step, the settings drawer and the
- * initial field list; `public/js/form-builder.js` takes over drag-and-drop,
- * the right-hand field rail and the live preview (which reuses the *public*
- * renderer from `public/js/public-form.js`).
+ * initial field list; `public/js/form-builder.js` takes over drag-and-drop and
+ * the right-hand field rail. Preview mode frames the real public page
+ * (`/{event}/{form}?preview=1`) — there is no second renderer to keep in sync.
  *
  * OWNER: B1.
  */
@@ -18,7 +18,6 @@ import { newId } from '../lib/ids';
 import { slugify } from '../lib/slugify';
 import { logActivity } from '../lib/activity';
 import { requireOrgRole } from '../lib/auth';
-import { parseTheme, themeStyleVars } from '../lib/theme';
 import { looksRich, markdownToRich, sanitizeRich } from '../lib/rich';
 import {
   PALETTE,
@@ -461,7 +460,6 @@ app.get('/app/forms', async (c) => {
     shareUrl: share,
     submissions: counts.get(active.id) ?? 0,
     filesEnabled: !!c.env.FILES,
-    themeVars: themeStyleVars(parseTheme(event.theme_json)),
   };
 
   const segButton = (label: string, m: string) => (
@@ -694,11 +692,27 @@ app.get('/app/forms', async (c) => {
       ) : null}
 
       {/* ------------------------------------------------------ preview mode */}
+      {/* The preview *is* the public page: same route, same renderer, same
+          theme — framed with `?preview=1`, which bypasses the open/draft
+          window and blocks autosave, uploads and the real submit. Previewing
+          shows the saved version, so unsaved builder edits appear here only
+          after "Save changes". */}
       {mode === 'preview' ? (
-        <div style="padding:24px 28px;display:grid;grid-template-columns:minmax(0,640px);gap:24px;justify-content:center;align-items:start;">
-          <div id="fb-preview" style={`background:#fff;border:1px solid #e2e3e8;padding:30px 34px;${data.themeVars}`}>
-            <div style="color:#9a9da6;font-size:13px;">Loading preview…</div>
+        <div style="flex:1;min-height:0;padding:20px 28px 24px;display:grid;grid-template-columns:minmax(0,760px);justify-content:center;align-content:start;gap:0;">
+          <div
+            style={`display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e3e8;border-bottom:none;padding:9px 14px;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;`}
+          >
+            <span style="width:7px;height:7px;background:#4c5fd5;flex:none;"></span>
+            LIVE PUBLIC PAGE · NOTHING YOU TYPE HERE IS SAVED
+            <span style="margin-left:auto;letter-spacing:0.04em;text-transform:none;font-size:11px;">
+              {`${event.slug}/${active.slug}`}
+            </span>
           </div>
+          <iframe
+            src={`/${event.slug}/${active.slug}?preview=1`}
+            title="Public form preview"
+            style="width:100%;height:calc(100vh - 260px);min-height:520px;border:1px solid #e2e3e8;background:#fff;display:block;"
+          ></iframe>
         </div>
       ) : null}
 
