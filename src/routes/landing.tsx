@@ -482,7 +482,6 @@ const STATS = [
 /* ------------------------------------------------------------------- page */
 
 app.get('/', (c) => {
-  const signedIn = !!c.var.user;
   return c.html(
     <html>
       <head>
@@ -508,8 +507,8 @@ app.get('/', (c) => {
               <a href="#oss">Open source</a>
             </div>
             <div class="nav-cta">
-              <a class="signin" href={signedIn ? '/app' : '/signin'}>
-                {signedIn ? 'Open workspace →' : 'Sign in'}
+              <a class="signin" href="/signin">
+                Sign in
               </a>
               <SandboxForm variant="nav" />
             </div>
