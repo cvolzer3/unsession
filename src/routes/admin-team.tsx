@@ -1,7 +1,7 @@
 /** `/app/team` — members + pending invites in one paginated, filterable table (spec §5.7). */
 import { Hono } from 'hono';
 import type { Ctx, Role } from '../types';
-import { AdminLayout, MONO, StatusChip, fmtDate, initials } from '../views/layout';
+import { AdminLayout, MONO, StatusChip, fmtDate, initials, initialsGradient } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
@@ -152,12 +152,15 @@ app.get('/app/team', async (c) => {
             <div></div>
           </div>
           {pageRows.map((r) => (
-            <div style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;`}>
+            <div style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:6px 16px;border-bottom:1px solid #f2f3f5;align-items:center;`}>
               <div style="display:flex;align-items:center;gap:9px;min-width:0;">
                 <div
-                  style={`width:26px;height:26px;border-radius:50%;${
-                    r.kind === 'member' ? 'background:#4c5fd5;color:#fff;' : 'background:#e2e3e8;color:#686b74;'
-                  }display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}
+                  style={`width:24px;height:24px;border-radius:50%;${
+                    // Pending invites stay muted — the gradient marks a real member.
+                    r.kind === 'member'
+                      ? `background-image:${initialsGradient(r.name || r.email)};color:#fff;`
+                      : 'background:#e2e3e8;color:#686b74;'
+                  }display:grid;place-items:center;font-family:${MONO};font-size:9.5px;font-weight:600;flex:none;`}
                 >
                   {initials(r.name || r.email)}
                 </div>
@@ -168,14 +171,16 @@ app.get('/app/team', async (c) => {
               <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
                 {r.email}
               </div>
+              {/* form margin:0 — the UA sheet's margin-block-end would both pad
+                  the row out and push the select off centre. */}
               <div>
                 {r.kind === 'member' && canManage && r.id !== c.var.user?.id ? (
-                  <form method="post" action="/app/team/role">
+                  <form method="post" action="/app/team/role" style="margin:0;display:flex;align-items:center;">
                     <input type="hidden" name="user_id" value={r.id} />
                     <select
                       name="role"
                       onchange="this.form.submit()"
-                      style="padding:5px 6px;border:1px solid #e2e3e8;font-size:12px;background:#fff;"
+                      style="padding:3px 6px;border:1px solid #e2e3e8;font-size:12px;background:#fff;"
                     >
                       {ROLES.map((x) => (
                         <option value={x} selected={x === r.role}>
@@ -192,7 +197,7 @@ app.get('/app/team', async (c) => {
               <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{fmtDate(r.date, true)}</div>
               <div style="text-align:right;">
                 {r.kind === 'invite' && canManage ? (
-                  <form method="post" action="/app/team/revoke">
+                  <form method="post" action="/app/team/revoke" style="margin:0;">
                     <input type="hidden" name="invite_id" value={r.id} />
                     <button
                       type="submit"

@@ -37,6 +37,27 @@ export function initials(nameOrEmail: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/**
+ * Avatar hues run the blue → magenta → red arc only. The cyan-to-yellow band
+ * is too light at these lightnesses to carry white initials, so it is left out
+ * of the range rather than special-cased.
+ */
+const HUE_FROM = 205;
+const HUE_SPAN = 170;
+
+/**
+ * A person's own two-tone avatar fill — one initial picks each stop's hue, so
+ * the same person is always the same colour and two people collide only when
+ * both their initials match.
+ */
+export function initialsGradient(nameOrEmail: string): string {
+  const [a, b] = initials(nameOrEmail).padEnd(2, '?');
+  // ×63 is coprime with the span, so it permutes rather than folds: every
+  // letter lands on its own hue, and neighbours are nowhere near each other.
+  const hue = (ch: string) => HUE_FROM + ((ch.charCodeAt(0) * 63) % HUE_SPAN);
+  return `linear-gradient(135deg,hsl(${hue(a)} 52% 44%),hsl(${hue(b)} 52% 32%))`;
+}
+
 export function firstName(user: User | null): string {
   if (!user) return 'there';
   const n = (user.name || '').trim();
