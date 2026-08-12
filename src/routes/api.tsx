@@ -735,6 +735,7 @@ function shapeSession(s: SessionRow, bundle: AgendaBundle, event: Event) {
     level: s.level,
     durationMin: s.duration_min,
     sponsorName: s.sponsor_name,
+    sponsorBadge: s.type === 'sponsor' && !!s.sponsor_badge,
     submissionId: s.submission_id,
     roomId: s.room_id,
     allRooms: !!s.all_rooms,
@@ -773,6 +774,8 @@ export type CreateSessionInput = {
   kind?: string;
   title?: string;
   sponsorName?: string;
+  /** Sponsor sessions: show the SPONSORED badge publicly (default on). */
+  sponsorBadge?: boolean;
   abstract?: string;
   trackId?: string | null;
   formatId?: string | null;
@@ -829,8 +832,8 @@ export async function createSession(env: Bindings, auth: ApiAuth, ref: string, i
     env.DB,
     `INSERT INTO sessions (id, event_id, submission_id, type, title, abstract, track_option_id, format_option_id,
        level, duration_min, room_id, all_rooms, day, start_min, end_min, status, published, sponsor_name,
-       stream_url, visibility_json, ics_sequence, created_at, updated_at)
-     VALUES (?,?,NULL,?,?,?,?,?,NULL,?,NULL,?,?,?,?, 'confirmed', 1, ?, NULL, NULL, 0, ?, ?)`,
+       sponsor_badge, stream_url, visibility_json, ics_sequence, created_at, updated_at)
+     VALUES (?,?,NULL,?,?,?,?,?,NULL,?,NULL,?,?,?,?, 'confirmed', 1, ?, ?, NULL, NULL, 0, ?, ?)`,
     id,
     event.id,
     kind,
@@ -844,6 +847,7 @@ export async function createSession(env: Bindings, auth: ApiAuth, ref: string, i
     start,
     end,
     kind === 'sponsor' ? (input.sponsorName ?? '').trim() || null : null,
+    kind === 'sponsor' && input.sponsorBadge === false ? 0 : 1,
     stamp,
     stamp
   );
@@ -895,6 +899,8 @@ export type UpdateSessionInput = {
   roomId?: string | null;
   allRooms?: boolean;
   published?: boolean;
+  /** Sponsor sessions: show the SPONSORED badge publicly. */
+  sponsorBadge?: boolean;
   /** day + startMin schedule the session; explicit nulls unschedule it. */
   day?: number | null;
   startMin?: number | null;
@@ -925,6 +931,7 @@ export async function updateSession(env: Bindings, auth: ApiAuth, id: string, in
   }
   if (input.level !== undefined) push('level', input.level || null);
   if (input.published !== undefined) push('published', input.published ? 1 : 0);
+  if (input.sponsorBadge !== undefined) push('sponsor_badge', input.sponsorBadge ? 1 : 0);
 
   let duration = cur.duration_min;
   if (input.duration !== undefined) {

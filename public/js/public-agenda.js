@@ -210,7 +210,7 @@ function boot(D) {
         `<span style="${
           svc ? `font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:var(--muted);` : 'font-size:13.5px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;'
         }">${esc(svc ? a.title.toUpperCase() : a.title)}</span>` +
-        (a.type === 'sponsor'
+        (a.sponsorBadge
           ? `<span style="font-family:${MONO};font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">SPONSORED</span>`
           : '') +
         `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(svc ? '' : speakerNames(a))}</div></span>` +
@@ -326,7 +326,7 @@ function boot(D) {
       `<span style="font-size:10px;font-family:${MONO};color:#fff;background:${tr.color};padding:2px 7px;letter-spacing:0.04em;">${esc(
         tr.name
       )}</span>` +
-      (a.type === 'sponsor'
+      (a.sponsorBadge
         ? `<span style="font-family:${MONO};font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;">SPONSORED</span>`
         : '') +
       '</div>' +

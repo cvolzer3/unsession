@@ -168,7 +168,7 @@ app.get('/:event/embed/agenda', async (c) => {
               <>
                 <span style="display:block;font-size:13px;font-weight:700;letter-spacing:-0.01em;line-height:1.35;">
                   {s.title}
-                  {s.type === 'sponsor' ? (
+                  {s.type === 'sponsor' && s.sponsor_badge ? (
                     <span style="font-family:var(--font-mono);font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">
                       SPONSORED
                     </span>

@@ -96,6 +96,8 @@ export type SessionRow = {
   status: string; // pending | confirmed
   published: number;
   sponsor_name: string | null;
+  /** Sponsor sessions only: show the SPONSORED badge on public pages. */
+  sponsor_badge: number;
   stream_url: string | null;
   visibility_json: string | null;
   ics_sequence: number;
@@ -211,6 +213,7 @@ export type ViewSession = {
   status: string;
   published: boolean;
   sponsorName: string | null;
+  sponsorBadge: boolean;
   speakers: { id: string; name: string; slug: string }[];
   submissionId: string | null;
 };
@@ -234,6 +237,7 @@ export function toViewSession(s: SessionRow, bundle: AgendaBundle, ids: Map<stri
     status: s.status,
     published: !!s.published,
     sponsorName: s.sponsor_name,
+    sponsorBadge: !!s.sponsor_badge,
     speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({ id: p.id, name: p.name, slug: p.slug })),
     submissionId: s.submission_id,
   };

@@ -145,6 +145,7 @@ app.get('/:event/agenda', async (c) => {
         allRooms: !!s.all_rooms,
         trackId: s.track_option_id,
         sponsorName: s.sponsor_name,
+        sponsorBadge: s.type === 'sponsor' && !!s.sponsor_badge,
         speakers: (bundle.speakers.get(s.id) ?? []).map((p) => ({ name: p.name, slug: p.slug, bio: p.bio })),
       }))
       .sort((a, b) => a.day - b.day || a.start - b.start || (a.allRooms ? -1 : 1));
@@ -193,7 +194,7 @@ app.get('/:event/agenda', async (c) => {
             >
               {svc ? s.title.toUpperCase() : s.title}
             </span>
-            {s.type === 'sponsor' ? (
+            {s.sponsorBadge ? (
               <span style="font-family:var(--font-mono);font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">
                 SPONSORED
               </span>
@@ -357,6 +358,7 @@ app.get('/:event/agenda.json', async (c) => {
         abstract: s.abstract,
         type: s.type,
         sponsor: s.sponsor_name,
+        sponsor_badge: s.type === 'sponsor' && !!s.sponsor_badge,
         date: days[s.day!]?.date ?? null,
         day: s.day,
         start: fmtTime(s.start_min!),

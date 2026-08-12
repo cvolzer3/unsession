@@ -407,8 +407,8 @@ app.post('/app/api/agenda/duplicate', requireOrgRole('collaborator'), async (c) 
     c.env.DB,
     `INSERT INTO sessions (id, event_id, submission_id, type, title, abstract, track_option_id, format_option_id,
        level, duration_min, room_id, all_rooms, day, start_min, end_min, status, published, sponsor_name,
-       stream_url, visibility_json, ics_sequence, created_at, updated_at)
-     VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,NULL,0,?,?)`,
+       sponsor_badge, stream_url, visibility_json, ics_sequence, created_at, updated_at)
+     VALUES (?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL,NULL,0,?,?)`,
     id,
     event.id,
     cur.type,
@@ -426,6 +426,7 @@ app.post('/app/api/agenda/duplicate', requireOrgRole('collaborator'), async (c) 
     cur.status,
     cur.published,
     cur.sponsor_name,
+    cur.sponsor_badge,
     stamp,
     stamp
   );

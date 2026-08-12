@@ -193,6 +193,14 @@ if (dataEl) {
     durSel.value = String(s.dur);
     document.getElementById('d-room').value = s.allRooms ? 'ALL' : s.roomId || '';
 
+    // The badge is a sponsor-session thing — hide the toggle for talks/services.
+    const badgeRow = document.getElementById('d-badge-row');
+    const badge = document.getElementById('d-badge');
+    if (badgeRow && badge) {
+      badgeRow.hidden = s.type !== 'sponsor';
+      badge.checked = s.sponsorBadge !== false;
+    }
+
     const sched = document.getElementById('d-sched');
     if (s.day !== null && s.start !== null) {
       const day = (D.days || [])[s.day];
@@ -263,6 +271,7 @@ if (dataEl) {
     dSave.addEventListener('click', async () => {
       if (!editing) return;
       const room = document.getElementById('d-room').value;
+      const cur = byId.get(editing);
       const patch = {
         title: document.getElementById('d-title').value,
         abstract: document.getElementById('d-abstract').value,
@@ -273,6 +282,7 @@ if (dataEl) {
         roomId: room === 'ALL' ? null : room || null,
         allRooms: room === 'ALL',
       };
+      if (cur && cur.type === 'sponsor') patch.sponsorBadge = document.getElementById('d-badge').checked;
       const saved = await save(editing, patch, 'Saved — synced to agenda and public pages');
       if (saved) closeDrawer();
     });
@@ -299,6 +309,18 @@ export function wireNewSession() {
   kind.addEventListener('change', sync);
   sync();
 
+  // The badge preview fades when the toggle is off, so the dialog shows what
+  // the public agenda will (not) carry.
+  const badge = document.getElementById('ns-badge');
+  const preview = document.getElementById('ns-badge-preview');
+  if (badge && preview) {
+    const syncBadge = () => {
+      preview.style.opacity = badge.checked ? '1' : '0.35';
+    };
+    badge.addEventListener('change', syncBadge);
+    syncBadge();
+  }
+
   const preset = document.getElementById('ns-preset');
   const svcTitle = document.getElementById('ns-svc-title');
   if (preset && svcTitle) {
@@ -322,6 +344,7 @@ export function wireNewSession() {
           kind: 'sponsor',
           title: document.getElementById('ns-title').value.trim(),
           sponsorName: document.getElementById('ns-sponsor-name').value.trim(),
+          sponsorBadge: document.getElementById('ns-badge').checked,
           abstract: document.getElementById('ns-abstract').value.trim(),
           trackId: document.getElementById('ns-track').value || null,
           formatId: fmt ? fmt.value || null : null,

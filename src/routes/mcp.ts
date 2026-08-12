@@ -227,6 +227,7 @@ export const TOOLS: Tool[] = [
         kind: { type: 'string', enum: ['sponsor', 'service'], description: 'Default sponsor.' },
         title: { type: 'string' },
         sponsorName: { type: 'string', description: 'Sponsor company (sponsor sessions).' },
+        sponsorBadge: { type: 'boolean', description: 'SPONSORED badge on public pages (sponsor sessions); default true.' },
         abstract: { type: 'string' },
         trackId: { type: 'string', description: 'Track option id (sponsor sessions, see get_event).' },
         formatId: { type: 'string', description: 'Format option id (sponsor sessions).' },
@@ -249,7 +250,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'update_session',
     description:
-      'UPDATE a session: title, abstract, track/format/level, duration, room, published flag, and/or its slot (day+startMin schedule; nulls unschedule). Activity-logged. A slot/room change on a confirmed session EMAILS its speakers a schedule notice and bumps the calendar-file sequence.',
+      'UPDATE a session: title, abstract, track/format/level, duration, room, published flag, sponsored badge, and/or its slot (day+startMin schedule; nulls unschedule). Activity-logged. A slot/room change on a confirmed session EMAILS its speakers a schedule notice and bumps the calendar-file sequence.',
     write: true,
     inputSchema: {
       type: 'object',
@@ -264,6 +265,7 @@ export const TOOLS: Tool[] = [
         roomId: { type: ['string', 'null'], description: 'Room id, "ALL" for all rooms, null unassigns.' },
         allRooms: { type: 'boolean' },
         published: { type: 'boolean', description: 'Toggles visibility on the public agenda.' },
+        sponsorBadge: { type: 'boolean', description: 'Toggles the SPONSORED badge on public pages (sponsor sessions).' },
         day: { type: ['integer', 'null'], description: 'Day index; null unschedules.' },
         startMin: { type: ['integer', 'null'], description: 'Minutes from 08:00 (snapped to 15); null unschedules.' },
       },

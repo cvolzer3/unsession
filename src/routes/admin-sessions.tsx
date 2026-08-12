@@ -40,6 +40,10 @@ const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const ROW_COLS = '70px minmax(240px,1fr) 130px 170px 92px 150px 160px';
 const CELL_SELECT = 'width:100%;padding:5px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;';
 const DRAWER_LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;`;
+/** Panel width lives here, not inline, so the full-screen rule can override it. */
+const DRAWER_CSS =
+  '#drawer{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:50;' +
+  'box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;}';
 const DRAWER_SELECT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;';
 const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
 const DIALOG_CARD = 'background:#fff;width:520px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);max-height:calc(100vh - 60px);display:flex;flex-direction:column;';
@@ -143,14 +147,18 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
             </div>
             <input id="ns-sp-bio" placeholder="One-line bio for the agenda page" style={INPUT} />
           </div>
-          <div style="display:flex;align-items:center;gap:10px;background:#fff4e6;border:1px solid #f0c078;padding:10px 12px;">
-            <span style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;background:#f0ece4;color:#8b857a;padding:2px 6px;`}>
+          <label style="display:flex;align-items:center;gap:10px;background:#fff4e6;border:1px solid #f0c078;padding:10px 12px;cursor:pointer;">
+            <input id="ns-badge" type="checkbox" checked style="width:15px;height:15px;accent-color:#4c5fd5;flex:none;" />
+            <span
+              id="ns-badge-preview"
+              style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;background:#f0ece4;color:#8b857a;padding:2px 6px;flex:none;`}
+            >
               SPONSORED
             </span>
             <span style="font-size:12px;color:#686b74;">
-              Sponsor sessions carry this badge on the public agenda and are tinted on the builder grid.
+              Carry this badge on the public agenda and embeds. Sponsor sessions are tinted on the builder grid either way.
             </span>
-          </div>
+          </label>
         </div>
 
         {/* ------------------------------------------------------- service */}
@@ -234,7 +242,7 @@ app.get('/app/sessions', async (c) => {
   return c.html(
     <AdminLayout {...props} scripts={['/js/sessions.js']}>
       {jsonBlock('data-sessions', payload)}
-      <style>{raw('@keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}')}</style>
+      <style>{raw(DRAWER_CSS)}</style>
       <div style="padding:22px 28px;">
         <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Sessions</h1>
@@ -504,12 +512,22 @@ app.get('/app/sessions', async (c) => {
               </select>
             </div>
           </div>
+          <div id="d-badge-row" hidden>
+            <div style={`${DRAWER_LABEL}margin-bottom:8px;`}>SPONSORED BADGE</div>
+            <label style="display:flex;align-items:center;gap:10px;border:1px solid #eceded;padding:10px 12px;cursor:pointer;">
+              <input id="d-badge" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;flex:none;" />
+              <span style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;background:#f0ece4;color:#8b857a;padding:2px 6px;flex:none;`}>
+                SPONSORED
+              </span>
+              <span style="font-size:12px;color:#686b74;">Shown on the public agenda and embeds.</span>
+            </label>
+          </div>
           <div>
             <div style={`${DRAWER_LABEL}margin-bottom:8px;`}>SPEAKERS</div>
             <div id="d-speakers" style="display:flex;flex-direction:column;gap:10px;"></div>
           </div>
         </div>
-        <div style="padding:14px 22px;border-top:1px solid #e2e3e8;display:flex;align-items:center;gap:8px;">
+        <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;align-items:center;gap:8px;">
           <button
             type="button"
             id="d-save"
@@ -542,6 +560,7 @@ type PatchBody = {
     roomId: string | null;
     allRooms: boolean;
     published: boolean;
+    sponsorBadge: boolean;
   }>;
 };
 
@@ -567,6 +586,7 @@ async function patchSession(
   if (p.level !== undefined) push('level', p.level || null);
   if (p.formatId !== undefined) push('format_option_id', p.formatId || null);
   if (p.published !== undefined) push('published', p.published ? 1 : 0);
+  if (p.sponsorBadge !== undefined) push('sponsor_badge', p.sponsorBadge ? 1 : 0);
 
   let duration = cur.duration_min;
   if (p.duration !== undefined && Number.isFinite(p.duration)) {
@@ -644,6 +664,8 @@ type CreateBody = {
   kind: 'sponsor' | 'service';
   title?: string;
   sponsorName?: string;
+  /** Sponsor sessions: show the SPONSORED badge publicly (default on). */
+  sponsorBadge?: boolean;
   abstract?: string;
   trackId?: string | null;
   formatId?: string | null;
@@ -679,8 +701,8 @@ app.post('/app/api/sessions/create', requireOrgRole('collaborator'), async (c) =
     c.env.DB,
     `INSERT INTO sessions (id, event_id, submission_id, type, title, abstract, track_option_id, format_option_id,
        level, duration_min, room_id, all_rooms, day, start_min, end_min, status, published, sponsor_name,
-       stream_url, visibility_json, ics_sequence, created_at, updated_at)
-     VALUES (?,?,NULL,?,?,?,?,?,NULL,?,NULL,?,?,?,?, 'confirmed', 1, ?, NULL, NULL, 0, ?, ?)`,
+       sponsor_badge, stream_url, visibility_json, ics_sequence, created_at, updated_at)
+     VALUES (?,?,NULL,?,?,?,?,?,NULL,?,NULL,?,?,?,?, 'confirmed', 1, ?, ?, NULL, NULL, 0, ?, ?)`,
     id,
     event.id,
     kind,
@@ -694,6 +716,7 @@ app.post('/app/api/sessions/create', requireOrgRole('collaborator'), async (c) =
     start,
     end,
     kind === 'sponsor' ? (body.sponsorName || '').trim() || null : null,
+    kind === 'sponsor' && body.sponsorBadge === false ? 0 : 1,
     stamp,
     stamp
   );
