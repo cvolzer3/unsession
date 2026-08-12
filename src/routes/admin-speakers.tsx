@@ -20,7 +20,8 @@ import { logActivity } from '../lib/activity';
 import { sendEmail, renderTemplate } from '../lib/email';
 import { filesEnabled, saveUpload } from '../lib/files';
 import { zipHeadshots, zipSlides } from '../lib/zip';
-import { queueTaskReminder } from '../lib/reminder-queue';
+import { listReminderQueue, queueTaskReminder } from '../lib/reminder-queue';
+import { OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import * as T from '../lib/tasks';
 
 const app = new Hono<Ctx>();
@@ -687,7 +688,7 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
             <div id="as-list" style="border:1px solid #e2e3e8;max-height:240px;overflow-y:auto;"></div>
           </div>
         </div>
-        <div id="as-preview" style="background:#f4f4f6;padding:11px 13px;font-size:12.5px;color:#33343c;margin:14px 0 16px;line-height:1.5;"></div>
+        <div id="as-preview" style="border-top:1px solid #eceded;padding-top:12px;margin:16px 0;min-height:20px;"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;">
           <button data-dialog-close="#dlg-assign" style={BTN}>
             Cancel
@@ -834,6 +835,10 @@ app.get('/app/speakers', async (c) => {
   if (!event) return c.redirect('/app/events/new');
   const data = await loadPage(c.env, event.id);
   const files = filesEnabled(c.env);
+  // Same review-and-send panel as /app/submissions, but for queued task
+  // reminders — the Remind button queues, this is where the queue shows.
+  const reminderQueue = await listReminderQueue(c.env, event.id);
+  const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
 
   const zipBtn = (href: string, label: string) =>
     files ? (
@@ -900,6 +905,80 @@ app.get('/app/speakers', async (c) => {
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/speakers.js']}>
       <style>{raw(DRAWER_CSS)}</style>
       <div style="padding:22px 28px;">
+        {reminderQueue.length > 0 ? (
+          <div style="background:#fbf4e2;border:1px solid #e6d29a;margin-bottom:12px;">
+            <div style="padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#33343c;flex-wrap:wrap;">
+              <span>
+                <strong>{`${reminderQueue.length} queued task reminder${reminderQueue.length === 1 ? '' : 's'}`}</strong>
+                {' — nothing has been sent to speakers yet.'}
+              </span>
+              {canWrite ? (
+                <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
+                  <input type="hidden" name="back" value="/app/speakers" />
+                  <input type="hidden" name="only" value="reminders" />
+                  <button
+                    type="submit"
+                    style="padding:8px 16px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                  >
+                    {reminderQueue.length > OUTBOX_SEND_LIMIT
+                      ? `Send ${OUTBOX_SEND_LIMIT} of ${reminderQueue.length} now`
+                      : `Send all ${reminderQueue.length} now`}
+                  </button>
+                </form>
+              ) : null}
+            </div>
+            <details>
+              <summary
+                style={`padding:8px 14px;border-top:1px solid #e6d29a;cursor:pointer;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#8a6d1a;`}
+              >
+                REVIEW THE QUEUE
+              </summary>
+              <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
+                {reminderQueue.map((q) => (
+                  <div style="display:grid;grid-template-columns:96px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                    <span
+                      style={`display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap;color:#b08800;border:1px dashed #b08800;font-family:${MONO};letter-spacing:0.04em;justify-self:start;`}
+                    >
+                      REMIND
+                    </span>
+                    <div style="min-width:0;">
+                      <a
+                        href={`/app/speakers?open=${q.speaker_profile_id}`}
+                        style="font-size:12.5px;font-weight:600;color:#16171d;text-decoration:none;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+                      >
+                        {q.task_name}
+                      </a>
+                      <div style="font-size:11px;color:#9a9da6;">{q.due_date ? `Due ${q.due_date}` : 'No due date'}</div>
+                    </div>
+                    <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                      {q.speaker_email ? `${q.speaker_name ?? ''} · ${q.speaker_email}` : 'no speaker email on file'}
+                    </span>
+                    {canWrite ? (
+                      <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                        <input type="hidden" name="id" value={q.id} />
+                        <input type="hidden" name="kind" value="reminder" />
+                        <input type="hidden" name="back" value="/app/speakers" />
+                        <button
+                          type="submit"
+                          style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
+                        >
+                          Undo
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                ))}
+                <div style="padding:8px 14px;font-size:11.5px;color:#9a9da6;">
+                  Also lives at{' '}
+                  <a href="/app/emails?tab=outbox" style="color:#4c5fd5;">
+                    Emails → Outbox
+                  </a>
+                  . Undo takes a reminder back as if it never happened; sending emails every speaker above.
+                </div>
+              </div>
+            </details>
+          </div>
+        ) : null}
         <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
           <select id="f-task" style="padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
             <option value="">Task: any</option>

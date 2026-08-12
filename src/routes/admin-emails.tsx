@@ -467,7 +467,12 @@ app.post('/app/emails/outbox/send', requireOrgRole('admin'), async (c) => {
   const event = c.var.event!;
   const actor = c.var.user?.name || c.var.user?.email || 'Organizer';
   const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
-  const res = await sendQueuedDecisions(c.env, event.id, actor, OUTBOX_SEND_LIMIT);
+  // The speakers page's queue panel labels its button with the reminder count,
+  // so `only=reminders` must not also fire whatever decisions sit in the queue.
+  const remindersOnly = String(form.only ?? '') === 'reminders';
+  const res = remindersOnly
+    ? { processed: 0, updated: 0, emailed: 0, simulated: 0, sessionsCreated: 0, skipped: [], remaining: 0 }
+    : await sendQueuedDecisions(c.env, event.id, actor, OUTBOX_SEND_LIMIT);
   // Decisions and reminders share one send budget; reminders take what's left.
   const rem = await sendQueuedReminders(c.env, event.id, actor, OUTBOX_SEND_LIMIT - res.processed);
 
