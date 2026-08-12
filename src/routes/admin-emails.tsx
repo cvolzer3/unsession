@@ -229,22 +229,15 @@ app.get('/app/emails', async (c) => {
         ) : tab === 'outbox' ? (
           <div style="display:grid;gap:14px;max-width:1000px;">
             <div style="background:#fff;border:1px solid #e2e3e8;padding:16px 18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-              <div style="min-width:0;">
-                <div style="font-size:15px;font-weight:700;">
-                  {queuedCount > 0
-                    ? `${[
-                        queuedDecisions ? `${queuedDecisions} decision${queuedDecisions === 1 ? '' : 's'}` : '',
-                        queuedReminders ? `${queuedReminders} task reminder${queuedReminders === 1 ? '' : 's'}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')} queued — nothing sent yet`
-                    : 'The outbox is empty'}
-                </div>
-                <div style="font-size:12.5px;color:#686b74;margin-top:3px;max-width:560px;">
-                  Deciding a submission or hitting Remind on a speaker task queues it here; speakers see nothing until
-                  you send. Sending flips statuses, creates sessions for accepts, and emails every speaker below. Undo
-                  takes anything back as if it never happened.
-                </div>
+              <div style="min-width:0;font-size:15px;font-weight:700;">
+                {queuedCount > 0
+                  ? `${[
+                      queuedDecisions ? `${queuedDecisions} decision${queuedDecisions === 1 ? '' : 's'}` : '',
+                      queuedReminders ? `${queuedReminders} task reminder${queuedReminders === 1 ? '' : 's'}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')} queued`
+                  : 'The outbox is empty'}
               </div>
               {queuedCount > 0 ? (
                 <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
