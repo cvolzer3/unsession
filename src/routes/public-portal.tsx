@@ -713,7 +713,7 @@ app.get('/:event/portal', async (c) => {
                   title={data.profile?.headshot_file_id ? 'Replace headshot' : 'Upload headshot'}
                   style={`width:96px;height:96px;border:2px dashed var(--border-strong);background:${
                     data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
-                  };display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--muted);flex:none;cursor:pointer;`}
+                  };box-sizing:border-box;padding:14px;display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--muted);flex:none;cursor:pointer;`}
                 >
                   {data.profile?.headshot_file_id ? '' : <span data-headshot-hint>Upload headshot</span>}
                   <input type="file" name="headshot" accept="image/*" hidden data-headshot />
@@ -724,7 +724,7 @@ app.get('/:event/portal', async (c) => {
                   title="File storage not yet enabled"
                   style={`width:96px;height:96px;border:2px dashed var(--border);background:${
                     data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
-                  };display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--faint);flex:none;cursor:not-allowed;`}
+                  };box-sizing:border-box;padding:14px;display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--faint);flex:none;cursor:not-allowed;`}
                 >
                   {data.profile?.headshot_file_id ? '' : 'Upload headshot'}
                 </div>
