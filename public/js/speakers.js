@@ -276,6 +276,7 @@ function drawerHtml(d, animate = true) {
         <div style="margin-left:auto;font-size:11px;color:#9a9da6;">Internal — not shown to the speaker</div>
       </div>
       <textarea id="travel-notes" rows="3" placeholder="Arrival and departure, seating preferences, dietary needs…" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;">${esc(s.travel || '')}</textarea>
+      <div style="font-size:11px;color:#9a9da6;margin-top:4px;line-height:1.45;">What the speaker submits themselves — e.g. a “Travel details” mini-form task — shows under its task below.</div>
       <button id="travel-save" style="margin-top:6px;padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Save notes</button>
     </div>`;
 
