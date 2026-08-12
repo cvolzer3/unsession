@@ -22,6 +22,7 @@ const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex
 const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:4px;';
 const CANCEL_BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const PRIMARY_BTN = 'padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
+const DANGER_BTN = 'background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;';
 const PG_ON = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#33343c;cursor:pointer;text-decoration:none;';
 const PG_OFF = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;';
 const COLS = 'minmax(170px,1fr) minmax(210px,1fr) 130px 90px 130px 60px';
@@ -57,6 +58,9 @@ app.get('/app/team', async (c) => {
   );
   const canManage = c.var.role === 'owner' || c.var.role === 'admin';
   const inviteLink = c.req.query('link');
+  /** Same rules the remove route enforces: never yourself, and owners only by owners. */
+  const canRemove = (r: TeamRow) =>
+    canManage && r.kind === 'member' && r.id !== c.var.user?.id && (r.role !== 'owner' || c.var.role === 'owner');
 
   /* ------------------------------------------------ filters + pagination */
   const q = (c.req.query('q') ?? '').trim();
@@ -199,11 +203,19 @@ app.get('/app/team', async (c) => {
                 {r.kind === 'invite' && canManage ? (
                   <form method="post" action="/app/team/revoke" style="margin:0;">
                     <input type="hidden" name="invite_id" value={r.id} />
+                    <button type="submit" style={DANGER_BTN}>
+                      Revoke
+                    </button>
+                  </form>
+                ) : canRemove(r) ? (
+                  <form method="post" action="/app/team/remove" style="margin:0;">
+                    <input type="hidden" name="user_id" value={r.id} />
                     <button
                       type="submit"
-                      style="background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;"
+                      style={DANGER_BTN}
+                      data-confirm={`Remove ${r.name || r.email} from the team? They lose access to this workspace and drop off every evaluation plan. Reviews they already submitted are kept.`}
                     >
-                      Revoke
+                      Remove
                     </button>
                   </form>
                 ) : null}
@@ -359,6 +371,44 @@ app.post('/app/team/revoke', guard, async (c) => {
     event.org_id
   );
   return c.redirect('/app/team?ok=' + encodeURIComponent('Invite revoked'));
+});
+
+app.post('/app/team/remove', guard, async (c) => {
+  const event = c.var.event!;
+  const body = await c.req.parseBody();
+  const userId = String(body.user_id ?? '');
+  if (!userId || userId === c.var.user?.id) return c.redirect('/app/team');
+
+  const target = await one<{ role: string; name: string | null; email: string }>(
+    c.env.DB,
+    `SELECT m.role, u.name, u.email FROM org_members m JOIN users u ON u.id = m.user_id
+      WHERE m.org_id = ? AND m.user_id = ?`,
+    event.org_id,
+    userId
+  );
+  if (!target) return c.redirect('/app/team');
+  // Only an owner may remove an owner. With self-removal already refused, that
+  // means a second owner is doing it — so the org never runs out of owners.
+  if (target.role === 'owner' && c.var.role !== 'owner') {
+    return c.redirect('/app/team?ok=' + encodeURIComponent('Only an owner can remove an owner'));
+  }
+
+  // The review queue authorizes on plan membership alone, so dropping the org
+  // row is not enough — a removed teammate would keep reviewing. Their
+  // submitted evaluations stay: they are part of the scoring record.
+  await run(
+    c.env.DB,
+    `DELETE FROM eval_plan_reviewers
+      WHERE user_id = ?
+        AND plan_id IN (SELECT p.id FROM eval_plans p JOIN events e ON e.id = p.event_id WHERE e.org_id = ?)`,
+    userId,
+    event.org_id
+  );
+  await run(c.env.DB, `DELETE FROM org_members WHERE org_id = ? AND user_id = ?`, event.org_id, userId);
+
+  return c.redirect(
+    '/app/team?ok=' + encodeURIComponent(`${target.name || target.email} removed from the team`)
+  );
 });
 
 app.post('/app/team/role', guard, async (c) => {

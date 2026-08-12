@@ -8,6 +8,7 @@
  *   data-dialog-open="#id"               opens a dialog overlay
  *   data-dialog-close                    closes the nearest dialog overlay
  *   data-drawer-expand                   toggles [data-expanded] on the nearest [data-drawer]
+ *   data-confirm="Sure?"                 destructive submits ask before posting
  */
 
 export function toast(msg, ok = true) {
@@ -58,6 +59,13 @@ export function closeDialog(sel) {
   const el = typeof sel === 'string' ? document.querySelector(sel) : sel;
   if (el) el.hidden = true;
 }
+
+// Destructive submits ask before posting. Registered ahead of the delegates
+// below so a declined confirm stops the click before anything else acts on it.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-confirm]');
+  if (btn && !window.confirm(btn.dataset.confirm)) e.preventDefault();
+});
 
 function closeAllToggles(except) {
   document.querySelectorAll('[data-toggle-target]').forEach((el) => {
