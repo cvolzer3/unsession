@@ -344,7 +344,7 @@ const PRESET_OPTIONS: { preset: FormPreset; desc: string }[] = [
     preset: 'session',
     desc: 'For sponsors: submissions are auto-accepted and land as sponsor sessions.',
   },
-  { preset: 'empty', desc: 'No fields — build it from the palette.' },
+  { preset: 'empty', desc: 'No fields.' },
 ];
 
 function NewFormChooser() {
