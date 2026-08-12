@@ -644,7 +644,6 @@ app.get('/app/forms', async (c) => {
             <div style="border:1px solid #e2e3e8;background:#fff;">
               <div style="display:flex;align-items:baseline;gap:10px;padding:10px 14px;border-bottom:1px solid #eceded;background:#fafafb;">
                 <span id="fb-form-page" style={MICRO}>{`PAGE ${settings.welcomeEnabled ? 2 : 1} · FORM`}</span>
-                <span style="font-size:11px;color:#9a9da6;">Drag to reorder · click a field to configure</span>
               </div>
               <div style="padding:14px;background:#fafafb;">
                 <div id="fb-list">
