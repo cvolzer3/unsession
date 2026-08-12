@@ -711,14 +711,27 @@ function init() {
     setSaveState('SUBMITTING…', '#e6a817');
   });
 
+  // Welcome page and form body are both in the DOM whenever the form has a
+  // welcome — Start and Back just swap which one is hidden, so the draft in
+  // progress is never torn down by a navigation.
   const start = document.getElementById('pf-start');
+  const back = document.getElementById('pf-back');
+  const welcome = document.getElementById('pf-welcome');
   const body = document.getElementById('pf-body');
-  if (start && body) {
+  if (start && welcome && body) {
     start.addEventListener('click', (e) => {
       e.preventDefault();
-      start.closest('div').hidden = true;
+      welcome.hidden = true;
       body.hidden = false;
       body.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+  if (back && welcome && body) {
+    back.addEventListener('click', (e) => {
+      e.preventDefault();
+      body.hidden = true;
+      welcome.hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   }
 

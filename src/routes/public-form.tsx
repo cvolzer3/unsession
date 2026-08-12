@@ -588,6 +588,9 @@ function renderPage(opts: {
   toast?: string | null;
 }) {
   const { event, form, settings, schema, state, filesOn, late } = opts;
+  // The welcome block is always in the DOM when the form has one, just hidden —
+  // that's what lets "Start →" / "← BACK TO INTRO" toggle without a round trip.
+  const hasWelcome = !!(settings.welcomeEnabled && settings.welcomeMd);
   const fields = schema.fields;
   const vis = visibleIds(fields, state.answers);
   const cap = speakerCap(fields, settings);
@@ -658,8 +661,12 @@ function renderPage(opts: {
           )}
         </p>
 
-        {opts.showWelcome ? (
-          <div style="border:1px solid var(--border-strong);background:var(--card);padding:24px 26px;margin-bottom:26px;">
+        {hasWelcome ? (
+          <div
+            id="pf-welcome"
+            hidden={!opts.showWelcome}
+            style="border:1px solid var(--border-strong);background:var(--card);padding:24px 26px;margin-bottom:26px;"
+          >
             <div style="font-size:14px;line-height:1.65;color:var(--text-secondary);">
               {raw(renderMarkdown(settings.welcomeMd))}
             </div>
@@ -674,6 +681,15 @@ function renderPage(opts: {
         ) : null}
 
         <div id="pf-body" hidden={opts.showWelcome}>
+          {hasWelcome ? (
+            <a
+              href="?welcome=1"
+              id="pf-back"
+              style={`display:inline-block;margin-bottom:18px;font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);text-decoration:none;`}
+            >
+              ← BACK TO INTRO
+            </a>
+          ) : null}
           {state.errorList.length ? (
             <div id="pf-errors" style="border:1px solid #e03131;background:var(--card);padding:14px 16px;margin-bottom:20px;">
               <div style="font-weight:700;font-size:13.5px;color:#c92a2a;margin-bottom:6px;">
@@ -1064,7 +1080,12 @@ app.get('/:event/:form', async (c) => {
   const answers = draft ? jsonParse<Answers>(draft.answers_json, {}) : {};
   const speakers = draft ? await speakersOf(c.env.DB, draft.id) : [];
 
-  const showWelcome = settings.welcomeEnabled && !!settings.welcomeMd && !c.req.query('start') && !draft;
+  // `?welcome=1` is the back link's no-JS fallback — it wins over both the
+  // `?start=1` and the resumed-draft suppressions.
+  const showWelcome =
+    settings.welcomeEnabled &&
+    !!settings.welcomeMd &&
+    (c.req.query('welcome') === '1' || (!c.req.query('start') && !draft));
 
   return c.html(
     renderPage({
