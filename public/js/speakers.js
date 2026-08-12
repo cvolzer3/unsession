@@ -1161,7 +1161,9 @@ function scheduleAssignMatch() {
       as.preview = res;
       renderAssignPreview();
     } catch {
-      if (seq === asSeq) $('#as-preview').textContent = 'Could not check who matches — try again.';
+      if (seq === asSeq) {
+        $('#as-preview').innerHTML = '<div style="font-size:12px;color:#b08800;">Could not check who matches — try again.</div>';
+      }
     }
   }, 250);
 }
@@ -1187,8 +1189,8 @@ function renderAssignPreview() {
   const go = $('#as-go');
   const out = $('#as-preview');
   const tpl = activeTemplates().find((t) => t.id === $('#as-tpl').value) || activeTemplates()[0];
-  const idle = (text) => {
-    out.textContent = text;
+  const idle = (text, warn) => {
+    out.innerHTML = `<div style="font-size:12px;color:${warn ? '#b08800' : '#9a9da6'};">${text}</div>`;
     go.textContent = 'Create tasks';
     go.style.cssText = 'padding:9px 16px;border:none;font-size:13px;font-weight:600;background:#e2e3e8;color:#9a9da6;cursor:default;';
     go.dataset.ids = '';
@@ -1201,37 +1203,44 @@ function renderAssignPreview() {
     return idle(
       as.mode === 'rule'
         ? as.clauses.length
-          ? 'The rule matches nobody right now — check the clauses.'
+          ? 'Nobody matches this rule right now — check the clauses.'
           : `No ${as.group === 'acceptance' ? 'accepted' : 'confirmed'} speakers yet.`
-        : 'Pick at least one speaker from the list.'
+        : 'Pick at least one speaker from the list.',
+      as.mode === 'rule'
     );
   }
   const candidates = list.filter((r) => (r.cells[tpl.id] || '-') === '-');
-  const already = list.length - candidates.length;
   const noSet = as.mode === 'rule' && tpl.target === 'session' ? new Set(as.preview.noSessionIds || []) : null;
-  const noSess = noSet ? candidates.filter((r) => noSet.has(r.id)).length : 0;
-  const create = candidates.length - noSess;
-  const who =
-    as.mode === 'rule'
-      ? `${list.length} ${as.group === 'acceptance' ? 'accepted' : 'confirmed'} speaker${list.length === 1 ? '' : 's'} match${list.length === 1 ? 'es' : ''} the rule`
-      : `${list.length} speaker${list.length === 1 ? '' : 's'} picked`;
-  const skips = [
-    already ? `${already} already have it and are skipped` : '',
-    noSess ? `${noSess} speaker${noSess === 1 ? '' : 's'} with no session are skipped` : '',
-  ]
+  const receivers = noSet ? candidates.filter((r) => !noSet.has(r.id)) : candidates;
+  const already = list.length - candidates.length;
+  const noSess = candidates.length - receivers.length;
+  if (!receivers.length) {
+    return idle(
+      noSess
+        ? `Nothing to create — the ${noSess} unassigned speaker${noSess === 1 ? ' has' : 's have'} no session yet, and session tasks need one.`
+        : `Everyone ${as.mode === 'rule' ? 'matching' : 'picked'} already has “${esc(tpl.name)}” — nothing to create.`,
+      true
+    );
+  }
+  const names = receivers.map((r) => r.name).filter(Boolean);
+  const MAX = 5;
+  const shown = names.slice(0, MAX);
+  const hidden = receivers.length - shown.length;
+  const skips = [already ? `${already} already assigned` : '', noSess ? `${noSess} with no session` : '']
     .filter(Boolean)
     .join(' · ');
-  out.textContent = create
-    ? `${who}. This will create ${create} “${tpl.name}” task${create === 1 ? '' : 's'}${
-        skips ? ` · ${skips}` : ''
-      }. Speakers see them in their portals immediately; assignment email follows the digest schedule.`
-    : `${who} — nothing to create${skips ? ` (${skips})` : ''}.`;
-  go.textContent = `Create ${create} task${create === 1 ? '' : 's'}`;
-  go.style.cssText = `padding:9px 16px;border:none;font-size:13px;font-weight:600;${
-    create ? 'background:#4c5fd5;color:#fff;cursor:pointer;' : 'background:#e2e3e8;color:#9a9da6;cursor:default;'
-  }`;
+  out.innerHTML =
+    `<div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">WILL GO TO ${receivers.length} SPEAKER${
+      receivers.length === 1 ? '' : 'S'
+    }</div>` +
+    `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;align-items:center;">${shown
+      .map((n) => `<span style="border:1px solid #e2e3e8;background:#fff;padding:3px 9px;font-size:11.5px;white-space:nowrap;">${esc(n)}</span>`)
+      .join('')}${hidden ? `<span style="font-size:11.5px;color:#9a9da6;">+${hidden} more</span>` : ''}</div>` +
+    (skips ? `<div style="font-size:11.5px;color:#9a9da6;margin-top:8px;">Skipping ${skips}</div>` : '');
+  go.textContent = `Create ${receivers.length} task${receivers.length === 1 ? '' : 's'}`;
+  go.style.cssText = 'padding:9px 16px;border:none;font-size:13px;font-weight:600;background:#4c5fd5;color:#fff;cursor:pointer;';
   // Send every unassigned candidate — the server reports no-session skips honestly.
-  go.dataset.ids = create ? candidates.map((r) => r.id).join(',') : '';
+  go.dataset.ids = candidates.map((r) => r.id).join(',');
 }
 
 function renderAssign() {
