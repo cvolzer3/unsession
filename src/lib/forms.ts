@@ -91,6 +91,12 @@ export type FormSettings = {
   coSpeakerCap: number;
   postSubmitMsg: string;
   notifyEmails: string[];
+  /**
+   * Team members notified on every new submission, by `users.id`. Stored as ids
+   * rather than addresses so the link stays live: a member who changes their
+   * email keeps getting notified, and one removed from the org stops.
+   */
+  notifyMemberIds: string[];
   audience: string;
   /** Public-facing form title (B1). Empty = fall back to the internal `forms.name`. */
   externalName: string;
@@ -335,6 +341,9 @@ export function parseSettings(raw: string | null | undefined): FormSettings {
     coSpeakerCap: Number.isFinite(Number(s.coSpeakerCap)) ? Number(s.coSpeakerCap) : 2,
     postSubmitMsg: typeof s.postSubmitMsg === 'string' ? s.postSubmitMsg : '',
     notifyEmails: Array.isArray(s.notifyEmails) ? s.notifyEmails.map((e) => String(e)).filter(Boolean) : [],
+    notifyMemberIds: Array.isArray(s.notifyMemberIds)
+      ? s.notifyMemberIds.map((id) => String(id)).filter(Boolean)
+      : [],
     audience: typeof s.audience === 'string' ? s.audience : 'Public link',
     externalName: typeof s.externalName === 'string' ? s.externalName : '',
     pageHeading: typeof s.pageHeading === 'string' ? s.pageHeading : '',
@@ -383,6 +392,50 @@ export function speakerCap(fields: FormField[], settings: FormSettings): number 
   const fromField = grp?.validation.maxSpeakers;
   if (fromField && fromField > 0) return fromField;
   return Math.max(1, (settings.coSpeakerCap || 0) + 1);
+}
+
+/* ------------------------------------------------------------------ submission notifications */
+
+export type NotifyMember = { id: string; name: string | null; email: string; role: string };
+
+/** Org members offered as notification targets in a form's settings, owners first. */
+export async function listNotifyMembers(db: D1Database, orgId: string): Promise<NotifyMember[]> {
+  return all<NotifyMember>(
+    db,
+    `SELECT u.id, u.name, u.email, m.role
+       FROM org_members m JOIN users u ON u.id = m.user_id
+      WHERE m.org_id = ?
+      ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.email`,
+    orgId
+  );
+}
+
+/**
+ * Who gets the "new submission" email: the linked team members (resolved fresh
+ * on every send, so team changes take effect without editing the form) plus the
+ * standalone addresses. Deduped case-insensitively — a member listed by address
+ * as well is notified once.
+ */
+export async function notifyRecipients(
+  db: D1Database,
+  orgId: string,
+  settings: FormSettings
+): Promise<{ email: string; name: string | null }[]> {
+  const out = new Map<string, { email: string; name: string | null }>();
+  if (settings.notifyMemberIds.length) {
+    const members = await listNotifyMembers(db, orgId);
+    const wanted = new Set(settings.notifyMemberIds);
+    for (const m of members) {
+      if (wanted.has(m.id) && m.email) out.set(m.email.toLowerCase(), { email: m.email, name: m.name });
+    }
+  }
+  for (const raw of settings.notifyEmails) {
+    const email = raw.trim();
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (!out.has(key)) out.set(key, { email, name: null });
+  }
+  return [...out.values()];
 }
 
 /* ------------------------------------------------------------------ taxonomies */
@@ -680,6 +733,7 @@ export function defaultSettings(): FormSettings {
     coSpeakerCap: 2,
     postSubmitMsg: 'Thanks! We review on a rolling basis — you’ll hear from us by email.',
     notifyEmails: [],
+    notifyMemberIds: [],
     audience: 'Public link',
     externalName: '',
     pageHeading: '',

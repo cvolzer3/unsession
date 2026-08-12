@@ -25,6 +25,7 @@ import {
   currentVersion,
   hydrateSchema,
   listForms,
+  listNotifyMembers,
   loadForm,
   loadFormRow,
   loadTaxonomies,
@@ -45,6 +46,7 @@ import {
   type FormPreset,
   type FormRow,
   type FormSettings,
+  type NotifyMember,
 } from '../lib/forms';
 
 const app = new Hono<Ctx>();
@@ -170,6 +172,7 @@ function SettingsFields({
   lateLink,
   gap,
   defaultHeading,
+  members,
 }: {
   form: FormRow;
   settings: FormSettings;
@@ -177,7 +180,9 @@ function SettingsFields({
   lateLink: string;
   gap: string;
   defaultHeading: string;
+  members: NotifyMember[];
 }) {
+  const notified = new Set(settings.notifyMemberIds);
   const on: Record<string, boolean> = {
     allowDrafts: settings.allowDrafts,
     lateLink: !!settings.lateLinkSecret,
@@ -270,15 +275,59 @@ function SettingsFields({
           {settings.postSubmitMsg}
         </textarea>
       </div>
-      <div>
-        <div style={FIELD_LABEL}>Notify these addresses on every new submission</div>
-        <input
-          name="notifyEmails"
-          value={settings.notifyEmails.join(', ')}
-          placeholder="program@example.org, chair@example.org"
-          style={inputStyle}
-        />
-        <div style="font-size:11px;color:#9a9da6;margin-top:3px;">Comma separated · leave empty for no notifications</div>
+      <div style={`border-top:1px solid #eceded;padding-top:${gap};display:grid;gap:${gap};`}>
+        <div>
+          <div style={FIELD_LABEL}>Notify on every new submission</div>
+          {members.length ? (
+            <div style="border:1px solid #e2e3e8;background:#fff;">
+              {members.map((m) => (
+                <label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid #f2f3f5;cursor:pointer;">
+                  <input
+                    type="checkbox"
+                    name="notifyMembers[]"
+                    value={m.id}
+                    checked={notified.has(m.id)}
+                    style="accent-color:#4c5fd5;flex:none;"
+                  />
+                  <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {m.name || m.email}
+                  </span>
+                  {m.name ? (
+                    <span
+                      style={`font-family:${MONO};font-size:11px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}
+                    >
+                      {m.email}
+                    </span>
+                  ) : null}
+                  <span style={`${MICRO}margin-left:auto;flex:none;`}>{m.role.toUpperCase()}</span>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div style="font-size:11.5px;color:#686b74;background:#f8f8fa;border:1px solid #eceded;padding:8px 10px;">
+              No teammates yet —{' '}
+              <a href="/app/team" style="color:#4c5fd5;font-weight:600;">
+                invite one on Team
+              </a>
+            </div>
+          )}
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">
+            Teammates are notified at whatever address they sign in with · removing someone from the team stops their
+            notifications
+          </div>
+        </div>
+        <div>
+          <div style={FIELD_LABEL}>Also notify these addresses</div>
+          <input
+            name="notifyEmails"
+            value={settings.notifyEmails.join(', ')}
+            placeholder="program@example.org, chair@example.org"
+            style={inputStyle}
+          />
+          <div style="font-size:11px;color:#9a9da6;margin-top:3px;">
+            Comma separated · for people who aren’t on the team
+          </div>
+        </div>
       </div>
     </>
   );
@@ -379,6 +428,7 @@ app.get('/app/forms', async (c) => {
   const active = forms.find((f) => f.id === wanted || f.slug === wanted) ?? forms[0];
   const loaded = await loadFormRow(db, active);
   const taxonomies = await loadTaxonomies(db, event.id);
+  const members = await listNotifyMembers(db, event.org_id);
   const schema = hydrateSchema(loaded.schema, taxonomies);
   const settings = loaded.settings;
 
@@ -534,6 +584,7 @@ app.get('/app/forms', async (c) => {
                 lateLink={lateLink}
                 gap="14px"
                 defaultHeading={`Speak at ${event.name}`}
+                members={members}
               />
               <div style="display:flex;align-items:center;gap:12px;border-top:1px solid #eceded;padding-top:20px;">
                 <button
@@ -701,6 +752,7 @@ app.get('/app/forms', async (c) => {
                 lateLink={lateLink}
                 gap="12px"
                 defaultHeading={`Speak at ${event.name}`}
+                members={members}
               />
             </div>
             <div style="padding:14px var(--band-x);border-top:1px solid #eceded;display:flex;justify-content:flex-end;gap:8px;">
@@ -812,8 +864,18 @@ app.post('/app/forms/new', guard, async (c) => {
   return c.redirect(`/app/forms?form=${id}&mode=setup`);
 });
 
-function settingsFromBody(body: Record<string, unknown>, prev: FormSettings): FormSettings {
+function settingsFromBody(
+  body: Record<string, unknown>,
+  prev: FormSettings,
+  memberIds: Set<string>
+): FormSettings {
   const lateOn = !!body.lateLink;
+  // Checkboxes only report what's ticked, so the posted list *is* the new set.
+  // Ids are filtered against the org so a stale form can't notify a stranger.
+  const checked = body['notifyMembers[]'];
+  const notifyMemberIds = (Array.isArray(checked) ? checked : checked === undefined ? [] : [checked])
+    .map((id) => String(id))
+    .filter((id) => memberIds.has(id));
   const welcomeOn = !!body.welcome;
   const cap = Number.parseInt(String(body.coSpeakerCap ?? ''), 10);
   return {
@@ -829,6 +891,7 @@ function settingsFromBody(body: Record<string, unknown>, prev: FormSettings): Fo
       .split(/[\s,;]+/)
       .map((s) => s.trim())
       .filter((s) => s.includes('@')),
+    notifyMemberIds,
     audience: prev.audience,
     externalName: typeof body.externalName === 'string' ? body.externalName.trim() : prev.externalName,
     pageHeading: typeof body.pageHeading === 'string' ? body.pageHeading.trim() : prev.pageHeading,
@@ -850,7 +913,8 @@ app.post('/app/forms/:id/settings', guard, async (c) => {
   const opensAt = String(body.opens_at ?? '').slice(0, 10) || null;
   let closesAt = String(body.closes_at ?? '').slice(0, 10) || null;
   if (opensAt && closesAt && closesAt < opensAt) closesAt = opensAt;
-  const settings = settingsFromBody(body, loaded.settings);
+  const memberIds = new Set((await listNotifyMembers(db, event.org_id)).map((m) => m.id));
+  const settings = settingsFromBody(body, loaded.settings, memberIds);
   const slug = name === loaded.form.name ? loaded.form.slug : await uniqueFormSlug(db, event.id, name, loaded.form.id);
 
   await run(
@@ -983,10 +1047,14 @@ app.post('/app/api/forms/:id/settings', guard, async (c) => {
 
   const body = await c.req.json<Partial<FormSettings>>().catch(() => null);
   if (!body) return c.json({ ok: false, error: 'Expected a settings object.' }, 400);
+  const memberIds = new Set((await listNotifyMembers(db, event.org_id)).map((m) => m.id));
   const next: FormSettings = {
     ...loaded.settings,
     ...body,
     notifyEmails: Array.isArray(body.notifyEmails) ? body.notifyEmails.map(String) : loaded.settings.notifyEmails,
+    notifyMemberIds: Array.isArray(body.notifyMemberIds)
+      ? body.notifyMemberIds.map(String).filter((id) => memberIds.has(id))
+      : loaded.settings.notifyMemberIds,
   };
   if (next.lateLinkSecret === null && loaded.settings.lateLinkSecret) next.lateLinkSecret = null;
   await run(db, `UPDATE forms SET settings_json = ? WHERE id = ?`, JSON.stringify(next), loaded.form.id);

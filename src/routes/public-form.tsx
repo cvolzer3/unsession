@@ -31,6 +31,7 @@ import {
   loadForm,
   loadTaxonomies,
   monthDay,
+  notifyRecipients,
   openState,
   renderMarkdown,
   speakerCap,
@@ -1374,10 +1375,12 @@ app.post('/:event/:form', async (c) => {
     });
   }
 
-  for (const to of settings.notifyEmails) {
+  const notify = await notifyRecipients(c.env.DB, found.event.org_id, settings);
+  for (const { email: to, name: toName } of notify) {
     await sendEmail(c.env, {
       eventId: found.event.id,
       to,
+      toName,
       templateKey: 'submission_notify',
       subject: `New submission — ${title || 'untitled'} (SUB-${seq})`,
       text:
