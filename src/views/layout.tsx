@@ -16,6 +16,48 @@ export const MONO = "'IBM Plex Mono',monospace";
 export const GOOGLE_FONTS =
   'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap';
 
+/**
+ * The one mobile breakpoint. Every media query in the app keys off this width —
+ * see `SPECS/M-mobile.md`, the contract page code follows. Below it we are on a
+ * phone: single column, overlay nav, full-width drawers, 16px form controls.
+ */
+export const MOBILE_MAX = 768;
+
+/**
+ * Rules both shells need — the mobile toolkit and the sandbox chip. Spliced
+ * into ADMIN_BASE_CSS and into PublicLayout's own `css`, so a page gets the
+ * same utilities whichever shell it renders in.
+ *
+ * `!important` appears only where an inline style or a later page-scoped rule
+ * would otherwise win. Inline styles are the house style here (ported verbatim
+ * from the prototype) and no media query can beat them, so the mobile
+ * overrides that must land on inline-styled elements say so explicitly.
+ */
+const SHARED_BASE_CSS = `
+  /* Wrap anything that cannot narrow — wide tables, code blocks, kanban lanes —
+     in .us-scroll-x so it scrolls in its own box instead of widening the page. */
+  .us-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
+  /* Visibility helpers. Both resolve to display:revert, so put them on elements
+     that do NOT set display inline — see SPECS/M-mobile.md. */
+  .us-mobile-only{display:none !important;}
+  /* Sandbox chip: fits a 320px screen and keeps its menu on-screen. */
+  #sandbox-switcher summary::-webkit-details-marker{display:none;}
+  .us-sandbox-chip{max-width:calc(100vw - 36px);}
+  .us-sandbox-who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .us-sandbox-menu{width:min(280px,calc(100vw - 36px));}
+  @media (max-width:${MOBILE_MAX}px){
+    .us-desktop-only{display:none !important;}
+    .us-mobile-only{display:revert !important;}
+    /* 16px stops iOS Safari zooming the page when a field takes focus. */
+    input,textarea,select{font-size:16px !important;}
+    /* A side drawer takes the whole screen on a phone, so its header expand
+       button becomes a no-op (left in place — it does no harm). Each page
+       declares its own .drawer-* width later in the document, hence the
+       !important rather than more specificity. */
+    .us-drawer-panel{width:100vw !important;max-width:100vw !important;--band-x:16px;}
+  }
+`;
+
 export const ADMIN_BASE_CSS = `
   html,body{margin:0;padding:0;background:#f4f4f6;color:#16171d;font-family:'Space Grotesk',sans-serif;}
   a{color:#4c5fd5;text-decoration:none;} a:hover{color:#3a4ab8;text-decoration:underline;}
@@ -38,12 +80,55 @@ export const ADMIN_BASE_CSS = `
   [data-drawer] .ic-min{display:none;}
   [data-drawer][data-expanded] .ic-max{display:none;}
   [data-drawer][data-expanded] .ic-min{display:block;}
-  #sandbox-switcher summary::-webkit-details-marker{display:none;}
   .sw-input{appearance:none;-webkit-appearance:none;display:block;width:100%;height:30px;border:1px solid #e2e3e8;padding:0;background:none;cursor:pointer;}
   .sw-input::-webkit-color-swatch-wrapper{padding:0;}
   .sw-input::-webkit-color-swatch{border:none;}
   .sw-input::-moz-color-swatch{border:none;}
-`;
+
+  /* ------------------------------------------------- admin shell + header
+     The sidebar's geometry and the header's box live here, not inline, so the
+     mobile block below can restyle them: an inline style outranks any media
+     query. Desktop values are byte-for-byte what the inline styles used to be. */
+  .us-shell{display:grid;grid-template-columns:216px 1fr;min-height:100vh;}
+  .us-sidenav{background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+  .us-navscrim{display:none;}
+  .us-burger,.us-navclose{display:none;}
+  .us-adminhead{background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;}
+  .us-headmain{position:relative;min-width:0;}
+  .us-headactions{margin-left:auto;display:flex;align-items:center;gap:12px;}
+  .us-eventpick{max-width:540px;}
+  .us-eventmenu{left:0;width:360px;}
+  @media (max-width:${MOBILE_MAX}px){
+    /* The sidebar leaves the grid and becomes an overlay drawer over its own
+       scrim; ui.js flips [data-nav-open] on the shell. visibility:hidden while
+       closed keeps the off-screen links out of the tab order. */
+    .us-shell{grid-template-columns:1fr;}
+    .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:min(80vw,300px);height:100vh;height:100dvh;
+      border-right:none;box-shadow:6px 0 28px rgba(22,23,29,0.22);
+      transform:translateX(-100%);visibility:hidden;transition:transform 0.18s ease,visibility 0s linear 0.18s;}
+    /* visibility flips on the same tick the drawer opens (0s, no delay) so
+       ui.js can move focus into it right away; hiding waits for the slide out. */
+    .us-shell[data-nav-open] .us-sidenav{transform:none;visibility:visible;transition:transform 0.18s ease,visibility 0s;}
+    .us-shell[data-nav-open] .us-navscrim{display:block;position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:98;}
+    .us-burger{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;
+      margin:-6px 0 -6px -10px;padding:0;background:none;border:none;color:#16171d;cursor:pointer;}
+    .us-navclose{display:flex;align-items:center;justify-content:center;position:absolute;top:12px;right:8px;
+      width:40px;height:40px;padding:0;background:none;border:none;color:#686b74;font-size:19px;line-height:1;cursor:pointer;}
+    /* Burger and event picker share row one — flex-basis 0 keeps the picker
+       from wrapping under the burger. headerActions is arbitrary per-page
+       markup, so it takes a full row of its own instead of squeezing the event
+       name; :not(:empty) spares that row on the pages that pass none. */
+    .us-adminhead{padding:10px 14px;gap:10px;flex-wrap:wrap;}
+    .us-headmain{flex:1 1 0;}
+    .us-headactions{flex-wrap:wrap;justify-content:flex-end;gap:8px;}
+    .us-headactions:not(:empty){flex:1 0 100%;margin-left:0;}
+    .us-eventpick{max-width:100%;}
+    .us-eventmeta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    /* Anchored to the right edge instead of the button: the button sits ~54px
+       in (past the burger), which would push a 360px menu off screen. */
+    .us-eventmenu{left:auto;right:0;width:min(360px,calc(100vw - 28px));}
+  }
+${SHARED_BASE_CSS}`;
 
 export function initials(nameOrEmail: string): string {
   const s = (nameOrEmail || '').trim();
@@ -108,7 +193,7 @@ export const Toast: FC<{ message?: string | null }> = ({ message }) => {
     <>
       <div
         id="us-toast"
-        style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);"
+        style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 32px);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);"
       >
         <span style="color:#69db7c;">✓</span>
         {message}
@@ -139,14 +224,14 @@ export type SandboxWidget = {
  */
 const SandboxSwitcher: FC<{ sandbox: SandboxWidget; hidden?: boolean }> = ({ sandbox, hidden }) => (
   <details id="sandbox-switcher" hidden={hidden} style="position:fixed;bottom:18px;right:18px;z-index:70;font-family:'Space Grotesk',sans-serif;">
-    <summary style="list-style:none;display:flex;align-items:center;gap:9px;background:#16171d;color:#fff;padding:9px 14px;font-size:12.5px;cursor:pointer;user-select:none;box-shadow:0 8px 24px rgba(22,23,29,0.35);">
-      <span style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;font-weight:600;color:#ffd43b;`}>SANDBOX</span>
-      <span>
+    <summary class="us-sandbox-chip" style="list-style:none;display:flex;align-items:center;gap:9px;background:#16171d;color:#fff;padding:9px 14px;font-size:12.5px;cursor:pointer;user-select:none;box-shadow:0 8px 24px rgba(22,23,29,0.35);">
+      <span style={`flex:none;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;font-weight:600;color:#ffd43b;`}>SANDBOX</span>
+      <span class="us-sandbox-who">
         Viewing as <b id="sandbox-persona-label">{sandbox.personaLabel}</b>
       </span>
-      <span style="color:#9a9da6;font-size:10px;">▾</span>
+      <span style="flex:none;color:#9a9da6;font-size:10px;">▾</span>
     </summary>
-    <div style="position:absolute;bottom:calc(100% + 8px);right:0;width:280px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.16);">
+    <div class="us-sandbox-menu" style="position:absolute;bottom:calc(100% + 8px);right:0;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.16);">
       <div style={`padding:10px 14px 6px;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:#9a9da6;`}>
         SWITCH ROLE
       </div>
@@ -258,10 +343,14 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
         <style>{raw(ADMIN_BASE_CSS)}</style>
       </head>
       <body>
-        <div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
+        {/* Below MOBILE_MAX the sidebar becomes an overlay drawer: ui.js flips
+            [data-nav-open] here, the CSS slides `.us-sidenav` in over `.us-navscrim`,
+            and the header's burger is the only way in. See SPECS/M-mobile.md. */}
+        <div class="us-shell" data-nav-shell>
+          <div class="us-navscrim" data-nav-close aria-hidden="true"></div>
           {/* Three fixed-height zones: logo header and user footer never scroll;
               only the link list between them does. */}
-          <nav style="background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;">
+          <nav id="us-sidenav" class="us-sidenav" data-nav-panel>
             <a
               href="/app"
               aria-label="Unsession dashboard"
@@ -269,6 +358,10 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             >
               <ProductLogo height={22} />
             </a>
+            {/* Absolute, so it costs the desktop sidebar no layout at all. */}
+            <button type="button" class="us-navclose" data-nav-close aria-label="Close menu">
+              ✕
+            </button>
             <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-bottom:14px;">
             {navLink('/app', 'Dashboard', path === '/app')}
             <div style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>
@@ -309,8 +402,22 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             </div>
           </nav>
           <main style="min-width:0;">
-            <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
-              <div style="position:relative;min-width:0;">
+            <header class="us-adminhead">
+              <button
+                type="button"
+                class="us-burger"
+                data-nav-toggle
+                aria-controls="us-sidenav"
+                aria-expanded="false"
+                aria-label="Open menu"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M3 12h18" />
+                  <path d="M3 18h18" />
+                </svg>
+              </button>
+              <div class="us-headmain">
                 {props.headerTitle ? (
                   <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">{props.headerTitle}</div>
                 ) : (
@@ -319,14 +426,15 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
                       type="button"
                       data-toggle="#event-picker"
                       title="Switch event"
-                      style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:6px 10px;cursor:pointer;max-width:540px;"
+                      class="us-eventpick"
+                      style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:6px 10px;cursor:pointer;"
                     >
                       <span style="font-weight:700;font-size:16px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {event?.name ?? 'No event yet'}
                       </span>
                       <span style="color:#686b74;font-size:11px;border-left:1px solid #d8d9de;padding-left:10px;">▾</span>
                     </button>
-                    <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;margin-top:5px;`}>
+                    <div class="us-eventmeta" style={`font-family:${MONO};font-size:11px;color:#9a9da6;margin-top:5px;`}>
                       {event
                         ? `${host}/${event.slug} · ${fmtDateRange(event.start_date, event.end_date)} · ${event.timezone}`
                         : 'Create your first event to get started'}
@@ -334,7 +442,8 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
                     <div
                       id="event-picker"
                       hidden
-                      style="position:absolute;top:calc(100% + 8px);left:0;width:360px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
+                      class="us-eventmenu"
+                      style="position:absolute;top:calc(100% + 8px);background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
                     >
                       {/* margin:0 — the UA sheet's form margin-block-end would gap each row */}
                       {events.map((e) => (
@@ -365,9 +474,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
                   </>
                 )}
               </div>
-              <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
-                {props.headerActions as never}
-              </div>
+              <div class="us-headactions">{props.headerActions as never}</div>
             </header>
             {children}
           </main>
@@ -447,8 +554,24 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
   @keyframes us-spin{to{transform:rotate(360deg)}}
-  #sandbox-switcher summary::-webkit-details-marker{display:none;}
-`;
+  /* Sticky event header. Box and spacing live here so the mobile block can
+     tighten them — an inline style would outrank the media query. */
+  .us-pubhead{padding:12px 20px;display:flex;align-items:center;gap:10px;}
+  .us-pubmark{flex:none;}
+  .us-pubname{font-weight:700;font-size:14.5px;}
+  .us-pubnav{margin-left:18px;display:flex;gap:2px;overflow-x:auto;}
+  .us-pubkicker{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);}
+  @media (max-width:${MOBILE_MAX}px){
+    .us-pubhead{padding:10px 14px;gap:8px;}
+    /* The event name ellipsizes; the nav takes what is left and scrolls
+       sideways inside itself (flex-basis 0 keeps it from pushing the name out). */
+    .us-pubname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .us-pubnav{margin-left:4px;flex:1 1 0;min-width:110px;}
+    .us-pubkicker{max-width:45vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    /* Name + nav + kicker is one row too many at 320px. Nav pages keep the nav. */
+    .us-pubhead-nav .us-pubkicker{display:none;}
+  }
+${SHARED_BASE_CSS}`;
   return (
     <html style={vars}>
       <head>
@@ -469,13 +592,16 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
       </head>
       <body>
         <div style="position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);z-index:10;">
-          <div style={`max-width:${max}px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:10px;`}>
-            <div style="width:26px;height:26px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-mono);font-size:12px;font-weight:700;">
+          <div
+            class={props.nav ? 'us-pubhead us-pubhead-nav' : 'us-pubhead'}
+            style={`max-width:${max}px;margin:0 auto;`}
+          >
+            <div class="us-pubmark" style="width:26px;height:26px;background:var(--primary);color:var(--on-primary);display:grid;place-items:center;font-family:var(--font-mono);font-size:12px;font-weight:700;">
               {initialsOf(props.event.name)}
             </div>
-            <div style="font-weight:700;font-size:14.5px;">{props.event.name}</div>
+            <div class="us-pubname">{props.event.name}</div>
             {props.nav ? (
-              <nav style="margin-left:18px;display:flex;gap:2px;overflow-x:auto;">
+              <nav class="us-pubnav">
                 {props.nav.map((n) => (
                   <a
                     href={n.href}
@@ -488,11 +614,7 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
                 ))}
               </nav>
             ) : null}
-            {props.kicker ? (
-              <div style="margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--muted);">
-                {props.kicker}
-              </div>
-            ) : null}
+            {props.kicker ? <div class="us-pubkicker">{props.kicker}</div> : null}
           </div>
         </div>
         {props.children}

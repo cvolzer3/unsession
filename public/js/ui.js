@@ -12,6 +12,7 @@
  *   data-drawer-expand                   toggles [data-expanded] on the nearest [data-drawer]
  *   expandButton(expanded)               that button's markup, for JS-rendered drawers
  *   data-confirm="Sure?"                 destructive submits ask before posting
+ *   data-nav-toggle / data-nav-close     admin sidebar as a mobile overlay drawer
  */
 
 export function toast(msg, ok = true) {
@@ -20,7 +21,7 @@ export function toast(msg, ok = true) {
   const el = document.createElement('div');
   el.id = 'us-toast';
   el.style.cssText =
-    'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);';
+    'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 32px);background:#16171d;color:#fff;padding:11px 18px;font-size:13px;z-index:80;animation:toastin 0.15s ease;display:flex;gap:10px;align-items:center;box-shadow:0 8px 24px rgba(22,23,29,0.3);';
   const mark = document.createElement('span');
   mark.style.color = ok ? '#69db7c' : '#ff8787';
   mark.textContent = ok ? '✓' : '✕';
@@ -114,9 +115,11 @@ document.addEventListener('submit', (e) => {
 });
 
 // A bfcache restore (back button) would otherwise revive the page with the
-// button still spinning.
+// button still spinning, or the mobile nav drawer still open over it.
 window.addEventListener('pageshow', (e) => {
-  if (e.persisted) document.querySelectorAll('[data-busy-prev]').forEach((btn) => done(btn));
+  if (!e.persisted) return;
+  document.querySelectorAll('[data-busy-prev]').forEach((btn) => done(btn));
+  setNav(false);
 });
 
 /**
@@ -163,6 +166,90 @@ export function closeDialog(sel) {
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-confirm]');
   if (btn && !window.confirm(btn.dataset.confirm)) e.preventDefault();
+});
+
+/* ------------------------------------------------- admin sidebar on mobile
+ * Below the CSS breakpoint (MOBILE_MAX in views/layout.tsx) the admin sidebar
+ * is an overlay drawer. All of its look lives in ADMIN_BASE_CSS; the only state
+ * is [data-nav-open] on the shell, so desktop needs no JS at all.
+ *
+ * Deliberately NOT `data-toggle`: that mechanism closes on any outside click,
+ * which would fight the scrim, and it flips [hidden] — the sidebar has to stay
+ * in the layout on desktop.
+ */
+const navShell = () => document.querySelector('[data-nav-shell]');
+
+function setNav(open) {
+  const shell = navShell();
+  if (!shell) return;
+  if (open) shell.setAttribute('data-nav-open', '');
+  else shell.removeAttribute('data-nav-open');
+  const btn = document.querySelector('[data-nav-toggle]');
+  if (btn) {
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  }
+  // The drawer scrolls internally; the page behind it must not.
+  document.body.style.overflow = open ? 'hidden' : '';
+  if (open) {
+    const first = shell.querySelector('[data-nav-panel] a[href],[data-nav-panel] button');
+    // The drawer is visibility:hidden until the attribute above takes effect,
+    // and focus() on a hidden element is a no-op — read a layout property first
+    // to flush the style change.
+    if (first) {
+      void shell.offsetWidth;
+      first.focus();
+    }
+  }
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-nav-toggle]')) {
+    e.preventDefault();
+    const shell = navShell();
+    setNav(!(shell && shell.hasAttribute('data-nav-open')));
+    return;
+  }
+  if (e.target.closest('[data-nav-close]')) {
+    e.preventDefault();
+    setNav(false);
+    return;
+  }
+  // Tapping a nav link navigates away, but close anyway: an in-page anchor or
+  // a same-URL link would otherwise leave the drawer sitting open.
+  if (e.target.closest('[data-nav-panel] a')) setNav(false);
+});
+
+document.addEventListener('keydown', (e) => {
+  const shell = document.querySelector('[data-nav-shell][data-nav-open]');
+  if (!shell) return;
+  if (e.key === 'Escape') {
+    setNav(false);
+    const btn = document.querySelector('[data-nav-toggle]');
+    if (btn) btn.focus();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  // Keep Tab inside the open drawer — the page behind it is inert to the eye,
+  // so it should be inert to the keyboard too.
+  const stops = shell.querySelectorAll('[data-nav-panel] a[href],[data-nav-panel] button:not([disabled])');
+  if (!stops.length) return;
+  const first = stops[0];
+  const last = stops[stops.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
+// Growing past the breakpoint puts the sidebar back in the grid — drop the
+// open state so the body scroll lock goes with it.
+// Mirror of MOBILE_MAX (768) in views/layout.tsx — keep the two in step.
+window.matchMedia('(min-width:769px)').addEventListener('change', (e) => {
+  if (e.matches) setNav(false);
 });
 
 function closeAllToggles(except) {
