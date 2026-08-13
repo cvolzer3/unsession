@@ -12,11 +12,14 @@ const MONO = "'IBM Plex Mono',monospace";
 const ROW = 'display:flex;flex-wrap:wrap;gap:6px;align-items:center;position:relative;';
 const CHIP =
   'display:inline-flex;align-items:center;gap:6px;background:#eef0fb;color:#4c5fd5;border:1px solid #d5daf4;padding:4px 6px 4px 9px;font-size:12.5px;font-weight:600;line-height:1.4;';
-const CHIP_X = 'background:none;border:none;padding:0 2px;color:#4c5fd5;font-size:13px;line-height:1;cursor:pointer;';
+/* Padding for the × and the add button lives in the page's `.fb-chipx` /
+   `.fb-chipadd` rules (admin-forms.tsx), which grow them to a finger-sized
+   box below 768px — an inline padding here could not be overridden. */
+const CHIP_X = 'display:inline-flex;align-items:center;background:none;border:none;color:#4c5fd5;font-size:13px;line-height:1;cursor:pointer;';
 const ADD =
-  'display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px dashed #c9cbd3;color:#686b74;padding:4px 10px;font-size:12.5px;line-height:1.4;cursor:pointer;';
+  'display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px dashed #c9cbd3;color:#686b74;font-size:12.5px;line-height:1.4;cursor:pointer;';
 const MENU =
-  'position:absolute;top:calc(100% + 4px);left:0;z-index:60;width:280px;max-width:100%;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);';
+  'position:absolute;top:calc(100% + 4px);left:0;z-index:60;width:min(280px,100%);background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);';
 const FILTER =
   'width:100%;box-sizing:border-box;padding:8px 10px;border:none;border-bottom:1px solid #e2e3e8;font-size:12.5px;outline:none;';
 const ITEM =
@@ -125,6 +128,7 @@ function mount(host) {
         text.textContent = `@${nameOf(o)}`;
         const x = document.createElement('button');
         x.type = 'button';
+        x.className = 'fb-chipx';
         x.style.cssText = CHIP_X;
         x.textContent = '×';
         x.setAttribute('aria-label', `Stop notifying ${nameOf(o)}`);
@@ -139,6 +143,7 @@ function mount(host) {
     if (opts.some((o) => !o.selected)) {
       const add = document.createElement('button');
       add.type = 'button';
+      add.className = 'fb-chipadd';
       add.style.cssText = ADD;
       add.textContent = opts.some((o) => o.selected) ? '＋ Add' : '＋ Add teammate';
       add.addEventListener('click', (e) => {

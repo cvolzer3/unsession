@@ -18,6 +18,7 @@
  * public/js/embed-new.js (create page: live preview + create).
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, Event } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
@@ -32,18 +33,78 @@ import type { EmbedConfig, EmbedRow } from './public-embed';
 const app = new Hono<Ctx>();
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`;
-const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;overflow-y:auto;padding:30px 0;';
-const DIALOG_CARD =
-  'background:#fff;width:600px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);max-height:calc(100vh - 60px);display:flex;flex-direction:column;';
-const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
-const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:16px;overflow-y:auto;';
+const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;overflow-y:auto;';
+const DIALOG_CARD = 'background:#fff;box-shadow:0 16px 48px rgba(22,23,29,0.25);display:flex;flex-direction:column;';
+const DIALOG_HEAD = 'border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
+const DIALOG_BODY = 'display:grid;gap:16px;overflow-y:auto;';
 const CODE_BLOCK = `display:block;font-family:${MONO};font-size:11px;line-height:1.55;background:#f4f5f9;border:1px solid #e2e3e8;padding:10px 12px;color:#16171d;word-break:break-all;white-space:pre-wrap;margin-bottom:6px;`;
-const COPY_LINK = 'background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;';
+/** Padding lives in `.eb-act` so a phone can grow the hit area around it. */
+const COPY_LINK = 'background:none;border:none;font-size:12px;color:#4c5fd5;cursor:pointer;';
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #d8d9de;font-size:13px;';
 const FIELD_LABEL = 'font-size:12px;font-weight:600;color:#16171d;margin-bottom:5px;';
 /** The preview's resolved URL — long, so it wraps rather than pushing the column wide. */
 const URL_LINE = `font-family:${MONO};font-size:10.5px;color:#686b74;word-break:break-all;line-height:1.5;margin-bottom:8px;`;
 const PRE_BLOCK = `margin:0;font-family:${MONO};font-size:11px;line-height:1.55;background:#f4f5f9;color:#16171d;padding:10px 12px;max-height:640px;overflow:auto;white-space:pre-wrap;word-break:break-all;`;
+
+/**
+ * Mobile layer. Inline `style="…"` beats every stylesheet rule, so anything
+ * that has to change below 768px was lifted out of the inline attributes into
+ * the classes here — desktop values byte-for-byte as they were.
+ *
+ * The saved-embeds table becomes a stacked card on a phone: its row carries
+ * three actions (Get code / Preview / Delete) that a sideways scroll box would
+ * push off screen.
+ *
+ * Do NOT import MOBILE_MAX for the query — a route module's top-level template
+ * literal evaluates before layout.tsx finishes and the worker crashes at
+ * startup. The literal 768 is the convention (SPECS/M-mobile.md).
+ */
+const PAGE_CSS = `
+  .eb-page{padding:24px 28px;}
+  .eb-head{display:grid;grid-template-columns:1fr 170px 170px 90px 210px;gap:12px;padding:10px 16px;}
+  .eb-row{grid-template-columns:1fr 170px 170px 90px 210px;gap:12px;padding:12px 16px;}
+  .eb-actions{justify-content:flex-end;gap:12px;}
+  .eb-act{padding:0;}
+  .eb-dlgwrap{padding:30px 0;}
+  .eb-dlg{width:600px;max-width:calc(100vw - 48px);max-height:calc(100vh - 60px);}
+  .eb-dlghead{padding:16px 20px;}
+  .eb-dlgbody{padding:18px 20px;}
+  .eb-newgrid{grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:24px;}
+  .eb-form{padding:18px 20px;}
+  .eb-preview{position:sticky;top:24px;}
+  .eb-frame{height:640px;}
+  .eb-formfoot{gap:10px;padding-top:14px;}
+  .eb-btn{padding:8px 16px;}
+  .eb-cancel{padding:8px 14px;}
+
+  @media (max-width:768px){
+    .eb-page{padding:16px 14px;}
+    .eb-head{display:none;}
+    .eb-row{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;padding:14px;
+      grid-template-areas:"name toggle" "widget widget" "format format" "actions actions";}
+    .eb-row>*:nth-child(1){grid-area:name;overflow-wrap:anywhere;}
+    .eb-row>*:nth-child(2){grid-area:widget;}
+    .eb-row>*:nth-child(3){grid-area:format;}
+    .eb-row>*:nth-child(4){grid-area:toggle;}
+    .eb-row>*:nth-child(5){grid-area:actions;}
+    .eb-actions{justify-content:flex-start;gap:20px;}
+    .eb-act{padding:9px 0;}
+    .eb-dlgwrap{padding:12px 0;}
+    .eb-dlg{width:100%;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);}
+    .eb-dlghead{padding:12px 15px;}
+    .eb-dlgbody{padding:14px 15px;}
+    .eb-newgrid{grid-template-columns:minmax(0,1fr);gap:16px;}
+    .eb-form{padding:14px 15px;}
+    /* Stacked, the preview sits after the controls — sticky would pin it to
+       the top of the page and hide the form. */
+    .eb-preview{position:static;top:auto;}
+    .eb-frame{height:min(640px,65vh);min-height:320px;}
+    .eb-appearance{flex-wrap:wrap;}
+    .eb-formfoot{flex-wrap:wrap;gap:8px;}
+    .eb-btn{padding:11px 16px;flex:1 1 auto;}
+    .eb-cancel{padding:11px 16px;flex:1 1 auto;text-align:center;}
+  }
+`;
 
 export const WIDGET_TYPES = [
   { key: 'sessions', label: 'List of Sessions', blurb: 'Searchable, filterable session catalog with expandable descriptions.' },
@@ -154,19 +215,20 @@ const CodeDialog: FC<{ row: EmbedRow; event: Event; origin: string }> = ({ row, 
       ? `<iframe src="${url}" style="width:100%;height:800px;border:0;" title="${event.name} ${widgetLabel(row.widget)}"></iframe>`
       : null;
   return (
-    <div id={`code-${row.id}`} data-dialog hidden style={DIALOG_WRAP}>
-      <div style={DIALOG_CARD}>
-        <div style={DIALOG_HEAD}>
-          <div style="font-size:15px;font-weight:700;">{`Get code — ${row.name}`}</div>
+    <div id={`code-${row.id}`} data-dialog hidden class="eb-dlgwrap" style={DIALOG_WRAP}>
+      <div class="eb-dlg" style={DIALOG_CARD}>
+        <div class="eb-dlghead" style={DIALOG_HEAD}>
+          <div style="font-size:15px;font-weight:700;min-width:0;overflow-wrap:anywhere;">{`Get code — ${row.name}`}</div>
           <button
             type="button"
             data-dialog-close={`#code-${row.id}`}
-            style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+            aria-label="Close"
+            style="margin-left:auto;flex:none;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:8px;margin-right:-8px;line-height:1;"
           >
             ×
           </button>
         </div>
-        <div style={DIALOG_BODY}>
+        <div class="eb-dlgbody" style={DIALOG_BODY}>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;">
             {row.format === 'styled'
               ? 'Paste this one-line snippet into any page on your site. The widget pulls live data and updates whenever you re-publish.'
@@ -177,7 +239,7 @@ const CodeDialog: FC<{ row: EmbedRow; event: Event; origin: string }> = ({ row, 
           <div>
             <div style={`${MICRO}margin-bottom:6px;`}>{formatLabel(row.format).toUpperCase()}</div>
             <code style={CODE_BLOCK}>{snippet}</code>
-            <button type="button" data-copy={snippet} data-copy-msg="Embed snippet copied" style={COPY_LINK}>
+            <button type="button" data-copy={snippet} data-copy-msg="Embed snippet copied" class="eb-act" style={COPY_LINK}>
               Copy snippet
             </button>
           </div>
@@ -185,7 +247,7 @@ const CodeDialog: FC<{ row: EmbedRow; event: Event; origin: string }> = ({ row, 
             <div>
               <div style={`${MICRO}margin-bottom:6px;`}>PREFER AN IFRAME?</div>
               <code style={CODE_BLOCK}>{iframeAlt}</code>
-              <button type="button" data-copy={iframeAlt} data-copy-msg="Iframe snippet copied" style={COPY_LINK}>
+              <button type="button" data-copy={iframeAlt} data-copy-msg="Iframe snippet copied" class="eb-act" style={COPY_LINK}>
                 Copy snippet
               </button>
             </div>
@@ -220,7 +282,8 @@ app.get('/app/embeds', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/embeds.js']}>
-      <div style="padding:24px 28px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="eb-page">
         <div style="font-size:13px;color:#686b74;line-height:1.6;">
           <div>Embed your agenda, sessions, or speakers on your website or in your app.</div>
           <div>Each embed reads from the published program and updates automatically when you publish changes.</div>
@@ -233,7 +296,7 @@ app.get('/app/embeds', async (c) => {
         ) : null}
 
         <div style="margin-top:20px;background:#fff;border:1px solid #e2e3e8;">
-          <div style={`display:grid;grid-template-columns:1fr 170px 170px 90px 210px;gap:12px;padding:10px 16px;border-bottom:1px solid #e2e3e8;${MICRO}`}>
+          <div class="eb-head" style={`border-bottom:1px solid #e2e3e8;${MICRO}`}>
             <span>NAME</span>
             <span>WIDGET</span>
             <span>FORMAT</span>
@@ -243,7 +306,8 @@ app.get('/app/embeds', async (c) => {
           {rows.map((r) => (
             <div
               data-embed-row={r.id}
-              style="display:grid;grid-template-columns:1fr 170px 170px 90px 210px;gap:12px;padding:12px 16px;border-bottom:1px solid #eceded;align-items:center;"
+              class="eb-row"
+              style="display:grid;border-bottom:1px solid #eceded;align-items:center;"
             >
               <span style="font-size:13.5px;font-weight:600;">{r.name}</span>
               <span style="font-size:12.5px;color:#686b74;">{widgetLabel(r.widget)}</span>
@@ -259,18 +323,25 @@ app.get('/app/embeds', async (c) => {
                   {r.enabled ? 'ON' : 'OFF'}
                 </span>
               </label>
-              <span style="display:flex;gap:12px;align-items:center;justify-content:flex-end;">
-                <button type="button" data-dialog-open={`#code-${r.id}`} style={COPY_LINK}>
+              <span class="eb-actions" style="display:flex;align-items:center;">
+                <button type="button" data-dialog-open={`#code-${r.id}`} class="eb-act" style={COPY_LINK}>
                   Get code
                 </button>
-                <a href={embedUrl(origin, event, r.widget, r.format, r.id)} target="_blank" rel="noreferrer" style="font-size:12px;">
+                <a
+                  href={embedUrl(origin, event, r.widget, r.format, r.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="eb-act"
+                  style="font-size:12px;display:inline-block;"
+                >
                   Preview ↗
                 </a>
                 <button
                   type="button"
                   data-embed-delete={r.id}
                   data-confirm="Delete this embed? Any pages already using its snippet will stop rendering."
-                  style="background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;"
+                  class="eb-act"
+                  style="background:none;border:none;font-size:12px;color:#c92a2a;cursor:pointer;"
                 >
                   Delete
                 </button>
@@ -329,10 +400,11 @@ app.get('/app/embeds/new', async (c) => {
 
   return c.html(
     <AdminLayout {...props} scripts={['/js/embed-new.js']}>
-      <div style="padding:24px 28px;">
-        <div style="display:grid;grid-template-columns:minmax(0,480px) minmax(0,1fr);gap:24px;align-items:start;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="eb-page">
+        <div class="eb-newgrid" style="display:grid;align-items:start;">
           {/* ------------------------------------------------------- form */}
-          <div style="background:#fff;border:1px solid #e2e3e8;padding:18px 20px;display:grid;gap:16px;">
+          <div class="eb-form" style="background:#fff;border:1px solid #e2e3e8;display:grid;gap:16px;">
             <div>
               <div style={FIELD_LABEL}>Name</div>
               <input id="ne-name" placeholder="e.g. Website sessions list" style={INPUT} />
@@ -410,23 +482,25 @@ app.get('/app/embeds/new', async (c) => {
                 <input id="ne-transparent" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;" />
                 Transparent background (sits on your site’s own background)
               </label>
-              <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;">
-                <input id="ne-accent-on" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;" />
+              <label class="eb-appearance" style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;">
+                <input id="ne-accent-on" type="checkbox" style="width:15px;height:15px;accent-color:#4c5fd5;flex:none;" />
                 Override accent colour
-                <input id="ne-accent" type="color" value="#4c5fd5" style="width:44px;height:26px;border:1px solid #d8d9de;padding:0;background:none;cursor:pointer;" />
+                <input id="ne-accent" type="color" value="#4c5fd5" style="width:44px;height:26px;border:1px solid #d8d9de;padding:0;background:none;cursor:pointer;flex:none;" />
               </label>
             </div>
-            <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eceded;padding-top:14px;">
+            <div class="eb-formfoot" style="display:flex;justify-content:flex-end;border-top:1px solid #eceded;">
               <a
                 href="/app/embeds"
-                style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#16171d;text-decoration:none;"
+                class="eb-cancel"
+                style="background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#16171d;text-decoration:none;"
               >
                 Cancel
               </a>
               <button
                 type="button"
                 id="ne-create"
-                style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+                class="eb-btn"
+                style="background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
               >
                 Create embed
               </button>
@@ -434,15 +508,16 @@ app.get('/app/embeds/new', async (c) => {
           </div>
 
           {/* ---------------------------------------------------- preview */}
-          <div id="ne-preview" data-preview-urls={JSON.stringify(urls)} style="position:sticky;top:24px;">
+          <div id="ne-preview" class="eb-preview" data-preview-urls={JSON.stringify(urls)}>
             <div style={`${MICRO}margin-bottom:6px;`}>LIVE PREVIEW</div>
             <div id="ne-url" style={URL_LINE}>{`${origin}${defaultUrl}`}</div>
             <div style="background:#fff;border:1px solid #e2e3e8;">
               <iframe
                 id="ne-frame"
+                class="eb-frame"
                 src={defaultUrl}
                 title="Embed preview"
-                style="width:100%;height:640px;border:0;display:block;background:#fff;"
+                style="width:100%;border:0;display:block;background:#fff;"
               ></iframe>
               <pre id="ne-data" hidden style={PRE_BLOCK}></pre>
             </div>

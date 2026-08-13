@@ -78,6 +78,68 @@ const PAGE_CSS = `
      tracks the window instead of feeling cramped on wide screens. */
   .us-drawer{position:absolute;top:0;right:0;bottom:0;width:clamp(360px,calc(210px + 25vw),720px);max-width:100vw;background:#fff;border-left:1px solid #e2e3e8;box-shadow:-12px 0 32px rgba(22,23,29,0.10);display:flex;flex-direction:column;animation:drawerin 0.18s ease;}
   #fb-save-btn:disabled{background:#f1f3f5;border-color:#e2e3e8;color:#b4b6be;cursor:default;}
+
+  /* ------------------------------------------------------------- mobile
+     Every property below used to sit in an inline style attribute, which no
+     media query can beat — the desktop values here are byte-for-byte what they
+     were. Breakpoint written as the literal 768: importing MOBILE_MAX into a
+     route module's top-level template crashes the worker (SPECS/M-mobile.md). */
+  .fb-bar{padding:16px 28px 14px;gap:16px;}
+  .fb-pickrow{display:flex;align-items:center;gap:10px;}
+  .fb-pickbtn{max-width:540px;}
+  .fb-picker{width:360px;}
+  .fb-saverow{margin-left:auto;}
+  .fb-grid{grid-template-columns:1fr 360px;}
+  .fb-canvas{padding:14px 28px 22px;max-width:760px;}
+  .fb-aside{border-left:1px solid #e2e3e8;background:#fff;}
+  .fb-rail{position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:20px;box-sizing:border-box;}
+  .fb-setup{padding:36px 28px;}
+  .fb-2col{grid-template-columns:1fr 1fr;}
+  .fb-indent{margin-left:48px;}
+  .fb-prev{padding:20px 28px 24px;}
+  .fb-prevbar{font-size:10.5px;letter-spacing:0.1em;}
+  .fb-frame{height:calc(100vh - 260px);min-height:520px;}
+  /* Touch reorder controls — the desktop path is HTML5 drag-and-drop, which
+     never fires on a phone. Hidden here, shown in the mobile block. */
+  .fb-move{display:none;}
+  .fb-cond{white-space:nowrap;flex:none;}
+  .fb-chipx{padding:0 2px;}
+  .fb-chipadd{padding:4px 10px;}
+
+  @media (max-width:768px){
+    .fb-bar{padding:12px 14px 10px;gap:10px;flex-wrap:wrap;}
+    .fb-pickrow{flex-wrap:wrap;}
+    .fb-pickbtn{max-width:100%;min-width:0;}
+    .fb-pickname{min-width:0;}
+    .fb-picker{width:min(360px,calc(100vw - 28px));}
+    .fb-saverow{margin-left:0;flex:1 0 100%;justify-content:flex-end;}
+    /* The field rail stops being a column and becomes the block under the
+       palette; form-builder.js scrolls it into view when a field is picked. */
+    .fb-grid{grid-template-columns:minmax(0,1fr);}
+    .fb-canvas{padding:12px 14px 18px;max-width:100%;}
+    .fb-aside{border-left:none;border-top:1px solid #e2e3e8;}
+    .fb-rail{position:static;max-height:none;padding:16px 14px;}
+    .fb-setup{padding:20px 14px;}
+    .fb-2col{grid-template-columns:minmax(0,1fr);}
+    .fb-indent{margin-left:0;}
+    .fb-prev{padding:12px 14px 18px;}
+    .fb-prevbar{letter-spacing:0.04em;font-size:10px;}
+    .fb-frame{height:calc(100vh - 210px);min-height:360px;}
+    /* A condition chip is longer than the narrowed label column, so it wraps
+       instead of running past the card's edge. */
+    .fb-cond{white-space:normal;overflow-wrap:anywhere;flex:1 1 auto;}
+    /* No drag, so no drop target and no grab handle — ↑/↓ move the field. */
+    .fb-endzone{display:none;}
+    .fb-move{display:flex;gap:2px;flex:none;align-self:center;}
+    .fb-move button{width:32px;height:38px;padding:0;background:#fff;border:1px solid #e2e3e8;
+      color:#686b74;font-size:13px;line-height:1;cursor:pointer;}
+    .fb-move button:disabled{color:#d8d9de;cursor:default;}
+    .fb-palrow{gap:8px;}
+    .fb-palrow button{padding:9px 13px;}
+    /* Notify chips: the bare × is a real action, so it gets a finger-sized box. */
+    .fb-chipx{padding:6px 8px;min-width:32px;min-height:32px;justify-content:center;}
+    .fb-chipadd{padding:9px 12px;}
+  }
 `;
 
 function statusBadge(status: string): string {
@@ -114,16 +176,21 @@ function tagLine(f: FormField): string {
     .join(' · ');
 }
 
-function FieldRow({ f, fields }: { f: FormField; fields: FormField[] }) {
+function FieldRow({ f, fields, i, n }: { f: FormField; fields: FormField[]; i: number; n: number }) {
   const chip = condChip(f, fields);
   const tags = tagLine(f);
   return (
     <div
       data-field={f.id}
+      data-idx={i}
       draggable={true}
       style="display:flex;align-items:flex-start;gap:10px;background:#fff;border:1px solid #e2e3e8;padding:11px 14px;margin-bottom:6px;cursor:grab;"
     >
-      <span style="color:#c9cbd3;cursor:grab;font-size:14px;line-height:1;flex:none;">⠿</span>
+      {/* The grab handle is desktop-only: HTML5 drag never fires on touch, so a
+          phone gets the ↑/↓ pair at the end of the row instead. */}
+      <span class="us-desktop-only" style="color:#c9cbd3;cursor:grab;font-size:14px;line-height:1;flex:none;">
+        ⠿
+      </span>
       <span style={TYPE_CHIP}>{f.type}</span>
       <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -137,7 +204,8 @@ function FieldRow({ f, fields }: { f: FormField; fields: FormField[] }) {
           ) : null}
           {chip ? (
             <span
-              style={`font-family:${MONO};font-size:10px;color:#b08800;background:#fdf5dc;padding:2px 6px;line-height:1.4;flex:none;white-space:nowrap;`}
+              class="fb-cond"
+              style={`font-family:${MONO};font-size:10px;color:#b08800;background:#fdf5dc;padding:2px 6px;line-height:1.4;`}
             >
               {chip}
             </span>
@@ -145,6 +213,14 @@ function FieldRow({ f, fields }: { f: FormField; fields: FormField[] }) {
         </div>
         {tags ? <span style="font-size:11px;color:#9a9da6;line-height:1.3;">{tags}</span> : null}
       </div>
+      <span class="fb-move">
+        <button type="button" data-move="up" aria-label="Move up" disabled={i === 0}>
+          ↑
+        </button>
+        <button type="button" data-move="down" aria-label="Move down" disabled={i === n - 1}>
+          ↓
+        </button>
+      </span>
     </div>
   );
 }
@@ -192,7 +268,7 @@ function SettingsFields({
         <div style={FIELD_LABEL}>Internal name</div>
         <input name="name" value={form.name} style={inputStyle} />
       </div>
-      <div style={`display:grid;grid-template-columns:1fr 1fr;gap:${gap};`}>
+      <div class="fb-2col" style={`display:grid;gap:${gap};`}>
         <div>
           <div style={FIELD_LABEL}>Public name</div>
           <input name="externalName" value={settings.externalName} placeholder={form.name} style={inputStyle} />
@@ -215,7 +291,7 @@ function SettingsFields({
           ))}
         </div>
       </div>
-      <div style={`display:grid;grid-template-columns:1fr 1fr;gap:${gap};`}>
+      <div class="fb-2col" style={`display:grid;gap:${gap};`}>
         <div>
           <div style={FIELD_LABEL}>Opens</div>
           <input type="date" name="opens_at" value={form.opens_at?.slice(0, 10) ?? ''} style={inputStyle} />
@@ -240,14 +316,15 @@ function SettingsFields({
         ))}
         <div
           data-late-link
+          class="fb-indent"
           hidden={!on.lateLink}
-          style={`font-family:${MONO};font-size:11px;color:#4c5fd5;background:#eef0fb;padding:8px 10px;margin-left:48px;word-break:break-all;`}
+          style={`font-family:${MONO};font-size:11px;color:#4c5fd5;background:#eef0fb;padding:8px 10px;word-break:break-all;`}
         >
           {lateLink}
         </div>
         {/* The welcome COPY is edited in the builder's PAGE 1 card only — a second
             textarea here used to clobber builder edits on drawer save. */}
-        <div data-welcome-block hidden={!on.welcome} style="margin-left:48px;">
+        <div data-welcome-block class="fb-indent" hidden={!on.welcome}>
           <div style="font-size:11.5px;color:#686b74;background:#f8f8fa;border:1px solid #eceded;padding:8px 10px;">
             Write the welcome copy in Build, on the PAGE 1 · WELCOME card
           </div>
@@ -480,16 +557,20 @@ app.get('/app/forms', async (c) => {
       )}
 
       {/* ------------------------------------------------------ picker bar */}
-      <div style="background:#fff;border-bottom:1px solid #e2e3e8;padding:16px 28px 14px;display:flex;align-items:flex-start;gap:16px;">
+      <div class="fb-bar" style="background:#fff;border-bottom:1px solid #e2e3e8;display:flex;align-items:flex-start;">
         <div style="position:relative;min-width:0;">
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div class="fb-pickrow">
             <button
               type="button"
               data-toggle="#form-picker"
               title="Switch form"
-              style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;cursor:pointer;max-width:540px;"
+              class="fb-pickbtn"
+              style="display:flex;align-items:center;gap:10px;background:#f4f5f9;border:1px solid #d8d9de;padding:0 12px;height:38px;box-sizing:border-box;cursor:pointer;"
             >
-              <span style="font-weight:700;font-size:16px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <span
+                class="fb-pickname"
+                style="font-weight:700;font-size:16px;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+              >
                 {active.name}
               </span>
               <span style={statusBadge(active.status)}>{active.status.toUpperCase()}</span>
@@ -504,7 +585,7 @@ app.get('/app/forms', async (c) => {
             </button>
           </div>
           <div style="display:flex;align-items:center;gap:12px;margin-top:7px;flex-wrap:wrap;">
-            <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+            <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;overflow-wrap:anywhere;`}>
               {`${settings.audience} · ${linkLabel(active, origin, event.slug)} · ${closesLabel(active)}`}
             </span>
             <button
@@ -526,8 +607,9 @@ app.get('/app/forms', async (c) => {
           </div>
           <div
             id="form-picker"
+            class="fb-picker"
             hidden
-            style="position:absolute;top:calc(100% + 8px);left:0;width:360px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
+            style="position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;"
           >
             {forms.map((f) => {
               const n = counts.get(f.id) ?? 0;
@@ -554,7 +636,7 @@ app.get('/app/forms', async (c) => {
         {mode === 'build' ? (
           // Save sits flush right on the picker row, level with the 38px
           // picker/new-form buttons rather than the metadata line below them.
-          <div style="margin-left:auto;display:flex;align-items:center;gap:12px;height:38px;">
+          <div class="fb-saverow" style="display:flex;align-items:center;gap:12px;height:38px;">
             <span id="fb-save-state" style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#c9cbd3;`}></span>
             <button
               type="button"
@@ -570,7 +652,7 @@ app.get('/app/forms', async (c) => {
 
       {/* ------------------------------------------------------ setup step */}
       {mode === 'setup' ? (
-        <div style="padding:36px 28px;display:flex;justify-content:center;">
+        <div class="fb-setup" style="display:flex;justify-content:center;">
           <div style="width:100%;max-width:640px;">
             <div style={`${MICRO}margin-bottom:6px;`}>NEW FORM · STEP 1 OF 2 · SETTINGS</div>
             <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:26px;">Set up your form</div>
@@ -608,11 +690,11 @@ app.get('/app/forms', async (c) => {
 
       {/* ------------------------------------------------------ build mode */}
       {mode === 'build' ? (
-        <div style="display:grid;grid-template-columns:1fr 360px;gap:0;flex:1 0 auto;">
+        <div class="fb-grid" style="display:grid;gap:0;flex:1 0 auto;">
           {/* padding-top 14px, not 28px: the picker bar above already ends with
               14px of its own bottom padding, so the air above the welcome card
               sums to the 28px left gutter. */}
-          <div style="padding:14px 28px 22px;max-width:760px;">
+          <div class="fb-canvas">
             {/* PAGE 1 · WELCOME — always rendered, just hidden while the page is
                 off, so the settings toggle can flip it live (form-builder.js). */}
             <div
@@ -639,20 +721,24 @@ app.get('/app/forms', async (c) => {
               </div>
               <div style="padding:14px;background:#fafafb;">
                 <div id="fb-list">
-                  {schema.fields.map((f) => (
-                    <FieldRow f={f} fields={schema.fields} />
+                  {schema.fields.map((f, i) => (
+                    <FieldRow f={f} fields={schema.fields} i={i} n={schema.fields.length} />
                   ))}
                 </div>
                 <div
                   id="fb-endzone"
+                  class="fb-endzone"
                   style={`border:1px dashed #d8d9de;background:transparent;color:#b4b6be;padding:12px;text-align:center;font-family:${MONO};font-size:11px;letter-spacing:0.04em;`}
                 >
                   drop zone
                 </div>
               </div>
             </div>
-            <div style={`${MICRO}margin:20px 0 8px;`}>FIELD TYPES · DRAG ONTO THE FORM, OR CLICK TO ADD AT THE END</div>
-            <div id="fb-palette" style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style={`${MICRO}margin:20px 0 8px;`}>
+              <span class="us-desktop-only">FIELD TYPES · DRAG ONTO THE FORM, OR CLICK TO ADD AT THE END</span>
+              <span class="us-mobile-only">FIELD TYPES · TAP TO ADD AT THE END</span>
+            </div>
+            <div id="fb-palette" class="fb-palrow" style="display:flex;gap:6px;flex-wrap:wrap;">
               {PALETTE.map((p) => (
                 <button
                   type="button"
@@ -669,13 +755,11 @@ app.get('/app/forms', async (c) => {
               fills the viewport (see the `main` rule in PAGE_CSS), so the rail
               reaches the bottom of the page at any scroll position. The inner
               #fb-rail is what sticks, and what form-builder.js re-renders. */}
-          <aside style="border-left:1px solid #e2e3e8;background:#fff;">
-            <div
-              id="fb-rail"
-              style="position:sticky;top:0;max-height:100vh;overflow-y:auto;padding:20px;box-sizing:border-box;"
-            >
+          <aside class="fb-aside">
+            <div id="fb-rail" class="fb-rail">
               <div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">
-                Select a field to configure it, or drag a field type onto the form.
+                <span class="us-desktop-only">Select a field to configure it, or drag a field type onto the form.</span>
+                <span class="us-mobile-only">Select a field to configure it, or tap a field type to add one.</span>
               </div>
             </div>
           </aside>
@@ -689,20 +773,22 @@ app.get('/app/forms', async (c) => {
           shows the saved version, so unsaved builder edits appear here only
           after "Save changes". */}
       {mode === 'preview' ? (
-        <div style="flex:1;min-height:0;padding:20px 28px 24px;display:grid;grid-template-columns:minmax(0,760px);justify-content:center;align-content:start;gap:0;">
+        <div class="fb-prev" style="flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,760px);justify-content:center;align-content:start;gap:0;">
           <div
-            style={`display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #e2e3e8;border-bottom:none;padding:9px 14px;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;`}
+            class="fb-prevbar"
+            style={`display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e2e3e8;border-bottom:none;padding:9px 14px;font-family:${MONO};color:#9a9da6;`}
           >
             <span style="width:7px;height:7px;background:#4c5fd5;flex:none;"></span>
-            LIVE PUBLIC PAGE · NOTHING YOU TYPE HERE IS SAVED
-            <span style="margin-left:auto;letter-spacing:0.04em;text-transform:none;font-size:11px;">
+            <span style="min-width:0;overflow-wrap:anywhere;">LIVE PUBLIC PAGE · NOTHING YOU TYPE HERE IS SAVED</span>
+            <span style="margin-left:auto;letter-spacing:0.04em;text-transform:none;font-size:11px;min-width:0;overflow-wrap:anywhere;">
               {`${event.slug}/${active.slug}`}
             </span>
           </div>
           <iframe
             src={`/${event.slug}/${active.slug}?preview=1`}
             title="Public form preview"
-            style="width:100%;height:calc(100vh - 260px);min-height:520px;border:1px solid #e2e3e8;background:#fff;display:block;"
+            class="fb-frame"
+            style="width:100%;border:1px solid #e2e3e8;background:#fff;display:block;"
           ></iframe>
         </div>
       ) : null}

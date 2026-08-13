@@ -231,17 +231,24 @@ function boot(D) {
   function rowHtml(f, i) {
     const chip = condLabelFor(f);
     const tags = tagLine(f);
+    // Mirrors <FieldRow> in src/routes/admin-forms.tsx — keep the two in step.
+    // The ⠿ handle is desktop-only and the ↑/↓ pair is phone-only (.fb-move):
+    // HTML5 drag-and-drop never fires on touch.
     return `<div data-field="${esc(f.id)}" data-idx="${i}" draggable="true" style="${rowStyle(f, i)}">
-      <span style="color:#c9cbd3;cursor:grab;font-size:14px;line-height:1;flex:none;">⠿</span>
+      <span class="us-desktop-only" style="color:#c9cbd3;cursor:grab;font-size:14px;line-height:1;flex:none;">⠿</span>
       <span style="${TYPE_CHIP}">${esc(f.type)}</span>
       <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span style="font-size:13.5px;font-weight:600;line-height:1.3;">${esc(f.label)}</span>
           ${f.core ? `<span style="font-family:${MONO};font-size:9px;letter-spacing:0.08em;color:#4c5fd5;border:1px solid #d5daf4;padding:2px 5px;line-height:1.4;flex:none;white-space:nowrap;">CORE</span>` : ''}
-          ${chip ? `<span style="font-family:${MONO};font-size:10px;color:#b08800;background:#fdf5dc;padding:2px 6px;line-height:1.4;flex:none;white-space:nowrap;">${esc(chip)}</span>` : ''}
+          ${chip ? `<span class="fb-cond" style="font-family:${MONO};font-size:10px;color:#b08800;background:#fdf5dc;padding:2px 6px;line-height:1.4;">${esc(chip)}</span>` : ''}
         </div>
         ${tags ? `<span style="font-size:11px;color:#9a9da6;line-height:1.3;">${esc(tags)}</span>` : ''}
       </div>
+      <span class="fb-move">
+        <button type="button" data-move="up" aria-label="Move up"${i === 0 ? ' disabled' : ''}>↑</button>
+        <button type="button" data-move="down" aria-label="Move down"${i === fields.length - 1 ? ' disabled' : ''}>↓</button>
+      </span>
     </div>`;
   }
 
@@ -363,12 +370,51 @@ function boot(D) {
     const row = e.target.closest('[data-field]');
     insertAt(overIdx == null ? (row ? Number(row.getAttribute('data-idx')) : fields.length) : overIdx);
   });
+  /**
+   * Touch reorder. HTML5 drag-and-drop is desktop-only, so a phone moves a
+   * field one slot at a time with the row's ↑/↓ buttons (.fb-move, hidden
+   * above 768px). Same sanitize rule as a drop: a condition whose source ends
+   * up later in the form is cleared.
+   */
+  function moveField(id, delta) {
+    const from = fields.findIndex((f) => f.id === id);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= fields.length) return;
+    const next = [...fields];
+    const [fld] = next.splice(from, 1);
+    next.splice(to, 0, fld);
+    const { out, dropped } = sanitize(next);
+    fields = out;
+    overIdx = null;
+    renderList();
+    renderRail();
+    markDirty();
+    flash(
+      dropped
+        ? `“${fld.label}” moved — a condition was cleared (source now later in the form)`
+        : `“${fld.label}” moved`
+    );
+  }
+
+  /** Stacked on a phone the rail sits under the palette — bring it into view. */
+  const isPhone = () => window.matchMedia('(max-width:768px)').matches;
+  function revealRail() {
+    if (isPhone() && rail) rail.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   list.addEventListener('click', (e) => {
+    const mv = e.target.closest('[data-move]');
+    if (mv) {
+      const owner = mv.closest('[data-field]');
+      if (owner) moveField(owner.getAttribute('data-field'), mv.getAttribute('data-move') === 'up' ? -1 : 1);
+      return;
+    }
     const row = e.target.closest('[data-field]');
     if (!row) return;
     selId = row.getAttribute('data-field');
     paint();
     renderRail();
+    revealRail();
   });
 
   if (endzone) {
@@ -409,6 +455,7 @@ function boot(D) {
       renderRail();
       markDirty();
       flash(`“${nf.label}” added`);
+      revealRail();
     });
   }
 
@@ -638,7 +685,9 @@ function boot(D) {
     const f = fields.find((x) => x.id === selId);
     if (!f) {
       rail.innerHTML =
-        '<div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">Select a field to configure it, or drag a field type onto the form.</div>';
+        '<div style="color:#9a9da6;font-size:13px;padding-top:30px;text-align:center;">' +
+        '<span class="us-desktop-only">Select a field to configure it, or drag a field type onto the form.</span>' +
+        '<span class="us-mobile-only">Select a field to configure it, or tap a field type to add one.</span></div>';
       return;
     }
     rail.innerHTML = railHtml(f);

@@ -13,6 +13,9 @@
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
+// NOTE: never import MOBILE_MAX here — a route module's top-level template
+// literal evaluates before the layout module finishes, and the worker crashes.
+// The breakpoint is written as the literal 768 in PAGE_CSS (SPECS/M-mobile.md).
 import { AdminLayout, MONO, StatusChip } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, now, one, run } from '../lib/db';
@@ -40,6 +43,88 @@ const app = new Hono<Ctx>();
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const INPUT = 'width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;';
+
+/**
+ * Everything that has to change below 768px lives here, because an inline
+ * `style="…"` outranks every stylesheet rule. Desktop values are byte-for-byte
+ * what used to be inline; only the mobile block differs.
+ *
+ * The wide rows (templates, outbox, log) reflow to stacked cards rather than
+ * scrolling sideways: each row's action — Edit, Undo, the status chip — has to
+ * stay on screen, which a scroll box would hide.
+ */
+const PAGE_CSS = `
+  .em-page{padding:24px 28px;max-width:1160px;}
+  .em-tab{padding:0 2px 10px;}
+  .em-filter{padding:4px 10px;}
+  .em-tplrow{grid-template-columns:220px minmax(0,1fr) 80px auto;gap:14px;padding:11px 14px;}
+  .em-tplsent{text-align:right;}
+  .em-obsend{margin-left:auto;}
+  .em-obrow{grid-template-columns:68px minmax(0,1fr) 220px 170px 80px;gap:12px;padding:11px 14px;}
+  .em-remrow{grid-template-columns:minmax(0,1fr) 170px 80px;gap:12px;padding:8px 14px 8px 28px;}
+  /* display lives here, not inline, so the mobile block can hide the header. */
+  .em-loghead{display:grid;grid-template-columns:150px minmax(180px,1fr) 140px minmax(220px,2fr) 110px;min-width:860px;}
+  .em-logrow{grid-template-columns:150px minmax(180px,1fr) 140px minmax(220px,2fr) 110px;min-width:860px;padding:9px 14px;}
+  .em-ed-page{padding:24px 28px;max-width:860px;}
+  .em-ed-band{padding:14px 24px;}
+  .em-ed-body{padding:18px 24px;}
+  .em-ed-namerow{grid-template-columns:220px 1fr;gap:14px;}
+  .em-ed-foot{padding:14px 24px;gap:8px;}
+  .em-ed-test{margin-right:auto;}
+  .em-ed-btn{padding:9px 16px;}
+  .em-ed-frame{height:460px;}
+
+  @media (max-width:768px){
+    .em-page{padding:16px 14px;}
+    /* Three tabs still fit 320px; they only need a finger-sized strip. */
+    .em-tab{padding:8px 2px 12px;}
+    .em-filter{padding:8px 12px;}
+    .em-tplrow{grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:12px 14px;
+      grid-template-areas:"name edit" "subj edit" "sent edit";}
+    .em-tplrow>*:nth-child(1){grid-area:name;}
+    .em-tplrow>*:nth-child(2){grid-area:subj;}
+    .em-tplrow>*:nth-child(3){grid-area:sent;}
+    .em-tplrow>*:nth-child(4){grid-area:edit;align-self:center;padding:11px 16px;}
+    .em-tplsent{text-align:left;}
+    .em-obsend{margin-left:0;flex:1 0 100%;}
+    .em-obsend button{width:100%;}
+    .em-obrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px 14px;
+      grid-template-areas:"seq undo" "title title" "who who" "meta meta";}
+    .em-obrow>*:nth-child(1){grid-area:seq;}
+    .em-obrow>*:nth-child(2){grid-area:title;}
+    .em-obrow>*:nth-child(3){grid-area:who;}
+    .em-obrow>*:nth-child(4){grid-area:meta;}
+    .em-obrow>*:nth-child(5){grid-area:undo;}
+    .em-remrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 14px 10px 16px;
+      grid-template-areas:"task undo" "meta meta";}
+    .em-remrow>*:nth-child(1){grid-area:task;}
+    .em-remrow>*:nth-child(2){grid-area:meta;}
+    .em-remrow>*:nth-child(3){grid-area:undo;}
+    .em-undo{padding:10px 14px;}
+    /* The log is five columns of metadata around one link. Stacked, the
+       subject and the status chip both stay on screen. */
+    .em-loghead{display:none;}
+    .em-logrow{grid-template-columns:minmax(0,1fr) auto;min-width:0;gap:3px 10px;padding:11px 14px;
+      grid-template-areas:"subj status" "to to" "time tpl";}
+    .em-logrow>*:nth-child(1){grid-area:time;}
+    .em-logrow>*:nth-child(2){grid-area:to;}
+    .em-logrow>*:nth-child(3){grid-area:tpl;justify-self:end;}
+    .em-logrow>*:nth-child(4){grid-area:subj;white-space:normal;padding-right:0;}
+    .em-logrow>*:nth-child(5){grid-area:status;justify-self:end;}
+    .em-ed-page{padding:16px 14px;}
+    .em-ed-band{padding:12px 15px;}
+    .em-ed-body{padding:14px 15px;}
+    /* The fixed 220px name column squeezed SUBJECT to ~50px and pushed the
+       row past a 320px viewport — the pair stacks instead. */
+    .em-ed-namerow{grid-template-columns:minmax(0,1fr);gap:12px;}
+    .em-ed-foot{padding:12px 15px;flex-wrap:wrap;gap:8px;}
+    .em-ed-test{margin-right:0;flex:1 0 100%;}
+    .em-ed-btn{padding:11px 16px;}
+    .em-ed-frame{height:60vh;min-height:320px;}
+    /* Message bodies carry pasted URLs and tokens. */
+    .em-msgbody{overflow-wrap:anywhere;}
+  }
+`;
 
 const VARIABLE_HINT: Record<string, string> = {
   accept: '{{speaker_name}}, {{session_title}}, {{event_name}}, {{event_dates}}, {{event_venue}}, {{confirmation_link}}',
@@ -106,9 +191,10 @@ function tabStyle(active: boolean): string {
   }`;
 }
 
-/** Underlined page-level tab, matching `/app/evaluation`. */
+/** Underlined page-level tab, matching `/app/evaluation`. Padding lives in
+ *  `.em-tab` so the strip can grow to a finger-sized target on a phone. */
 const subTab = (on: boolean) =>
-  `padding:0 2px 10px;border-bottom:2px solid ${on ? '#4c5fd5' : 'transparent'};margin-bottom:-1px;font-size:13.5px;font-weight:600;color:${
+  `border-bottom:2px solid ${on ? '#4c5fd5' : 'transparent'};margin-bottom:-1px;font-size:13.5px;font-weight:600;color:${
     on ? '#16171d' : '#686b74'
   };text-decoration:none;display:inline-block;`;
 
@@ -194,13 +280,13 @@ app.get('/app/emails', async (c) => {
 
   const tabs = (
     <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
-      <a href="/app/emails" style={subTab(tab === 'templates')}>
+      <a href="/app/emails" class="em-tab" style={subTab(tab === 'templates')}>
         Templates
       </a>
-      <a href="/app/emails?tab=log" style={subTab(tab === 'log')}>
+      <a href="/app/emails?tab=log" class="em-tab" style={subTab(tab === 'log')}>
         Log
       </a>
-      <a href="/app/emails?tab=outbox" style={subTab(tab === 'outbox')}>
+      <a href="/app/emails?tab=outbox" class="em-tab" style={subTab(tab === 'outbox')}>
         {queuedCount > 0 ? `Outbox · ${queuedCount}` : 'Outbox'}
       </a>
     </div>
@@ -208,7 +294,8 @@ app.get('/app/emails', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:1160px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="em-page">
         {tabs}
         {tab === 'templates' ? (
           <div style="display:grid;gap:18px;max-width:860px;">
@@ -219,7 +306,8 @@ app.get('/app/emails', async (c) => {
                   {s.rows.map((t) => (
                     <a
                       href={`/app/emails/t/${t.id}`}
-                      style="display:grid;grid-template-columns:220px minmax(0,1fr) 80px auto;gap:14px;align-items:center;padding:11px 14px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                      class="em-tplrow"
+                      style="display:grid;align-items:center;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
                     >
                       <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {t.name}
@@ -227,7 +315,7 @@ app.get('/app/emails', async (c) => {
                       <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {t.subject}
                       </div>
-                      <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;text-align:right;`}>
+                      <div class="em-tplsent" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
                         {`${sentByKey.get(t.key) ?? 0} sent`}
                       </div>
                       {/* the whole row is the link — this is the affordance, not a nested control */}
@@ -263,7 +351,7 @@ app.get('/app/emails', async (c) => {
                 ) : null}
               </div>
               {queuedCount > 0 ? (
-                <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
+                <form method="post" action="/app/emails/outbox/send" class="em-obsend">
                   <button
                     type="submit"
                     data-busy="Sending…"
@@ -285,7 +373,7 @@ app.get('/app/emails', async (c) => {
                   <div style={`${MICRO}margin-bottom:6px;`}>{`${k.label.toUpperCase()} · ${rows.length}`}</div>
                   <div style="background:#fff;border:1px solid #e2e3e8;">
                     {rows.map((r) => (
-                      <div style="display:grid;grid-template-columns:68px minmax(0,1fr) 220px 170px 80px;gap:12px;padding:11px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                      <div class="em-obrow" style="display:grid;border-bottom:1px solid #f2f3f5;align-items:center;">
                         <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`SUB-${r.seq}`}</div>
                         <div style="min-width:0;">
                           <a
@@ -315,6 +403,7 @@ app.get('/app/emails', async (c) => {
                           <input type="hidden" name="id" value={r.id} />
                           <button
                             type="submit"
+                            class="em-undo"
                             style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
                           >
                             Undo
@@ -358,7 +447,7 @@ app.get('/app/emails', async (c) => {
                         </span>
                       </div>
                       {g.map((r) => (
-                        <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px 80px;gap:12px;padding:8px 14px 8px 28px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                        <div class="em-remrow" style="display:grid;border-bottom:1px solid #f2f3f5;align-items:center;">
                           <div style="min-width:0;">
                             <a
                               href={`/app/speakers?open=${r.speaker_profile_id}`}
@@ -378,6 +467,7 @@ app.get('/app/emails', async (c) => {
                             <input type="hidden" name="kind" value="reminder" />
                             <button
                               type="submit"
+                              class="em-undo"
                               style="padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#c92a2a;cursor:pointer;"
                             >
                               Undo
@@ -408,7 +498,8 @@ app.get('/app/emails', async (c) => {
               {['all', 'sent', 'queued', 'simulated', 'failed'].map((s) => (
                 <a
                   href={`/app/emails?tab=log${s === 'all' ? '' : `&status=${s}`}`}
-                  style={`padding:4px 10px;border:1px solid ${
+                  class="em-filter"
+                  style={`border:1px solid ${
                     statusFilter === s ? '#4c5fd5' : '#e2e3e8'
                   };background:${statusFilter === s ? '#eef0fb' : '#fff'};color:${
                     statusFilter === s ? '#4c5fd5' : '#686b74'
@@ -419,8 +510,11 @@ app.get('/app/emails', async (c) => {
               ))}
             </div>
 
-            <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
-              <div style={`display:grid;grid-template-columns:150px minmax(180px,1fr) 140px minmax(220px,2fr) 110px;padding:9px 14px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;min-width:860px;`}>
+            <div class="us-scroll-x" style="background:#fff;border:1px solid #e2e3e8;">
+              <div
+                class="em-loghead"
+                style={`padding:9px 14px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;`}
+              >
                 <div>TIME</div>
                 <div>TO</div>
                 <div>TEMPLATE</div>
@@ -431,7 +525,8 @@ app.get('/app/emails', async (c) => {
                 logRows.map((r) => (
                   <a
                     href={`/app/emails?tab=log${statusFilter === 'all' ? '' : `&status=${statusFilter}`}&id=${r.id}`}
-                    style="display:grid;grid-template-columns:150px minmax(180px,1fr) 140px minmax(220px,2fr) 110px;padding:9px 14px;border-bottom:1px solid #f2f3f5;align-items:center;min-width:860px;color:#16171d;text-decoration:none;"
+                    class="em-logrow"
+                    style="display:grid;border-bottom:1px solid #f2f3f5;align-items:center;color:#16171d;text-decoration:none;"
                   >
                     <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
                       {r.created_at.replace('T', ' ').replace('Z', '')}
@@ -470,9 +565,13 @@ app.get('/app/emails', async (c) => {
                 </div>
                 <div style="font-size:14px;font-weight:700;margin-bottom:10px;">{detail.subject}</div>
                 {looksRich(detail.body) ? (
-                  <div style="font-size:13px;line-height:1.6;color:#33343c;max-width:620px;">{raw(sanitizeRich(detail.body))}</div>
+                  <div class="em-msgbody" style="font-size:13px;line-height:1.6;color:#33343c;max-width:620px;">
+                    {raw(sanitizeRich(detail.body))}
+                  </div>
                 ) : (
-                  <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#33343c;">{detail.body}</div>
+                  <div class="em-msgbody" style="font-size:13px;line-height:1.6;white-space:pre-wrap;color:#33343c;">
+                    {detail.body}
+                  </div>
                 )}
                 {detail.error ? (
                   <div style="margin-top:10px;border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:8px 10px;font-size:12.5px;">
@@ -582,17 +681,18 @@ app.get('/app/emails/t/:id', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:860px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="em-ed-page">
         <a href="/app/emails" style="font-size:12.5px;">
           ← Back to templates
         </a>
         <div style="background:#fff;border:1px solid #e2e3e8;margin-top:12px;">
           <form method="post" action={`/app/emails/t/${t.id}`}>
-            <div style="padding:14px 24px;border-bottom:1px solid #e2e3e8;">
+            <div class="em-ed-band" style="border-bottom:1px solid #e2e3e8;">
               <div style={MICRO}>{`TEMPLATE · ${t.key.toUpperCase()} · ${sent?.n ?? 0} SENT · EDITABLE PER SEND`}</div>
             </div>
-            <div style="padding:18px 24px;display:grid;gap:14px;">
-              <div style="display:grid;grid-template-columns:220px 1fr;gap:14px;">
+            <div class="em-ed-body" style="display:grid;gap:14px;">
+              <div class="em-ed-namerow" style="display:grid;">
                 <div>
                   <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
                   <input name="name" value={t.name} required style={`${INPUT}font-weight:600;`} />
@@ -603,7 +703,7 @@ app.get('/app/emails/t/:id', async (c) => {
                 </div>
               </div>
               <div>
-                <div style="display:flex;align-items:center;margin-bottom:6px;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
                   <div style={MICRO}>BODY</div>
                   <div style="margin-left:auto;display:flex;border:1px solid #e2e3e8;">
                     <button type="button" id="tpl-editor-btn" style={tabStyle(true)}>
@@ -628,29 +728,34 @@ app.get('/app/emails/t/:id', async (c) => {
                   <div id="tpl-preview-subject" style="font-size:14px;font-weight:700;margin-bottom:10px;"></div>
                   <iframe
                     id="tpl-preview-frame"
+                    class="em-ed-frame"
                     title="Email preview"
-                    style="width:100%;height:460px;border:1px solid #e2e3e8;background:#f4f4f6;"
+                    style="width:100%;border:1px solid #e2e3e8;background:#f4f4f6;"
                   ></iframe>
                 </div>
-                <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:6px;`}>
+                <div
+                  style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:6px;overflow-wrap:anywhere;`}
+                >
                   {`Variables resolve per recipient: ${VARIABLE_HINT[t.key] ?? '{{event_name}}'}`}
                 </div>
               </div>
             </div>
-            <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+            <div class="em-ed-foot" style="border-top:1px solid #e2e3e8;display:flex;justify-content:flex-end;">
               <button
                 type="submit"
                 name="action"
                 value="test"
                 data-busy="Sending…"
-                style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;margin-right:auto;"
+                class="em-ed-test em-ed-btn"
+                style="background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
               >
                 Send test to me
               </button>
               <button
                 type="submit"
                 formaction={`/app/emails/t/${t.id}/duplicate`}
-                style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
+                class="em-ed-btn"
+                style="background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
               >
                 Duplicate
               </button>
@@ -659,7 +764,8 @@ app.get('/app/emails/t/:id', async (c) => {
                 name="action"
                 value="save"
                 data-busy="Saving…"
-                style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+                class="em-ed-btn"
+                style="background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
               >
                 Save template
               </button>
