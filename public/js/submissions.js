@@ -60,10 +60,11 @@ function boot(DATA) {
   function paintChips() {
     chips.forEach((chip) => {
       const on = chip.dataset.chip === state.status;
-      chip.style.border = `1px solid ${on ? '#4c5fd5' : '#e2e3e8'}`;
-      chip.style.background = on ? '#eef0fb' : '#fff';
-      chip.style.color = on ? '#4c5fd5' : '#33343c';
-      chip.style.fontWeight = on ? '600' : '400';
+      const c = (DATA.statuses || {})[chip.dataset.chip] || { fg: '#4c5fd5', bg: '#eef0fb' };
+      chip.style.border = `1px solid ${c.fg}`;
+      chip.style.background = c.bg;
+      chip.style.color = c.fg;
+      chip.style.boxShadow = on ? `0 0 0 1px ${c.fg}` : 'none';
     });
   }
 
@@ -423,7 +424,7 @@ function boot(DATA) {
           ? `<div style="display:grid;gap:6px;">${planRows}</div>`
           : `<div style="font-size:12.5px;color:${allPlans.length ? '#c92a2a' : '#9a9da6'};margin-bottom:8px;">${
               allPlans.length
-                ? 'No plan covers this submission — nobody will review it.'
+                ? 'No plan covers this submission; nobody will review it.'
                 : `No evaluation plans yet.${DATA.canWrite ? ' <a href="/app/evaluation" style="color:#4c5fd5;">Create one →</a>' : ''}`
             }</div>`
       }
@@ -492,7 +493,7 @@ function boot(DATA) {
         assignBtn.disabled = true;
         try {
           await api('/app/api/submissions/assign-plan', { submissionId: s.id, planId: sel.value });
-          toast(`Assigned to “${name}” — its reviewers will see it in their queues`);
+          toast(`Assigned to “${name}”`);
           await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
@@ -530,7 +531,7 @@ function boot(DATA) {
             planId: sel.dataset.assignReviewer,
             userId: sel.value,
           });
-          toast(`Assigned to ${res.reviewerName} — it's now in their queue`);
+          toast(`Assigned to ${res.reviewerName}`);
           await refreshDrawer(s.id);
         } catch (err) {
           toast(err.message, false);
@@ -798,7 +799,7 @@ function boot(DATA) {
     if (btn)
       btn.addEventListener('click', () => {
         location.href = exportUrl(null, format);
-        toast('Export ready — check your downloads');
+        toast('Export ready');
       });
   });
   [['#bulk-export-csv', 'csv'], ['#bulk-export-xlsx', 'xlsx']].forEach(([sel, format]) => {

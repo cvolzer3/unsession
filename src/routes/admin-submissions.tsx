@@ -34,7 +34,7 @@ const app = new Hono<Ctx>();
 /* ------------------------------------------------------------------ styles */
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
-const GRID = 'grid-template-columns:36px 76px minmax(220px,1fr) 150px 130px 96px 110px 104px;';
+const GRID = 'grid-template-columns:36px 76px minmax(220px,1fr) 150px 130px 96px 140px 104px;';
 const ROW_STYLE = `display:grid;${GRID}min-width:1000px;padding:10px 12px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;background:#fff;`;
 const HEAD_BTN = 'padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const SELECT = 'padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;';
@@ -104,13 +104,13 @@ function statusMeta(status: string) {
 
 function badgeStyle(status: string): string {
   const c = statusMeta(status);
-  return `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:${c.fg};background:${c.bg};font-family:${MONO};`;
+  return `display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap;color:${c.fg};background:${c.bg};font-family:${MONO};`;
 }
 
 /** Dashed chip for a decision sitting in the outbox — pending, not sent. */
 const QUEUED_COLOR: Record<DecisionKind, string> = { accept: '#2b8a3e', decline: '#c92a2a', waitlist: '#9c36b5' };
 function queuedChipStyle(kind: DecisionKind): string {
-  return `display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;color:${QUEUED_COLOR[kind]};border:1px dashed ${QUEUED_COLOR[kind]};font-family:${MONO};letter-spacing:0.04em;`;
+  return `display:inline-block;padding:2px 7px;font-size:10px;font-weight:600;white-space:nowrap;color:${QUEUED_COLOR[kind]};border:1px dashed ${QUEUED_COLOR[kind]};font-family:${MONO};letter-spacing:0.04em;`;
 }
 
 /** Status-column label for a row whose display bucket is `outbox`. */
@@ -568,11 +568,13 @@ app.get('/app/submissions', async (c) => {
   };
 
   const chips = [
-    { key: 'all', label: 'All', count: total },
+    { key: 'all', label: 'All', count: total, fg: '#4c5fd5', bg: '#eef0fb' },
     ...CHIP_ORDER.filter((s) => (board.counts[s] ?? 0) > 0).map((s) => ({
       key: s,
       label: statusMeta(s).label,
       count: board.counts[s] ?? 0,
+      fg: statusMeta(s).fg,
+      bg: statusMeta(s).bg,
     })),
   ];
 
@@ -608,8 +610,7 @@ app.get('/app/submissions', async (c) => {
               Your call for speakers is live. Nothing has landed yet.
             </div>
             <div style="font-size:14px;color:#686b74;max-width:440px;margin:0 auto 20px;">
-              Share your form link — submissions appear here in real time, with filters, bulk actions, and evaluation
-              baked in.
+              Share your form link. Submissions appear here as they arrive.
             </div>
             {formUrl ? (
               <div style="display:inline-flex;align-items:center;gap:0;border:1px solid #e2e3e8;background:#f8f8fa;">
@@ -722,14 +723,14 @@ app.get('/app/submissions', async (c) => {
                   <button
                     type="button"
                     data-chip={chip.key}
-                    style={`display:inline-flex;gap:6px;align-items:center;padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid ${
-                      on ? '#4c5fd5' : '#e2e3e8'
-                    };background:${on ? '#eef0fb' : '#fff'};color:${on ? '#4c5fd5' : '#33343c'};font-weight:${
-                      on ? '600' : '400'
+                    style={`display:inline-flex;gap:6px;align-items:center;padding:3px 8px;font-size:11px;font-weight:600;font-family:${MONO};cursor:pointer;color:${chip.fg};background:${chip.bg};border:1px solid ${chip.fg};box-shadow:${
+                      on ? `0 0 0 1px ${chip.fg}` : 'none'
                     };`}
                   >
                     {chip.label}
-                    <span style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>{chip.count}</span>
+                    <span data-count style={`font-size:10.5px;color:${chip.fg};opacity:0.75;`}>
+                      {chip.count}
+                    </span>
                   </button>
                 );
               })}
@@ -939,7 +940,7 @@ app.get('/app/submissions', async (c) => {
               style="display:flex;gap:8px;align-items:center;font-size:13px;color:#33343c;"
             >
               <input type="checkbox" id="decision-request-confirmation" checked style="accent-color:#4c5fd5;" />
-              Request confirmation — speakers must confirm before they appear on the public agenda
+              Request confirmation before publishing to the agenda
             </label>
           </div>
           <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
@@ -1489,7 +1490,7 @@ app.post('/app/api/submissions/assign-reviewer', requireOrgRole('admin'), async 
   if (!input.remove) {
     if (!reviewer) return c.json({ ok: false, error: 'That person is not a reviewer on this plan' }, 400);
     if (reviewer.role === 'chair')
-      return c.json({ ok: false, error: 'Chairs see everything but do not score — pick a member' }, 400);
+      return c.json({ ok: false, error: 'Chairs don’t score. Pick a member.' }, 400);
   }
   const reviewerName = reviewer ? reviewer.name || reviewer.email.split('@')[0] : 'a former reviewer';
 
