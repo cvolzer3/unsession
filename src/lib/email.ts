@@ -14,6 +14,8 @@ import { looksRich, richToText, sanitizeRich } from './rich';
 
 export type SendEmailInput = {
   eventId?: string | null;
+  /** Org-level sends (Speaker CRM outreach) carry this and leave eventId null. */
+  orgId?: string | null;
   to: string;
   toName?: string | null;
   templateKey?: string | null;
@@ -131,15 +133,20 @@ export async function sendEmail(env: Bindings, input: SendEmailInput): Promise<S
         input.eventId
       );
       if (sb?.is_sandbox) enabled = false;
+    } else if (input.orgId) {
+      // Org-level send: no event to look the org up through, so check it directly.
+      const sb = await one<{ is_sandbox: number }>(env.DB, `SELECT is_sandbox FROM orgs WHERE id = ?`, input.orgId);
+      if (sb?.is_sandbox) enabled = false;
     }
   }
 
   await run(
     env.DB,
-    `INSERT INTO emails (id, event_id, to_email, to_name, template_key, subject, body, status, error, subject_type, subject_id, created_at, sent_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL)`,
+    `INSERT INTO emails (id, event_id, org_id, to_email, to_name, template_key, subject, body, status, error, subject_type, subject_id, created_at, sent_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, NULL)`,
     id,
     input.eventId ?? null,
+    input.orgId ?? null,
     input.to,
     input.toName ?? null,
     input.templateKey ?? null,
