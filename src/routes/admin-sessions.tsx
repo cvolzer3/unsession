@@ -263,6 +263,13 @@ app.get('/app/sessions', async (c) => {
           </div>
           <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
             <a
+              href="/app/embeds"
+              title="Embed the sessions list on your website"
+              style="display:inline-block;padding:7px 12px;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
+            >
+              Embed
+            </a>
+            <a
               href="/app/api/sessions/export.csv"
               style="display:inline-block;padding:7px 12px;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
             >
