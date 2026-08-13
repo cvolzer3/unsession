@@ -78,9 +78,22 @@ function ensureStyles() {
     '.us-rich-area h3{font-size:14.5px;margin:12px 0 6px;}' +
     '.us-rich-area ul,.us-rich-area ol{margin:0 0 10px;padding-left:22px;}' +
     '.us-rich-area li{margin:0 0 4px;}' +
+    // The toolbar's box lives here, not on the element, so the phone rules
+    // below can loosen it — an inline style outranks a media query.
+    '.us-rich-bar{display:flex;gap:2px;flex-wrap:wrap;padding:4px;border-bottom:1px solid #e2e3e8;background:#fafafb;}' +
     '.us-rich-btn{background:none;border:1px solid transparent;padding:3px 8px;font-size:12px;color:#33343c;cursor:pointer;line-height:1.4;}' +
     '.us-rich-btn:hover{border-color:#e2e3e8;}' +
-    '.us-rich-btn[data-on]{background:#eef0fb;color:#4c5fd5;}';
+    '.us-rich-btn[data-on]{background:#eef0fb;color:#4c5fd5;}' +
+    // Phone (SPECS/M-mobile.md). The editing surface is a contenteditable
+    // div, so the shell's 16px input rule does not reach it — set it here or
+    // iOS Safari zooms the page the moment the speaker taps into the box.
+    // Every toolbar button becomes a ~40px target and the bar wraps to two
+    // rows rather than hiding buttons.
+    '@media (max-width:768px){' +
+    '.us-rich-area{font-size:16px;padding:12px;min-height:150px;max-height:50vh;}' +
+    '.us-rich-bar{gap:4px;padding:6px;}' +
+    '.us-rich-btn{padding:9px 11px;font-size:13px;border-color:#e2e3e8;}' +
+    '}';
   document.head.appendChild(st);
 }
 
@@ -96,7 +109,7 @@ export function mountRichEditor(container, opts) {
   container.style.cssText += 'border:1px solid #e2e3e8;background:#fff;';
 
   const bar = document.createElement('div');
-  bar.style.cssText = 'display:flex;gap:2px;flex-wrap:wrap;padding:4px;border-bottom:1px solid #e2e3e8;background:#fafafb;';
+  bar.className = 'us-rich-bar';
   const area = document.createElement('div');
   area.contentEditable = 'true';
   area.className = 'us-rich-area';

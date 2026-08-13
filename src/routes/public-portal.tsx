@@ -9,9 +9,10 @@
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, Event, Theme, User } from '../types';
-import { PublicLayout, fmtDate } from '../views/layout';
+import { MOBILE_MAX, PublicLayout, fmtDate } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one, run, now, jsonParse } from '../lib/db';
 import { createSession, verifyPassword } from '../lib/auth';
@@ -33,10 +34,54 @@ const MONO = 'var(--font-mono)';
 const LABEL = `font-family:${MONO};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);`;
 const CARD = 'background:var(--card);border:1px solid var(--border);';
 const INPUT = 'width:100%;padding:9px 11px;border:1px solid var(--border-strong);font-size:13.5px;background:var(--card);color:var(--text);';
+/**
+ * The two button skins. Their padding lives in `.pt-btn-d` / `.pt-btn` below,
+ * not here, so the phone rules can grow the hit area — an inline style outranks
+ * every media query. Every element using these carries the matching class,
+ * except the few that set a padding of their own inline.
+ */
 const DARK_BTN =
-  'padding:8px 14px;background:var(--accent);color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;';
+  'background:var(--accent);color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block;';
 const SMALL_BTN =
-  'padding:6px 12px;background:var(--card);border:1px solid var(--border-strong);font-size:12px;color:var(--text-secondary);cursor:pointer;';
+  'background:var(--card);border:1px solid var(--border-strong);font-size:12px;color:var(--text-secondary);cursor:pointer;';
+
+/**
+ * Phone layout (SPECS/M-mobile.md). Desktop values are byte-for-byte what the
+ * inline styles used to be; only what has to change below 768px is here.
+ */
+const PORTAL_CSS =
+  '<style>' +
+  /* Paired fields. At 320px a column is ~119px, which truncates every value. */
+  '.pt-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}' +
+  '.pt-task{display:flex;gap:12px;align-items:center;padding:13px 18px;}' +
+  '.pt-taskact{display:flex;gap:6px;align-items:center;flex:none;}' +
+  '.pt-comment{display:flex;gap:6px;padding:8px 10px;margin:0;}' +
+  '.pt-cinput{flex:1;min-width:0;}' +
+  '.pt-btn{padding:6px 12px;}' +
+  '.pt-btn-d{padding:8px 14px;}' +
+  '.pt-wd{padding:0;}' +
+  /* A dialog is never wider than the screen and never taller than it: the
+     panel itself scrolls, so its buttons stay reachable. */
+  '.pt-dlgbox{width:min(var(--dlg-w),calc(100vw - 40px));max-height:calc(100vh - 40px);' +
+  'max-height:calc(100dvh - 40px);overflow-y:auto;}' +
+  `@media (max-width:${MOBILE_MAX}px){` +
+  '.pt-2col{grid-template-columns:1fr;}' +
+  /* The row actions drop under the task text, indented to line up with it, so
+     neither the task name nor the button is squeezed into a sliver. */
+  '.pt-task{flex-wrap:wrap;align-items:flex-start;}' +
+  '.pt-taskact{flex:1 0 100%;margin-left:34px;}' +
+  '.pt-comment{flex-wrap:wrap;}' +
+  '.pt-cinput{flex:1 1 100%;}' +
+  '.pt-comment button{margin-left:auto;}' +
+  '.pt-btn{padding:10px 13px;}' +
+  '.pt-btn-d{padding:11px 16px;}' +
+  '.pt-link{display:inline-block;padding:9px 0;margin:-9px 0;}' +
+  /* 40px hit area on the 22px checkbox, without resizing the box itself. */
+  '.pt-check{position:relative;}' +
+  '.pt-check::after{content:"";position:absolute;inset:-9px;}' +
+  '.pt-wd{padding:7px 4px;margin:0 -4px;}' +
+  '}' +
+  '</style>';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -329,12 +374,17 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
 
   return (
     <div style="border-bottom:1px solid var(--chip);">
-      <div style="display:flex;gap:12px;align-items:center;padding:13px 18px;">
+      <div class="pt-task">
         {task.type === 'checkbox' && !task.locked ? (
           <form method="post" action={`/${slug}/portal/task/toggle`} style="display:flex;margin:0;">
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="done" value={done ? '0' : '1'} />
-            <button type="submit" title={done ? 'Mark as not done' : 'Mark as done'} style={`${boxStyle}cursor:pointer;`}>
+            <button
+              type="submit"
+              class="pt-check"
+              title={done ? 'Mark as not done' : 'Mark as done'}
+              style={`${boxStyle}cursor:pointer;`}
+            >
               {done ? '✓' : ''}
             </button>
           </form>
@@ -374,16 +424,17 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
                   <div style="font-size:12.5px;line-height:1.5;color:var(--text);">{cm.body}</div>
                 </div>
               ))}
-              <form method="post" action={`/${slug}/portal/task/comment`} style="display:flex;gap:6px;padding:8px 10px;margin:0;">
+              <form method="post" action={`/${slug}/portal/task/comment`} class="pt-comment">
                 <input type="hidden" name="taskId" value={task.id} />
                 <input
                   name="body"
                   required
                   maxlength={2000}
+                  class="pt-cinput"
                   placeholder="Comment on this file — the organizers see it too…"
-                  style="flex:1;min-width:0;padding:6px 9px;border:1px solid var(--border-strong);font-size:12px;background:var(--card);color:var(--text);"
+                  style="padding:6px 9px;border:1px solid var(--border-strong);font-size:12px;background:var(--card);color:var(--text);"
                 />
-                <button type="submit" style={SMALL_BTN}>
+                <button type="submit" class="pt-btn" style={SMALL_BTN}>
                   Comment
                 </button>
               </form>
@@ -400,14 +451,20 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
             </div>
           ) : null}
         </div>
-        <div style="display:flex;gap:6px;align-items:center;flex:none;">
+        <div class="pt-taskact">
           {task.type === 'checkbox' && task.settings.link && canAct ? (
-            <a href={task.settings.link} target="_blank" rel="noreferrer" style={`${SMALL_BTN}text-decoration:none;`}>
+            <a
+              href={task.settings.link}
+              target="_blank"
+              rel="noreferrer"
+              class="pt-btn"
+              style={`${SMALL_BTN}text-decoration:none;`}
+            >
               Open link ↗
             </a>
           ) : null}
           {task.type === 'file' && task.settings.sampleFileId ? (
-            <a href={`/files/${task.settings.sampleFileId}`} style={`${SMALL_BTN}text-decoration:none;`}>
+            <a href={`/files/${task.settings.sampleFileId}`} class="pt-btn" style={`${SMALL_BTN}text-decoration:none;`}>
               Sample ↓
             </a>
           ) : null}
@@ -415,7 +472,7 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
             files ? (
               <form method="post" action={`/${slug}/portal/task/upload`} enctype="multipart/form-data" data-upload style="display:flex;gap:6px;align-items:center;">
                 <input type="hidden" name="taskId" value={task.id} />
-                <label class="file-btn" style={`${SMALL_BTN}display:inline-block;`}>
+                <label class="file-btn pt-btn" style={`${SMALL_BTN}display:inline-block;`}>
                   {task.files.length ? 'Replace' : 'Upload'}
                   <input
                     type="file"
@@ -426,24 +483,24 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
                   />
                 </label>
                 <noscript>
-                  <button type="submit" style={SMALL_BTN}>
+                  <button type="submit" class="pt-btn" style={SMALL_BTN}>
                     Send
                   </button>
                 </noscript>
               </form>
             ) : (
-              <span title="File storage not yet enabled" style={`${SMALL_BTN}color:var(--faint);cursor:not-allowed;`}>
+              <span title="File storage not yet enabled" class="pt-btn" style={`${SMALL_BTN}color:var(--faint);cursor:not-allowed;`}>
                 Upload
               </span>
             )
           ) : null}
           {task.type === 'form' && canAct ? (
-            <button type="button" data-dialog-open={`#form-${task.id}`} style={SMALL_BTN}>
+            <button type="button" data-dialog-open={`#form-${task.id}`} class="pt-btn" style={SMALL_BTN}>
               {task.response ? 'Edit answers' : 'Open form'}
             </button>
           ) : null}
           {task.type === 'profile' && !done ? (
-            <button type="button" data-jump-profile style={SMALL_BTN}>
+            <button type="button" data-jump-profile class="pt-btn" style={SMALL_BTN}>
               Jump to profile
             </button>
           ) : null}
@@ -458,7 +515,7 @@ const MiniFormDialog: FC<{ task: ChecklistTask; slug: string }> = ({ task, slug 
   const answers = task.response ?? {};
   return (
     <div id={`form-${task.id}`} data-dialog hidden style="position:fixed;inset:0;background:rgba(26,26,46,0.45);z-index:60;display:grid;place-items:center;padding:20px;">
-      <div style="background:var(--card);width:460px;max-width:100%;padding:24px;">
+      <div class="pt-dlgbox" style="--dlg-w:460px;background:var(--card);padding:24px;">
         <div style="font-size:17px;font-weight:700;margin-bottom:4px;">{task.name}</div>
         <div style={`${LABEL}margin-bottom:14px;`}>{task.form.name.toUpperCase()}</div>
         <form method="post" action={`/${slug}/portal/task/form`} style="display:grid;gap:12px;">
@@ -558,6 +615,7 @@ app.get('/:event/portal', async (c) => {
       kicker={`${user.email.toUpperCase()} · MAGIC LINK`}
       scripts={['/js/portal.js']}
     >
+      {raw(PORTAL_CSS)}
       <div style="max-width:680px;margin:0 auto;padding:26px 20px 70px;">
         <h1 style="margin:0 0 4px;font-size:24px;letter-spacing:-0.02em;">{`Hi ${first} 👋`}</h1>
         <p style="margin:0 0 22px;font-size:14px;color:var(--text-secondary);">
@@ -576,7 +634,7 @@ app.get('/:event/portal', async (c) => {
               <div style="font-size:13.5px;color:var(--text-secondary);margin-bottom:14px;">
                 {`Confirming puts “${s.title}” on the public agenda and unlocks your onboarding checklist.`}
               </div>
-              <div style="display:flex;gap:8px;">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <form method="post" action={`/${event.slug}/portal/confirm`}>
                   <input type="hidden" name="submissionId" value={s.id} />
                   <button type="submit" data-busy="Confirming…" style="padding:10px 18px;background:var(--primary);color:var(--on-primary);border:none;font-size:13.5px;font-weight:700;cursor:pointer;">
@@ -606,6 +664,7 @@ app.get('/:event/portal', async (c) => {
               </span>
               <a
                 href={`/${event.slug}/${s.formSlug}?edit=${s.id}`}
+                class="pt-link"
                 style="margin-left:auto;font-size:12.5px;font-weight:600;"
               >
                 View / edit submission →
@@ -632,7 +691,7 @@ app.get('/:event/portal', async (c) => {
                   <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:var(--muted);`}>YOUR SLOT</div>
                   <div style="font-size:14px;font-weight:600;margin-top:2px;">{s.slot}</div>
                 </div>
-                <a href={`/${event.slug}/portal/session/${s.session?.id}.ics`} style={`${DARK_BTN}margin-left:auto;`}>
+                <a href={`/${event.slug}/portal/session/${s.session?.id}.ics`} class="pt-btn-d" style={`${DARK_BTN}margin-left:auto;`}>
                   ＋ Add to calendar (.ics)
                 </a>
               </div>
@@ -657,7 +716,7 @@ app.get('/:event/portal', async (c) => {
             <div style="font-size:14px;font-weight:600;color:var(--text-secondary);">
               {d.title || 'Untitled draft'}
             </div>
-            <a href={`/${event.slug}/${d.formSlug}?draft=${d.id}`} style="margin-left:auto;font-size:12.5px;">
+            <a href={`/${event.slug}/${d.formSlug}?draft=${d.id}`} class="pt-link" style="margin-left:auto;font-size:12.5px;">
               Continue editing →
             </a>
           </div>
@@ -714,7 +773,7 @@ app.get('/:event/portal', async (c) => {
           enctype="multipart/form-data"
           style={`${CARD}padding:18px 20px;display:grid;gap:12px;margin-bottom:26px;`}
         >
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pt-2col">
             <div>
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Name</div>
               <input name="name" value={data.profile?.name ?? user.name ?? ''} style={INPUT} />
@@ -728,7 +787,7 @@ app.get('/:event/portal', async (c) => {
               />
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="pt-2col">
             <div>
               <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">Job title (optional)</div>
               <input name="job_title" maxlength={80} placeholder="CTO" value={data.profile?.job_title ?? ''} style={INPUT} />
@@ -752,7 +811,7 @@ app.get('/:event/portal', async (c) => {
             <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">
               Links (optional) — shown on your public speaker page
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="pt-2col">
               <div>
                 <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">LinkedIn</div>
                 <input name="link_linkedin" placeholder="linkedin.com/in/…" value={profileLinks.linkedin ?? ''} style={INPUT} />
@@ -807,7 +866,7 @@ app.get('/:event/portal', async (c) => {
               <span id="headshot-name" style={`font-family:${MONO};font-size:11px;color:var(--muted);`}></span>
             </div>
           </div>
-          <button type="submit" data-busy="Saving…" style={`${DARK_BTN}justify-self:start;`}>
+          <button type="submit" data-busy="Saving…" class="pt-btn-d" style={`${DARK_BTN}justify-self:start;`}>
             Save profile
           </button>
         </form>
@@ -815,7 +874,7 @@ app.get('/:event/portal', async (c) => {
         {live.length ? (
           <div style="border-top:1px solid var(--border);padding-top:16px;font-size:12.5px;color:var(--muted);">
             Can’t speak anymore?{' '}
-            <button type="button" data-dialog-open="#dlg-withdraw" style="background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;">
+            <button type="button" data-dialog-open="#dlg-withdraw" class="pt-wd" style="background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;text-decoration:underline;">
               Withdraw your session
             </button>
             . The organizers are notified and your slot is freed.
@@ -829,7 +888,7 @@ app.get('/:event/portal', async (c) => {
 
       {live.length ? (
         <div id="dlg-withdraw" data-dialog hidden style="position:fixed;inset:0;background:rgba(26,26,46,0.45);z-index:60;display:grid;place-items:center;padding:20px;">
-          <div style="background:var(--card);width:440px;max-width:100%;padding:24px;">
+          <div class="pt-dlgbox" style="--dlg-w:440px;background:var(--card);padding:24px;">
             <div style="font-size:17px;font-weight:700;margin-bottom:8px;">{`Withdraw “${live[0].title}”?`}</div>
             <div style="font-size:13.5px;color:var(--text-secondary);line-height:1.55;margin-bottom:14px;">
               {`This notifies the ${event.name} organizers, removes your session from the published agenda, and cancels your calendar invite.${

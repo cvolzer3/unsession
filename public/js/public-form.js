@@ -180,8 +180,8 @@ export function speakerCardHtml(i, s, opts) {
       ? 'SPEAKER 1 · THE ACTUAL SPEAKER'
       : `SPEAKER ${i + 1}${i === 0 && !opts.agentMode ? ' · YOU' : ''}`;
   const slot = opts.filesEnabled
-    ? `<label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
-         <input type="file" accept="image/*" style="display:none;" data-headshot-input>
+    ? `<label class="file-btn" style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
+         <input type="file" accept="image/*" class="vh-file" data-headshot-input>
          <span data-headshot-label><span style="font-family:var(--font-mono);">headshot</span> — tap to upload from camera roll · JPG/PNG · 10 MB</span>
        </label>`
     : `<div title="File storage not yet enabled" style="border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--faint);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:not-allowed;">
@@ -190,9 +190,9 @@ export function speakerCardHtml(i, s, opts) {
   return `<div data-speaker="${i}" style="border:1px solid var(--border-strong);background:var(--card);padding:16px;display:grid;gap:12px;">
     <div style="display:flex;align-items:center;">
       <div data-speaker-label style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.1em;color:var(--muted);">${escapeHtml(label)}</div>
-      ${i > 0 ? '<button type="button" data-remove-speaker style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:12.5px;cursor:pointer;">Remove</button>' : ''}
+      ${i > 0 ? '<button type="button" data-remove-speaker class="pf-remove" style="margin-left:auto;">Remove</button>' : ''}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="pf-2col">
       <div><input name="sp_name[]" value="${escapeHtml(s.name || '')}" placeholder="Full name *" style="${INPUT(false)}"></div>
       <div><input name="sp_email[]" type="email" inputmode="email" value="${escapeHtml(s.email || '')}" placeholder="Email *" style="${INPUT(false)}"></div>
     </div>
@@ -202,7 +202,7 @@ export function speakerCardHtml(i, s, opts) {
           `<option value="${value}"${(s.role || defaultRole(i)) === value ? ' selected' : ''}>Role — ${label}</option>`
       ).join('')}
     </select>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="pf-2col">
       <input name="sp_job_title[]" maxlength="80" value="${escapeHtml(s.jobTitle || '')}" placeholder="Job title — e.g. CTO" style="${INPUT(false)}">
       <input name="sp_company[]" maxlength="80" value="${escapeHtml(s.company || '')}" placeholder="Company — e.g. Acme" style="${INPUT(false)}">
     </div>

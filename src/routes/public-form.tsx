@@ -14,7 +14,7 @@ import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import { getCookie, setCookie } from 'hono/cookie';
 import type { Ctx, Event, Theme, User } from '../types';
-import { PublicLayout } from '../views/layout';
+import { MOBILE_MAX, PublicLayout } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, jsonParse, now, one, run } from '../lib/db';
 import { newId, nextSeq } from '../lib/ids';
@@ -73,6 +73,33 @@ const RICH_CSS =
   '.pf-rich a{color:var(--primary);}' +
   /* Lists inside the centered thank-you column read left-aligned. */
   '.pf-rich-center ul,.pf-rich-center ol{display:inline-block;text-align:left;}' +
+  '</style>';
+
+/**
+ * Phone layout (SPECS/M-mobile.md). Only the properties that have to change
+ * below 768px live here — everything else stays inline, the way the rest of
+ * this page is written. Desktop values are byte-for-byte what was inline.
+ */
+const FORM_CSS =
+  '<style>' +
+  /* Paired fields in a speaker card. At 320px each column is ~119px, which
+     truncates every placeholder ("Job title — e.g. C"), so they stack. */
+  '.pf-2col{display:grid;grid-template-columns:1fr 1fr;gap:10px;}' +
+  /* Error message + word counter share a row under a long answer. */
+  '.pf-meta{display:flex;margin-top:4px;}' +
+  '.pf-remove{background:none;border:none;color:var(--muted);font-size:12.5px;cursor:pointer;padding:0;}' +
+  '.pf-back{display:inline-block;margin-bottom:18px;padding:0;}' +
+  /* The header kicker is capped at 45vw on a phone, and its ellipsis cannot
+     reach a flex child — so the save indicator truncates its own text. */
+  '.pf-kick{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;}' +
+  '.pf-kick #pf-save{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+  `@media (max-width:${MOBILE_MAX}px){` +
+  '.pf-2col{grid-template-columns:1fr;}' +
+  '.pf-meta{flex-wrap:wrap;gap:6px;}' +
+  /* ~40px hit areas; negative margins keep the surrounding rhythm. */
+  '.pf-remove{padding:11px 0 11px 14px;margin:-11px 0;}' +
+  '.pf-back{padding:11px 0;margin:-11px 0 7px;}' +
+  '}' +
   '</style>';
 
 function inputStyle(bad?: boolean): string {
@@ -273,7 +300,7 @@ function FieldBlock({
                 >
                   {String(value ?? '')}
                 </textarea>
-                <div style="display:flex;margin-top:4px;">
+                <div class="pf-meta">
                   {err ? <div style="font-size:12px;color:#c92a2a;" data-err={f.id}>{err}</div> : <div data-err={f.id}></div>}
                   {f.validation.maxWords ? (
                     <div
@@ -340,8 +367,10 @@ function FieldBlock({
               <div data-file={f.id} data-exts={f.validation.fileExts ?? ''} data-max-mb={String(f.validation.fileMaxMb ?? 25)}>
                 <input type="hidden" name={name} value={ids.join(',')} />
                 {filesOn ? (
-                  <label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
-                    <input type="file" style="display:none;" data-file-input={f.id} />
+                  <label class="file-btn" style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
+                    {/* Visually hidden, not display:none — the picker stays in
+                        the accessibility tree and reachable by keyboard. */}
+                    <input type="file" class="vh-file" data-file-input={f.id} />
                     <span data-file-label={f.id}>
                       {ids.length
                         ? `${ids.length} file${ids.length === 1 ? '' : 's'} attached — tap to replace`
@@ -481,16 +510,12 @@ function SpeakerCard({
           {label}
         </div>
         {i > 0 ? (
-          <button
-            type="button"
-            data-remove-speaker
-            style="margin-left:auto;background:none;border:none;color:var(--muted);font-size:12.5px;cursor:pointer;"
-          >
+          <button type="button" data-remove-speaker class="pf-remove" style="margin-left:auto;">
             Remove
           </button>
         ) : null}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="pf-2col">
         <div>
           <input name="sp_name[]" value={s.name} placeholder="Full name *" style={inputStyle(!!nameErr)} />
         </div>
@@ -512,7 +537,7 @@ function SpeakerCard({
           </option>
         ))}
       </select>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="pf-2col">
         <input
           name="sp_job_title[]"
           value={s.jobTitle ?? ''}
@@ -536,7 +561,7 @@ function SpeakerCard({
       >
         {s.bio ?? ''}
       </textarea>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="pf-2col">
         <input
           name="sp_link_linkedin[]"
           inputmode="url"
@@ -568,8 +593,8 @@ function SpeakerCard({
       </div>
       <input type="hidden" name="sp_headshot[]" value={s.headshotFileId ?? ''} />
       {filesOn ? (
-        <label style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
-          <input type="file" accept="image/*" style="display:none;" data-headshot-input />
+        <label class="file-btn" style="display:block;border:1px dashed var(--border-strong);padding:12px;text-align:center;font-size:12.5px;color:var(--muted);background:repeating-linear-gradient(45deg,#fdfcfa,#fdfcfa 8px,var(--bg) 8px,var(--bg) 16px);cursor:pointer;">
+          <input type="file" accept="image/*" class="vh-file" data-headshot-input />
           <span data-headshot-label>
             {s.headshotFileId ? (
               'headshot attached — tap to replace'
@@ -703,8 +728,8 @@ function renderPage(opts: {
   const heading = settings.pageHeading.trim() || `Speak at ${event.name}`;
 
   const saveIndicator = (
-    <span style="display:flex;align-items:center;gap:6px;">
-      <span id="pf-dot" style="display:inline-block;width:7px;height:7px;background:#2b8a3e;"></span>
+    <span class="pf-kick">
+      <span id="pf-dot" style="display:inline-block;width:7px;height:7px;background:#2b8a3e;flex:none;"></span>
       <span id="pf-save">{editing ? `EDITING SUB-${editing.seq}` : state.draftId ? 'DRAFT SAVED' : 'NOT SAVED YET'}</span>
     </span>
   ) as unknown as string;
@@ -739,6 +764,7 @@ function renderPage(opts: {
           editing: !!editing,
         }).replace(/</g, '\\u003c')}</script>`
       )}
+      {raw(FORM_CSS)}
       {/* The sandbox role chip belongs to the surrounding app, not the form —
           inside the builder's preview frame it just doubles the admin one. */}
       {preview ? raw('<style>#sandbox-switcher{display:none !important;}</style>') : null}
@@ -798,7 +824,8 @@ function renderPage(opts: {
             <a
               href={preview ? '?preview=1&welcome=1' : '?welcome=1'}
               id="pf-back"
-              style={`display:inline-block;margin-bottom:18px;font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);text-decoration:none;`}
+              class="pf-back"
+              style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--muted);text-decoration:none;`}
             >
               ← BACK TO INTRO
             </a>
