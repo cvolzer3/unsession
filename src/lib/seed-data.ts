@@ -42,7 +42,7 @@ export const ROOMS = [
   { name: 'Workshop Lab', capacity: 60, priority: 4 },
 ];
 
-export type SeedSpeaker = { name: string; email: string; bio: string };
+export type SeedSpeaker = { name: string; email: string; title: string; company: string; bio: string };
 export type SeedSubmission = {
   id: string;
   title: string;
@@ -59,7 +59,13 @@ export type SeedSubmission = {
   form: string;
 };
 
-const sp = (name: string, email: string, bio: string): SeedSpeaker => ({ name, email, bio });
+const sp = (name: string, email: string, title: string, company: string, bio: string): SeedSpeaker => ({
+  name,
+  email,
+  title,
+  company,
+  bio,
+});
 const S = (
   id: number,
   title: string,
@@ -90,45 +96,45 @@ const S = (
 });
 
 export const SUBMISSIONS: SeedSubmission[] = [
-  S(147, 'Postgres at the Edge: Read Replicas Everywhere', 'How we cut p99 latency 6x by pushing read replicas to 14 regions, and every mistake we made on the way.', [sp('Amara Diallo', 'amara@fastly.dev', 'Staff engineer, databases. Previously Citus.')], 'infra', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.3, 28),
-  S(146, 'The Case Against Microservices (From Someone Who Sold Them)', 'A consultant who spent five years selling service meshes explains when a monolith is the grown-up choice.', [sp('Viktor Hansen', 'viktor@meshless.io', 'Independent consultant, ex-Istio contributor.')], 'infra', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.7, 27),
-  S(145, 'Prompt Injection Is the New SQL Injection', 'Live-exploiting an LLM-powered support bot on stage, then hardening it step by step.', [sp('Ines Kovač', 'ines@nullsec.eu', 'Security researcher. CVE collector.')], 'sec', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.8, 26),
-  S(144, 'CSS Grid Level 3: Masonry Is Finally Real', 'A tour of masonry layout in production browsers, with fallback strategies you can ship today.', [sp('Priya Raman', 'priya@webfoundry.co', 'Design engineer and CSSWG observer.')], 'web', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.1, 26),
-  S(143, 'Fine-Tuning Is Dead, Long Live Fine-Tuning', 'When RAG fails, when adapters win, and the decision tree we use with every client.', [sp('Tomás Rivera', 'tomas@adapt.ml', 'ML lead at a 12-person applied-AI shop.')], 'ai', 'Deep Dive (45 min)', 'Advanced', 'in_review', 1, 3, 3.5, 25),
-  S(142, 'Ship Your Design System Without a Design Team', 'How a 6-person startup maintains a coherent UI with tokens, lint rules, and zero designers.', [sp('Lena Fischer', 'lena@tinystack.app', 'Founding engineer. Accidental design lead.')], 'dx', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 3.9, 25),
-  S(141, 'Kubernetes the Hard Way, Five Years Later', 'Re-running the classic exercise on 2027 infrastructure. What got easier, and what still hurts.', [sp('Dmitri Volkov', 'dmitri@baremetal.sh', 'Platform engineer, on-prem believer.')], 'infra', 'Workshop (90 min)', 'Advanced', 'in_review', 2, 3, 3.2, 24),
-  S(140, 'Passkeys in Production: 18 Months In', 'Adoption curves, support tickets, and the account-recovery flows nobody warns you about.', [sp('Sarah Okafor', 'sarah@authlayer.com', 'Product engineer, identity.'), sp('Jon Marsh', 'jon@authlayer.com', 'Support lead turned engineer.')], 'sec', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.5, 24),
-  S(139, 'A Love Letter to Boring Technology', 'Our stack is Django, Postgres, and cron. We serve 40M requests a day. Ask me anything.', [sp('Mei Chen', 'mei@steadyship.io', 'CTO. Professional resister of rewrites.')], 'infra', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.4, 23),
-  S(138, 'WebGPU Beyond Graphics: Compute in the Browser', 'Running real ML inference client-side. Covers architecture, quantization, and when not to bother.', [sp('Felix Braun', 'felix@gpuweb.dev', 'Graphics programmer gone rogue.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.0, 23),
-  S(137, 'The Accessibility Audit That Saved Our Contract', 'A true story of a failed procurement, a 6-week remediation, and the checklist we now run weekly.', [sp('Grace Adeyemi', 'grace@a11yworks.co', 'Accessibility consultant, WCAG nerd.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.6, 22),
-  S(136, 'Building a Data Platform With Three Engineers', 'DuckDB, dbt, and ruthless scope-cutting: analytics for a 200-person company on a shoestring.', [sp('Oscar Lindqvist', 'oscar@leandata.se', 'Data engineer #1 of 3.')], 'infra', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 22),
-  S(135, 'LLM Evals Are Your New Unit Tests', 'A practical workshop: build an eval suite for a real feature, wire it into CI, catch a regression live.', [sp('Hana Yoshida', 'hana@evalcraft.jp', 'ML engineer, testing evangelist.')], 'ai', 'Workshop (90 min)', 'Intermediate', 'accepted', 3, 3, 4.6, 21),
-  S(134, 'Monorepo Migration: A Post-Mortem', 'We moved 400 repos into one. Half the team loved it. Here is the honest ledger of costs and wins.', [sp('Paul Nkemelu', 'paul@bigmerge.dev', 'DX lead, build-systems survivor.')], 'dx', 'Talk (30 min)', 'Intermediate', 'declined', 3, 3, 2.8, 21),
-  S(133, 'Zero-Downtime Schema Changes at 2TB', 'gh-ost, logical replication, and the runbook we use for scary migrations.', [sp('Anouk Visser', 'anouk@dbops.nl', 'SRE, database whisperer.')], 'infra', 'Deep Dive (45 min)', 'Advanced', 'in_review', 1, 3, 4.5, 20),
-  S(132, 'Rust for TypeScript Developers: A Gentle On-Ramp', 'Hands-on workshop porting a small Node service to Rust, pain points annotated.', [sp('Diego Fuentes', 'diego@oxidize.dev', 'Educator and systems programmer.')], 'dx', 'Workshop (90 min)', 'Intro', 'accepted', 3, 3, 4.2, 19),
-  S(131, 'How We Got Pwned (and What It Cost)', 'A transparent incident review of a supply-chain compromise: timeline, blast radius, invoices.', [sp('Nadia Petrova', 'nadia@postmortem.io', 'CISO. Believes in public post-mortems.')], 'sec', 'Talk (30 min)', 'Intermediate', 'in_review', 2, 3, 4.9, 19),
-  S(130, 'The Browser Is the Best App Platform (Fight Me)', 'PWAs in 2027: install rates, capability gaps, and three case studies that skipped the app store.', [sp('Marcus Webb', 'marcus@nostore.app', 'Web platform advocate.')], 'web', 'Panel (45 min)', 'Intro', 'declined', 3, 3, 2.5, 18),
-  S(129, 'Streaming Postgres Changes Without Kafka', 'Logical decoding straight to consumers: simpler CDC for teams that do not want a Kafka bill.', [sp('Ayla Demir', 'ayla@cdclite.dev', 'Backend engineer, pragmatist.')], 'infra', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 17),
-  S(128, 'Design Tokens at the Edge of Chaos', 'Multi-brand theming across 9 products: the token architecture that finally stuck.', [sp('Ravi Shankar', 'ravi@tokensmith.in', 'Design systems lead.')], 'dx', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 16),
-  S(127, 'Agents That Do Not Hallucinate Your Infra Away', 'Guardrails for LLM-driven ops tooling: approvals, dry-runs, and blast-radius budgets.', [sp('Chloe Martin', 'chloe@opsguard.ai', 'Platform engineer, AI-tools skeptic.')], 'ai', 'Talk (30 min)', 'Advanced', 'in_review', 0, 3, null, 15),
-  S(126, 'The Lightning Talk About Lightning Talks', 'Ten minutes on why your conference needs more ten-minute talks.', [sp('Ben Carter', 'ben@shortform.dev', 'Serial lightning-talker.')], 'dx', 'Lightning (10 min)', 'Intro', 'in_review', 0, 3, null, 14),
-  S(125, 'Threat Modeling for Busy Teams', 'A 45-minute framework you can run in a sprint retro, with real worksheets.', [sp('Fatima Al-Rashid', 'fatima@shiftsec.io', 'AppSec engineer and facilitator.')], 'sec', 'Deep Dive (45 min)', 'Intermediate', 'in_review', 0, 3, null, 13),
-  S(124, 'From Jupyter to Production in One Repo', 'Killing the notebook-to-service rewrite: our template for shipping models straight from research.', [sp('Emil Johansson', 'emil@mlship.se', 'MLOps engineer.')], 'ai', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 12),
-  S(123, 'HTMX and the Return of the Server', 'We deleted 40k lines of React. A tour of what replaced it and where we drew the line.', [sp('Julia Novak', 'julia@hypermedia.dev', 'Full-stack engineer, simplicity zealot.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.7, 11),
-  S(122, 'Chaos Engineering on a Budget', 'You do not need a chaos platform. You need a Tuesday, a script, and management buy-in.', [sp('Kwame Mensah', 'kwame@faultline.dev', 'SRE, professional breaker of staging.')], 'infra', 'Lightning (10 min)', 'Intro', 'declined', 3, 3, 2.2, 10),
-  S(121, 'Local-First Apps: Sync Engines in Anger', 'CRDTs in production: conflict UX, storage costs, and the bug that ate a week of edits.', [sp('Sofia Rossi', 'sofia@syncable.app', 'Product engineer, local-first convert.'), sp('Tim Okada', 'tim@syncable.app', 'Distributed-systems engineer.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'accepted', 3, 3, 4.6, 9),
-  S(120, 'Burnout-Proofing Your On-Call Rotation', 'Alert budgets, follow-the-sun handoffs, and the metric that predicted every resignation.', [sp('Aisha Khan', 'aisha@humanops.co', 'Engineering manager, SRE background.')], 'infra', 'Talk (30 min)', 'Intro', 'withdrawn', 2, 3, 4.0, 8),
+  S(147, 'Postgres at the Edge: Read Replicas Everywhere', 'How we cut p99 latency 6x by pushing read replicas to 14 regions, and every mistake we made on the way.', [sp('Amara Diallo', 'amara@fastly.dev', 'Staff Engineer', 'Fastly', 'Staff engineer, databases. Previously Citus.')], 'infra', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.3, 28),
+  S(146, 'The Case Against Microservices (From Someone Who Sold Them)', 'A consultant who spent five years selling service meshes explains when a monolith is the grown-up choice.', [sp('Viktor Hansen', 'viktor@meshless.io', 'Independent Consultant', 'Meshless', 'Independent consultant, ex-Istio contributor.')], 'infra', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.7, 27),
+  S(145, 'Prompt Injection Is the New SQL Injection', 'Live-exploiting an LLM-powered support bot on stage, then hardening it step by step.', [sp('Ines Kovač', 'ines@nullsec.eu', 'Security Researcher', 'NullSec', 'Security researcher. CVE collector.')], 'sec', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.8, 26),
+  S(144, 'CSS Grid Level 3: Masonry Is Finally Real', 'A tour of masonry layout in production browsers, with fallback strategies you can ship today.', [sp('Priya Raman', 'priya@webfoundry.co', 'Design Engineer', 'WebFoundry', 'Design engineer and CSSWG observer.')], 'web', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.1, 26),
+  S(143, 'Fine-Tuning Is Dead, Long Live Fine-Tuning', 'When RAG fails, when adapters win, and the decision tree we use with every client.', [sp('Tomás Rivera', 'tomas@adapt.ml', 'ML Lead', 'Adapt ML', 'ML lead at a 12-person applied-AI shop.')], 'ai', 'Deep Dive (45 min)', 'Advanced', 'in_review', 1, 3, 3.5, 25),
+  S(142, 'Ship Your Design System Without a Design Team', 'How a 6-person startup maintains a coherent UI with tokens, lint rules, and zero designers.', [sp('Lena Fischer', 'lena@tinystack.app', 'Founding Engineer', 'TinyStack', 'Founding engineer. Accidental design lead.')], 'dx', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 3.9, 25),
+  S(141, 'Kubernetes the Hard Way, Five Years Later', 'Re-running the classic exercise on 2027 infrastructure. What got easier, and what still hurts.', [sp('Dmitri Volkov', 'dmitri@baremetal.sh', 'Platform Engineer', 'Baremetal', 'Platform engineer, on-prem believer.')], 'infra', 'Workshop (90 min)', 'Advanced', 'in_review', 2, 3, 3.2, 24),
+  S(140, 'Passkeys in Production: 18 Months In', 'Adoption curves, support tickets, and the account-recovery flows nobody warns you about.', [sp('Sarah Okafor', 'sarah@authlayer.com', 'Product Engineer', 'AuthLayer', 'Product engineer, identity.'), sp('Jon Marsh', 'jon@authlayer.com', 'Support Engineer', 'AuthLayer', 'Support lead turned engineer.')], 'sec', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.5, 24),
+  S(139, 'A Love Letter to Boring Technology', 'Our stack is Django, Postgres, and cron. We serve 40M requests a day. Ask me anything.', [sp('Mei Chen', 'mei@steadyship.io', 'CTO', 'SteadyShip', 'CTO. Professional resister of rewrites.')], 'infra', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.4, 23),
+  S(138, 'WebGPU Beyond Graphics: Compute in the Browser', 'Running real ML inference client-side. Covers architecture, quantization, and when not to bother.', [sp('Felix Braun', 'felix@gpuweb.dev', 'Graphics Engineer', 'GPUWeb', 'Graphics programmer gone rogue.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.0, 23),
+  S(137, 'The Accessibility Audit That Saved Our Contract', 'A true story of a failed procurement, a 6-week remediation, and the checklist we now run weekly.', [sp('Grace Adeyemi', 'grace@a11yworks.co', 'Accessibility Consultant', 'A11yWorks', 'Accessibility consultant, WCAG nerd.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.6, 22),
+  S(136, 'Building a Data Platform With Three Engineers', 'DuckDB, dbt, and ruthless scope-cutting: analytics for a 200-person company on a shoestring.', [sp('Oscar Lindqvist', 'oscar@leandata.se', 'Data Engineer', 'LeanData', 'Data engineer #1 of 3.')], 'infra', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 22),
+  S(135, 'LLM Evals Are Your New Unit Tests', 'A practical workshop: build an eval suite for a real feature, wire it into CI, catch a regression live.', [sp('Hana Yoshida', 'hana@evalcraft.jp', 'ML Engineer', 'EvalCraft', 'ML engineer, testing evangelist.')], 'ai', 'Workshop (90 min)', 'Intermediate', 'accepted', 3, 3, 4.6, 21),
+  S(134, 'Monorepo Migration: A Post-Mortem', 'We moved 400 repos into one. Half the team loved it. Here is the honest ledger of costs and wins.', [sp('Paul Nkemelu', 'paul@bigmerge.dev', 'DX Lead', 'BigMerge', 'DX lead, build-systems survivor.')], 'dx', 'Talk (30 min)', 'Intermediate', 'declined', 3, 3, 2.8, 21),
+  S(133, 'Zero-Downtime Schema Changes at 2TB', 'gh-ost, logical replication, and the runbook we use for scary migrations.', [sp('Anouk Visser', 'anouk@dbops.nl', 'Site Reliability Engineer', 'DBOps', 'SRE, database whisperer.')], 'infra', 'Deep Dive (45 min)', 'Advanced', 'in_review', 1, 3, 4.5, 20),
+  S(132, 'Rust for TypeScript Developers: A Gentle On-Ramp', 'Hands-on workshop porting a small Node service to Rust, pain points annotated.', [sp('Diego Fuentes', 'diego@oxidize.dev', 'Developer Educator', 'Oxidize', 'Educator and systems programmer.')], 'dx', 'Workshop (90 min)', 'Intro', 'accepted', 3, 3, 4.2, 19),
+  S(131, 'How We Got Pwned (and What It Cost)', 'A transparent incident review of a supply-chain compromise: timeline, blast radius, invoices.', [sp('Nadia Petrova', 'nadia@postmortem.io', 'CISO', 'Postmortem', 'CISO. Believes in public post-mortems.')], 'sec', 'Talk (30 min)', 'Intermediate', 'in_review', 2, 3, 4.9, 19),
+  S(130, 'The Browser Is the Best App Platform (Fight Me)', 'PWAs in 2027: install rates, capability gaps, and three case studies that skipped the app store.', [sp('Marcus Webb', 'marcus@nostore.app', 'Web Platform Advocate', 'NoStore', 'Web platform advocate.')], 'web', 'Panel (45 min)', 'Intro', 'declined', 3, 3, 2.5, 18),
+  S(129, 'Streaming Postgres Changes Without Kafka', 'Logical decoding straight to consumers: simpler CDC for teams that do not want a Kafka bill.', [sp('Ayla Demir', 'ayla@cdclite.dev', 'Backend Engineer', 'CDC Lite', 'Backend engineer, pragmatist.')], 'infra', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 17),
+  S(128, 'Design Tokens at the Edge of Chaos', 'Multi-brand theming across 9 products: the token architecture that finally stuck.', [sp('Ravi Shankar', 'ravi@tokensmith.in', 'Design Systems Lead', 'Tokensmith', 'Design systems lead.')], 'dx', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 16),
+  S(127, 'Agents That Do Not Hallucinate Your Infra Away', 'Guardrails for LLM-driven ops tooling: approvals, dry-runs, and blast-radius budgets.', [sp('Chloe Martin', 'chloe@opsguard.ai', 'Platform Engineer', 'OpsGuard', 'Platform engineer, AI-tools skeptic.')], 'ai', 'Talk (30 min)', 'Advanced', 'in_review', 0, 3, null, 15),
+  S(126, 'The Lightning Talk About Lightning Talks', 'Ten minutes on why your conference needs more ten-minute talks.', [sp('Ben Carter', 'ben@shortform.dev', 'Developer Advocate', 'Shortform', 'Serial lightning-talker.')], 'dx', 'Lightning (10 min)', 'Intro', 'in_review', 0, 3, null, 14),
+  S(125, 'Threat Modeling for Busy Teams', 'A 45-minute framework you can run in a sprint retro, with real worksheets.', [sp('Fatima Al-Rashid', 'fatima@shiftsec.io', 'AppSec Engineer', 'ShiftSec', 'AppSec engineer and facilitator.')], 'sec', 'Deep Dive (45 min)', 'Intermediate', 'in_review', 0, 3, null, 13),
+  S(124, 'From Jupyter to Production in One Repo', 'Killing the notebook-to-service rewrite: our template for shipping models straight from research.', [sp('Emil Johansson', 'emil@mlship.se', 'MLOps Engineer', 'MLShip', 'MLOps engineer.')], 'ai', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 12),
+  S(123, 'HTMX and the Return of the Server', 'We deleted 40k lines of React. A tour of what replaced it and where we drew the line.', [sp('Julia Novak', 'julia@hypermedia.dev', 'Full-Stack Engineer', 'Hypermedia', 'Full-stack engineer, simplicity zealot.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.7, 11),
+  S(122, 'Chaos Engineering on a Budget', 'You do not need a chaos platform. You need a Tuesday, a script, and management buy-in.', [sp('Kwame Mensah', 'kwame@faultline.dev', 'Site Reliability Engineer', 'Faultline', 'SRE, professional breaker of staging.')], 'infra', 'Lightning (10 min)', 'Intro', 'declined', 3, 3, 2.2, 10),
+  S(121, 'Local-First Apps: Sync Engines in Anger', 'CRDTs in production: conflict UX, storage costs, and the bug that ate a week of edits.', [sp('Sofia Rossi', 'sofia@syncable.app', 'Product Engineer', 'Syncable', 'Product engineer, local-first convert.'), sp('Tim Okada', 'tim@syncable.app', 'Distributed Systems Engineer', 'Syncable', 'Distributed-systems engineer.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'accepted', 3, 3, 4.6, 9),
+  S(120, 'Burnout-Proofing Your On-Call Rotation', 'Alert budgets, follow-the-sun handoffs, and the metric that predicted every resignation.', [sp('Aisha Khan', 'aisha@humanops.co', 'Engineering Manager', 'HumanOps', 'Engineering manager, SRE background.')], 'infra', 'Talk (30 min)', 'Intro', 'withdrawn', 2, 3, 4.0, 8),
   {
     id: 'SUB-S02', form: 'sponsor', title: 'Scaling Without Servers — Live Architecture Review',
     abstract: 'Vercel Cloud engineers rebuild a real attendee architecture on stage, serverless-first.',
-    speakers: [sp('Rachel Kim', 'rachel@vercelcloud.com', 'DevRel lead, Vercel Cloud (Platinum sponsor).')],
+    speakers: [sp('Rachel Kim', 'rachel@vercelcloud.com', 'DevRel Lead', 'Vercel Cloud', 'DevRel lead, Vercel Cloud (Platinum sponsor).')],
     track: 'infra', format: 'Talk (30 min)', level: 'Intro', status: 'accepted',
     evalDone: 1, evalTotal: 1, avg: 3.8, submitted: '2026-08-02',
   },
   {
     id: 'SUB-S01', form: 'sponsor', title: 'Observability on Autopilot',
     abstract: 'Zero-code instrumentation of a polyglot stack with the new Datastack agent. Includes a live install.',
-    speakers: [sp('Marco Silva', 'marco@datastack.io', 'Solutions engineer, Datastack (Gold sponsor).')],
+    speakers: [sp('Marco Silva', 'marco@datastack.io', 'Solutions Engineer', 'Datastack', 'Solutions engineer, Datastack (Gold sponsor).')],
     track: 'infra', format: 'Talk (30 min)', level: 'Intermediate', status: 'in_review',
     evalDone: 1, evalTotal: 1, avg: 3.1, submitted: '2026-07-30',
   },
@@ -477,6 +483,170 @@ export const TASK_TEMPLATES: SeedTaskTemplate[] = [
     clauses: [{ field: 'Form answer', value: 'Travel support = Yes' }],
     description: 'Flights and hotel.',
   }),
+];
+
+/* --------------------------------------------- speaker profile extras (B6) */
+
+/**
+ * Optional profile flourishes keyed by speaker name — pronouns, social links
+ * ({linkedin, x, website, other}, the `links_json` shape) and the
+ * organizer-only travel notes field. A few speakers having them (and most
+ * not) mirrors a real half-onboarded roster.
+ */
+export const SPEAKER_EXTRAS: Record<
+  string,
+  {
+    pronouns?: string;
+    links?: { linkedin?: string; x?: string; website?: string; other?: string };
+    travelNotes?: string;
+  }
+> = {
+  'Sofia Rossi': {
+    pronouns: 'she/her',
+    links: { website: 'https://syncable.app', linkedin: 'https://www.linkedin.com/in/sofia-rossi-syncable' },
+  },
+  'Mei Chen': {
+    pronouns: 'she/her',
+    links: { website: 'https://steadyship.io', x: 'https://x.com/meichen' },
+  },
+  'Ines Kovač': {
+    links: { website: 'https://nullsec.eu' },
+    travelNotes: 'Arrives Wed 18:05 into BER, flies out Fri 09:10 — nothing before 10:00 on Thursday. Vegetarian.',
+  },
+  'Viktor Hansen': {
+    travelNotes: 'Drives down from Copenhagen — needs a parking pass for both days.',
+  },
+};
+
+/** Directory tags per event-speaker contact (keyed by name; `tags_json`). */
+export const CONTACT_TAGS: Record<string, string[]> = {
+  'Mei Chen': ['keynote', 'returning'],
+  'Ines Kovač': ['returning'],
+  'Viktor Hansen': ['returning'],
+  'Lena Fischer': ['local'],
+  'Felix Braun': ['local'],
+  'Hana Yoshida': ['workshop'],
+  'Diego Fuentes': ['workshop'],
+  'Dmitri Volkov': ['workshop'],
+};
+
+/* ------------------------------------------------- speaker CRM (org-level) */
+
+/** Organizer-defined directory columns; values live in `org_contacts.custom_json`. */
+export const ORG_FIELDS: { id: string; name: string; type: 'text' | 'dropdown'; options: string[] | null }[] = [
+  { id: 'region', name: 'Region', type: 'dropdown', options: ['EMEA', 'AMER', 'APAC'] },
+  { id: 'referred', name: 'Referred by', type: 'text', options: null },
+];
+
+export type PipelineStage = 'researching' | 'identified' | 'contacted' | 'interested' | 'confirmed' | 'declined';
+
+/**
+ * Outreach prospects — org contacts who did NOT come in through the CFP
+ * (`source: 'manual'`), each with a card on the pipeline board. `custom` is
+ * keyed by ORG_FIELDS id; `note` becomes a pipeline-card note.
+ */
+export type SeedProspect = {
+  name: string;
+  email: string;
+  title: string;
+  company: string;
+  bio: string;
+  tags: string[];
+  custom: Record<string, string>;
+  stage: PipelineStage;
+  score: number | null;
+  rationale: string;
+  note?: string;
+};
+
+export const PROSPECTS: SeedProspect[] = [
+  {
+    name: 'Ingrid Holm', email: 'ingrid@fjordcompute.no', title: 'VP Engineering', company: 'Fjord Compute',
+    bio: 'Rebuilt a national logistics platform in flight, without a maintenance window.',
+    tags: ['keynote'], custom: { region: 'EMEA', referred: 'Nils Bergström' },
+    stage: 'interested', score: 5,
+    rationale: 'Keynote material — the platform-rebuild story fits this year’s theme.',
+    note: 'Asked about AV setup and the honorarium policy — replied with both, waiting on her talk angle.',
+  },
+  {
+    name: 'Teresa Alba', email: 'teresa@quantumleap.es', title: 'CTO', company: 'QuantumLeap',
+    bio: 'Scaled a 4-person prototype into Spain’s largest ticketing backend.',
+    tags: ['keynote'], custom: { region: 'EMEA' },
+    stage: 'researching', score: null, rationale: '',
+  },
+  {
+    name: 'Kofi Boateng', email: 'kofi@railyard.dev', title: 'Principal Engineer', company: 'Railyard',
+    bio: 'Build-caching obsessive. His Amsterdam talk on remote execution filled the overflow room.',
+    tags: [], custom: { region: 'EMEA', referred: 'Deniz Aksoy' },
+    stage: 'identified', score: 4,
+    rationale: 'Strong speaker — topic overlaps Dmitri’s workshop, check the angle first.',
+  },
+  {
+    name: 'Mariko Sato', email: 'mariko@paperlane.jp', title: 'Head of Platform', company: 'Paperlane',
+    bio: 'Runs a 60-service platform with a team of five, and writes about it honestly.',
+    tags: [], custom: { region: 'APAC' },
+    stage: 'contacted', score: 4,
+    rationale: 'Cold outreach sent — no reply yet, follow up after the weekend.',
+  },
+  {
+    name: 'Lucas Meyer', email: 'lucas@grainfield.io', title: 'Staff SRE', company: 'Grainfield',
+    bio: 'On-call culture reformer; ran the incident-review teardown at SREcon.',
+    tags: [], custom: { region: 'AMER' },
+    stage: 'declined', score: 3,
+    rationale: 'Declined — parental leave lands the same month. Try again for 2028.',
+  },
+];
+
+/** Event speakers who are also on the pipeline board (keyed by name). */
+export const PIPELINE_SPEAKERS: { name: string; stage: PipelineStage; score: number | null; rationale: string }[] = [
+  { name: 'Mei Chen', stage: 'confirmed', score: 5, rationale: 'Opening keynote — confirmed on the first call.' },
+];
+
+/** Directory notes on event-speaker contacts (keyed by name). */
+export const CONTACT_NOTES: { name: string; body: string }[] = [
+  { name: 'Mei Chen', body: 'Keynote confirmed on the first call — wants her own machine wired into house sound for the demo.' },
+];
+
+/** Saved directory segments — one dynamic (stored querystring), one curated (member emails). */
+export const SEGMENTS: { name: string; kind: 'dynamic' | 'curated'; query?: string; members?: string[] }[] = [
+  { name: 'Keynote candidates', kind: 'dynamic', query: 'tag=keynote' },
+  {
+    name: 'Outreach — wave 1', kind: 'curated',
+    members: ['ingrid@fjordcompute.no', 'teresa@quantumleap.es', 'kofi@railyard.dev', 'mariko@paperlane.jp'],
+  },
+];
+
+/* ------------------------------------------------ outbox + review chatter */
+
+/**
+ * Decisions queued but not sent — the Emails → Outbox tab (decide now,
+ * notify later). Subject/body stay '' so the send falls back to the event
+ * template, exactly like queueing from the modal without edits.
+ */
+export const QUEUED_DECISIONS: { sub: string; decision: 'accept' | 'decline' | 'waitlist'; feedback?: string }[] = [
+  { sub: 'SUB-147', decision: 'accept' },
+  {
+    sub: 'SUB-141', decision: 'decline',
+    feedback: 'Strong material, but we already have two infrastructure workshops this year and the 90-minute slots are gone.',
+  },
+];
+
+/** Program-team comments on submissions (author is a PEOPLE id). */
+export const SUBMISSION_COMMENTS: { sub: string; author: string; body: string }[] = [
+  { sub: 'SUB-145', author: 'marta', body: 'Strongest security abstract in the pile. I want this on Main Stage right after the keynote.' },
+  { sub: 'SUB-131', author: 'nils', body: 'The invoice slide alone is worth the slot. Legal cleared the public numbers on Tuesday.' },
+  { sub: 'SUB-143', author: 'deniz', body: 'Good, but it overlaps Hana’s eval workshop. If we take both, this one should go practical rather than survey.' },
+];
+
+/** Reviewer notes on uploaded extended abstracts (Files → comment thread). */
+export const PAPER_COMMENTS: { sub: string; author: string; body: string }[] = [
+  { sub: 'SUB-147', author: 'marta', body: 'Read the extended abstract — the failover runbook section is the real talk. Ask her to lead with it.' },
+];
+
+/** Saved public-widget embeds (admin: /app/embeds). */
+export const EMBEDS: { name: string; widget: string; format: string }[] = [
+  { name: 'Homepage agenda', widget: 'agenda', format: 'styled' },
+  { name: 'Press kit — speakers JSON', widget: 'speakers', format: 'json' },
 ];
 
 /* --------------------------------------------------- sandbox personas (spec §4.13) */

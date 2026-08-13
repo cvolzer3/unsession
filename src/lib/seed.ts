@@ -5,7 +5,11 @@
  * Evaluation seeds) into a complete DevConf 2027 event mid-lifecycle: forms
  * with schemas, ~30 submissions in every state, part-done evaluations whose
  * averages match the prototype, an agenda that still contains the deliberate
- * Ines Kovač double-booking, speaker profiles, and the speakers × tasks grid.
+ * Ines Kovač double-booking, speaker profiles, and the speakers × tasks grid —
+ * plus the org-level Speaker CRM (directory with custom fields and tags,
+ * saved segments, the pipeline board with history and notes), a part-filled
+ * decision outbox, review comments, and the simulated email history the
+ * accepted speakers would have received.
  *
  * The visitor is never a throwaway user: the three picker personas (Marta
  * Keller the org owner, Sofia Rossi the speaker, Deniz Aksoy the evaluator)
@@ -358,9 +362,19 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
     s.speakers.forEach((sp, i) => {
       const email = D.suffixEmail(sp.email, suffix);
       stmts.push([
-        `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, headshot_file_id, user_id)
-         VALUES (?,?,?,?,?,?,NULL,?)`,
-        [newId('ssp'), id, i, sp.name, email, sp.bio, email === speakerPersonaEmail ? speakerPersonaUserId : null],
+        `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, job_title, company, headshot_file_id, user_id)
+         VALUES (?,?,?,?,?,?,?,?,NULL,?)`,
+        [
+          newId('ssp'),
+          id,
+          i,
+          sp.name,
+          email,
+          sp.bio,
+          sp.title,
+          sp.company,
+          email === speakerPersonaEmail ? speakerPersonaUserId : null,
+        ],
       ]);
     });
   });
@@ -374,30 +388,60 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
   // Profile emails are the plus-suffixed ones — the portal finds a speaker's
   // profile, submissions and tasks by the signed-in user's email.
   const profileId = new Map<string, string>(); // speaker name -> profile id
+  const contactIdByName = new Map<string, string>(); // speaker name -> org contact id
   const seenSlugs = new Set<string>();
-  const addProfile = (name: string, email: string, bio: string) => {
-    if (profileId.has(name)) return;
-    let s = slugify(name, 'speaker');
+  const addProfile = (spk: D.SeedSpeaker, email: string) => {
+    if (profileId.has(spk.name)) return;
+    let s = slugify(spk.name, 'speaker');
     let n = 2;
-    while (seenSlugs.has(s)) s = `${slugify(name, 'speaker')}-${n++}`;
+    while (seenSlugs.has(s)) s = `${slugify(spk.name, 'speaker')}-${n++}`;
     seenSlugs.add(s);
     const id = newId('spk');
-    profileId.set(name, id);
+    profileId.set(spk.name, id);
+    const extras = D.SPEAKER_EXTRAS[spk.name] ?? {};
     stmts.push([
-      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, headshot_file_id, slug, created_at)
-       VALUES (?,?,?,?,?,?,NULL,?,?)`,
-      [id, eventId, email === speakerPersonaEmail ? speakerPersonaUserId : null, email, name, bio, s, stamp],
+      `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, job_title, company, pronouns, links_json,
+         travel_notes, headshot_file_id, slug, created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?)`,
+      [
+        id,
+        eventId,
+        email === speakerPersonaEmail ? speakerPersonaUserId : null,
+        email,
+        spk.name,
+        spk.bio,
+        spk.title,
+        spk.company,
+        extras.pronouns ?? null,
+        extras.links ? JSON.stringify(extras.links) : null,
+        extras.travelNotes ?? null,
+        s,
+        stamp,
+      ],
     ]);
     // Mirror into the org's contact directory (Speaker CRM). The sandbox org is
     // brand new, so a plain INSERT in the same batch does what upsertOrgContact
     // would — and costs no extra subrequest.
+    const contactId = newId('ctc');
+    contactIdByName.set(spk.name, contactId);
     stmts.push([
-      `INSERT INTO org_contacts (id, org_id, email, name, bio, source, created_at, updated_at)
-       VALUES (?,?,?,?,?,'event',?,?)`,
-      [newId('ctc'), orgId, email, name, bio, stamp, stamp],
+      `INSERT INTO org_contacts (id, org_id, email, name, company, job_title, bio, tags_json, source, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,'event',?,?)`,
+      [
+        contactId,
+        orgId,
+        email,
+        spk.name,
+        spk.company,
+        spk.title,
+        spk.bio,
+        JSON.stringify(D.CONTACT_TAGS[spk.name] ?? []),
+        stamp,
+        stamp,
+      ],
     ]);
   };
-  D.SUBMISSIONS.forEach((s) => s.speakers.forEach((sp) => addProfile(sp.name, D.suffixEmail(sp.email, suffix), sp.bio)));
+  D.SUBMISSIONS.forEach((s) => s.speakers.forEach((sp) => addProfile(sp, D.suffixEmail(sp.email, suffix))));
 
   /* ------------------------------------------------------------- sessions */
   const sessionIdBySub = new Map<string, string>();
@@ -646,6 +690,254 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
         ],
       ]);
     });
+  });
+
+  /* ----------------------------------------------- speaker CRM (org-level) */
+  // Timestamps below are spread over the past three weeks so the board, the
+  // threads and the activity feed read as a program in motion, not a snapshot.
+  const agoIso = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const DAY = 24 * 60;
+  const martaName = D.SANDBOX_PERSONAS.organizer.name;
+  const martaId = personUserId.get('marta')!;
+
+  // Organizer-defined directory columns; contact values key off the row ids.
+  const fieldRowId = new Map<string, string>();
+  D.ORG_FIELDS.forEach((f) => {
+    const id = newId('cfd');
+    fieldRowId.set(f.id, id);
+    stmts.push([
+      `INSERT INTO org_fields (id, org_id, name, type, options_json, created_at) VALUES (?,?,?,?,?,?)`,
+      [id, orgId, f.name, f.type, f.options ? JSON.stringify(f.options) : null, stamp],
+    ]);
+  });
+  const customJson = (custom: Record<string, string>) => {
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(custom)) {
+      const fid = fieldRowId.get(key);
+      if (fid) out[fid] = value;
+    }
+    return JSON.stringify(out);
+  };
+
+  const contactIdByEmail = new Map<string, string>();
+  D.PROSPECTS.forEach((p) => {
+    const id = newId('ctc');
+    contactIdByEmail.set(p.email, id);
+    stmts.push([
+      `INSERT INTO org_contacts (id, org_id, email, name, company, job_title, bio, tags_json, custom_json, source, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,'manual',?,?)`,
+      [id, orgId, p.email, p.name, p.company, p.title, p.bio, JSON.stringify(p.tags), customJson(p.custom), stamp, stamp],
+    ]);
+  });
+
+  // One pipeline card per prospect (plus the confirmed keynote), with the
+  // stage history a card really accumulates: an enrollment row (from_stage
+  // NULL), then one hop per day until it reaches its current stage.
+  const STAGE_PATH: Record<D.PipelineStage, D.PipelineStage[]> = {
+    researching: ['researching'],
+    identified: ['identified'],
+    contacted: ['identified', 'contacted'],
+    interested: ['identified', 'contacted', 'interested'],
+    confirmed: ['identified', 'contacted', 'confirmed'],
+    declined: ['identified', 'contacted', 'declined'],
+  };
+  const stageCount = new Map<string, number>();
+  const pushCard = (
+    contactId: string,
+    stage: D.PipelineStage,
+    score: number | null,
+    rationale: string,
+    note: string | undefined,
+    ageDays: number
+  ) => {
+    const cardId = newId('pcd');
+    const sort = stageCount.get(stage) ?? 0;
+    stageCount.set(stage, sort + 1);
+    const path = STAGE_PATH[stage];
+    const reachedMin = (ageDays - (path.length - 1)) * DAY;
+    stmts.push([
+      `INSERT INTO pipeline_cards (id, org_id, contact_id, stage, score, rationale, sort_order, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [cardId, orgId, contactId, stage, score, rationale, sort, agoIso(ageDays * DAY), agoIso(reachedMin)],
+    ]);
+    path.forEach((to, i) => {
+      stmts.push([
+        `INSERT INTO pipeline_history (id, card_id, from_stage, to_stage, actor, created_at) VALUES (?,?,?,?,?,?)`,
+        [newId('pph'), cardId, i === 0 ? null : path[i - 1], to, martaName, agoIso((ageDays - i) * DAY)],
+      ]);
+    });
+    if (note) {
+      stmts.push([
+        `INSERT INTO pipeline_notes (id, card_id, author_user_id, body, created_at) VALUES (?,?,?,?,?)`,
+        [newId('pno'), cardId, martaId, note, agoIso(reachedMin - 6 * 60)],
+      ]);
+    }
+  };
+  D.PROSPECTS.forEach((p, i) => pushCard(contactIdByEmail.get(p.email)!, p.stage, p.score, p.rationale, p.note, 14 - i * 2));
+  D.PIPELINE_SPEAKERS.forEach((s) => {
+    const contactId = contactIdByName.get(s.name);
+    if (contactId) pushCard(contactId, s.stage, s.score, s.rationale, undefined, 21);
+  });
+
+  D.CONTACT_NOTES.forEach((n) => {
+    const contactId = contactIdByName.get(n.name) ?? contactIdByEmail.get(n.name);
+    if (!contactId) return;
+    stmts.push([
+      `INSERT INTO contact_notes (id, contact_id, author_user_id, body, created_at) VALUES (?,?,?,?,?)`,
+      [newId('cno'), contactId, martaId, n.body, agoIso(18 * DAY)],
+    ]);
+  });
+
+  D.SEGMENTS.forEach((s) => {
+    const members =
+      s.kind === 'curated'
+        ? (s.members ?? []).map((email) => contactIdByEmail.get(email)).filter((x): x is string => !!x)
+        : null;
+    stmts.push([
+      `INSERT INTO org_segments (id, org_id, name, kind, query, member_ids_json, created_at) VALUES (?,?,?,?,?,?,?)`,
+      [newId('seg'), orgId, s.name, s.kind, s.query ?? '', members ? JSON.stringify(members) : null, stamp],
+    ]);
+  });
+
+  /* ---------------------------------------- decision history + email trail */
+  // The accepted talks were decided ~10 days ago: one activity entry and one
+  // simulated accept email each (sandbox orgs never really send), so the
+  // submission drawers and Emails → History replay the story. Speakers whose
+  // grid row shows the confirm task done also confirmed two days later.
+  const fill = (tpl: string, vars: Record<string, string>) =>
+    tpl.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? '');
+  const acceptTpl = DEFAULT_EMAIL_TEMPLATES.find((t) => t.key === 'accept')!;
+  const activitySql = `INSERT INTO activity (id, event_id, subject_type, subject_id, actor, action, detail, created_at)
+     VALUES (?,?,?,?,?,?,?,?)`;
+  const confirmedNames = new Set(D.SPEAKER_TASKS.filter((r) => r.t[0] === 'c').map((r) => r.name));
+
+  D.SUBMISSIONS.filter((s) => s.status === 'accepted').forEach((s, i) => {
+    const subId = submissionId.get(s.id)!;
+    const first = s.speakers[0];
+    const email = D.suffixEmail(first.email, suffix);
+    const decidedAt = agoIso(10 * DAY - i * 7);
+    stmts.push([
+      activitySql,
+      [
+        newId('act'),
+        eventId,
+        'submission',
+        subId,
+        martaName,
+        'Accepted',
+        `Decision email sent to ${email} (template “${acceptTpl.name}”) · confirmation requested`,
+        decidedAt,
+      ],
+    ]);
+    const vars = {
+      speaker_name: first.name,
+      session_title: s.title,
+      event_name: D.EVENT.name,
+      event_dates: 'October 14–15, 2027',
+      event_venue: D.EVENT.venue,
+      confirmation_link: `https://unsession.dev/${slug}/confirm/preview`,
+    };
+    stmts.push([
+      `INSERT INTO emails (id, event_id, org_id, to_email, to_name, template_key, subject, body, status, error, subject_type, subject_id, created_at, sent_at)
+       VALUES (?,?,NULL,?,?,?,?,?,'simulated',NULL,'submission',?,?,?)`,
+      [
+        newId('eml'),
+        eventId,
+        email,
+        first.name,
+        'accept',
+        fill(acceptTpl.subject, vars),
+        fill(acceptTpl.body, vars),
+        subId,
+        decidedAt,
+        decidedAt,
+      ],
+    ]);
+    const confirmer = s.speakers.find((x) => confirmedNames.has(x.name));
+    if (confirmer) {
+      stmts.push([
+        activitySql,
+        [
+          newId('act'),
+          eventId,
+          'submission',
+          subId,
+          confirmer.name,
+          'Speaker confirmed participation',
+          '5 onboarding tasks generated',
+          agoIso(8 * DAY - i * 5),
+        ],
+      ]);
+    }
+  });
+
+  /* --------------------------------------------------- outbox + discussion */
+  const PAST: Record<string, string> = { accept: 'Accepted', decline: 'Declined', waitlist: 'Waitlisted' };
+  D.QUEUED_DECISIONS.forEach((q, i) => {
+    const subId = submissionId.get(q.sub);
+    if (!subId) return;
+    const queuedAt = agoIso(200 - i * 15);
+    stmts.push([
+      `INSERT INTO decision_queue (id, event_id, submission_id, decision, subject, body, feedback, request_confirmation, queued_by, created_at)
+       VALUES (?,?,?,?,'','',?,?,?,?)`,
+      [newId('dcq'), eventId, subId, q.decision, q.feedback ?? null, q.decision === 'accept' ? 1 : 0, martaName, queuedAt],
+    ]);
+    stmts.push([
+      activitySql,
+      [
+        newId('act'),
+        eventId,
+        'submission',
+        subId,
+        martaName,
+        'Decision queued',
+        `${PAST[q.decision]} — queued, nothing sent; goes out from Emails → Outbox`,
+        queuedAt,
+      ],
+    ]);
+  });
+
+  D.SUBMISSION_COMMENTS.forEach((cm, i) => {
+    const subId = submissionId.get(cm.sub);
+    const authorId = personUserId.get(cm.author);
+    if (!subId || !authorId) return;
+    stmts.push([
+      `INSERT INTO comments (id, submission_id, author_user_id, body, created_at) VALUES (?,?,?,?,?)`,
+      [newId('cmt'), subId, authorId, cm.body, agoIso((6 - i) * DAY + 30)],
+    ]);
+  });
+
+  // Comment threads on the seeded extended abstracts — keyed the way
+  // `lib/file-comments.ts` keys a thread (kind + subject of the version chain).
+  D.PAPER_COMMENTS.forEach((pc) => {
+    const subId = submissionId.get(pc.sub);
+    const paper = paperFileIds.get(pc.sub);
+    const authorId = personUserId.get(pc.author);
+    const author = D.PEOPLE.find((p) => p.id === pc.author);
+    if (!subId || !paper || !authorId || !author) return;
+    stmts.push([
+      `INSERT INTO file_comments (id, event_id, kind, subject_type, subject_id, file_id, author_user_id, author_name, author_role, body, created_at)
+       VALUES (?,?,'upload','submission',?,?,?,?,'organizer',?,?)`,
+      [newId('fcm'), eventId, `${subId}:${paper.field}`, paper.fileId, authorId, author.name, pc.body, agoIso(4 * DAY)],
+    ]);
+  });
+
+  D.EMBEDS.forEach((e) => {
+    stmts.push([
+      `INSERT INTO embeds (id, event_id, name, widget, format, config_json, enabled, created_by, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,1,?,?,?)`,
+      [
+        newId('emb'),
+        eventId,
+        e.name,
+        e.widget,
+        e.format,
+        JSON.stringify({ transparent: false, accent: null, tracks: [], hide: [] }),
+        martaId,
+        stamp,
+        stamp,
+      ],
+    ]);
   });
 
   await batch(db, stmts);
