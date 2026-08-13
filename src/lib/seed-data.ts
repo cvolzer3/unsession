@@ -292,7 +292,7 @@ export const INVITES = [{ email: 'rafael@a11yworks.co', role: 'collaborator' }];
 
 export const EVAL_PLANS = [
   {
-    id: 'main', name: 'Main CFP Review', deadline: '2026-08-24', anonymized: true, reminders: true, reviewsPer: 3,
+    id: 'main', name: 'Main CFP Review', opensAt: '2026-07-06', deadline: '2026-08-24', anonymized: true, reminders: true, reviewsPer: 3,
     rules: { track: 'all', form: 'cfp', format: 'all', level: 'all', status: 'active' },
     instructions:
       'Score every criterion on the 1–5 scale. Reserve 5s for talks you would put on the main stage. Judge the proposal, not the speaker — identities are hidden. If you recognize the submitter anyway, abstain instead of scoring.',
@@ -308,7 +308,7 @@ export const EVAL_PLANS = [
     subs: ['SUB-147', 'SUB-143', 'SUB-141', 'SUB-138', 'SUB-136', 'SUB-133', 'SUB-131', 'SUB-129', 'SUB-128', 'SUB-127', 'SUB-126', 'SUB-125', 'SUB-124'],
   },
   {
-    id: 'ai', name: 'AI Track Second Opinion', deadline: '2026-08-28', anonymized: false, reminders: true, reviewsPer: 2,
+    id: 'ai', name: 'AI Track Second Opinion', opensAt: '2026-07-20', deadline: '2026-08-28', anonymized: false, reminders: true, reviewsPer: 2,
     rules: { track: 'ai', form: 'all', format: 'all', level: 'all', status: 'active' },
     instructions:
       'Expert pass on AI & ML proposals. Program fit is already covered by the main review — judge technical substance only.',
@@ -320,7 +320,7 @@ export const EVAL_PLANS = [
     subs: ['SUB-143', 'SUB-127', 'SUB-124'],
   },
   {
-    id: 'sponsor', name: 'Sponsor Session Check', deadline: '2026-09-18', anonymized: false, reminders: false, reviewsPer: 1,
+    id: 'sponsor', name: 'Sponsor Session Check', opensAt: '2026-08-03', deadline: '2026-09-18', anonymized: false, reminders: false, reviewsPer: 1,
     rules: { track: 'all', form: 'sponsor', format: 'all', level: 'all', status: 'all' },
     instructions: 'Light-touch quality check of invited sponsor slots. Flag anything that reads as a pure sales pitch.',
     criteria: [

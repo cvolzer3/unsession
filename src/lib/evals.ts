@@ -62,6 +62,8 @@ export type EvalPlan = {
   eventId: string;
   name: string;
   instructions: string;
+  /** Date the round opens for review (YYYY-MM-DD). */
+  opensAt: string | null;
   deadline: string | null;
   anonymized: boolean;
   reminders: boolean;
@@ -148,6 +150,7 @@ type PlanRow = {
   event_id: string;
   name: string;
   instructions: string;
+  opens_at: string | null;
   deadline: string | null;
   anonymized: number;
   reminders: number;
@@ -248,6 +251,7 @@ export async function loadPlans(db: D1Database, eventId: string): Promise<EvalPl
     eventId: p.event_id,
     name: p.name,
     instructions: p.instructions ?? '',
+    opensAt: p.opens_at,
     deadline: p.deadline,
     anonymized: !!p.anonymized,
     reminders: !!p.reminders,

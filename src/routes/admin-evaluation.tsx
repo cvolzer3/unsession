@@ -835,7 +835,9 @@ function PlansList(opts: { ctx: PageCtx }) {
                   </div>
                   <div style={`font-family:${MONO};font-size:11px;color:#686b74;flex:none;`}>{`${pr.pct}%`}</div>
                 </div>
-                <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:5px;`}>{`Due ${fmtDay(p.deadline)}`}</div>
+                <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:5px;`}>
+                  {`${p.opensAt ? `Opens ${fmtDay(p.opensAt)} · ` : ''}Due ${fmtDay(p.deadline)}`}
+                </div>
               </div>
               <div>
                 <div style={`font-family:${MONO};font-size:19px;font-weight:700;`}>{ac != null ? ac.toFixed(1) : '—'}</div>
@@ -866,6 +868,7 @@ function draftPayload(plan: EvalPlan | null) {
     id: plan?.id ?? null,
     name: plan?.name ?? '',
     instructions: plan?.instructions ?? '',
+    opensAt: plan?.opensAt ?? '',
     deadline: plan?.deadline ?? '',
     anonymized: plan ? plan.anonymized : true,
     reminders: plan ? plan.reminders : true,
@@ -905,7 +908,16 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
                 />
               </div>
               <div>
-                <div style={`${MICRO}margin-bottom:6px;`}>DEADLINE</div>
+                <div style={`${MICRO}margin-bottom:6px;`}>OPEN DATE</div>
+                <input
+                  id="p-opens"
+                  type="date"
+                  value={plan?.opensAt ?? ''}
+                  style="width:160px;padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;"
+                />
+              </div>
+              <div>
+                <div style={`${MICRO}margin-bottom:6px;`}>CLOSE DATE · DEADLINE</div>
                 <input
                   id="p-deadline"
                   type="date"
@@ -1089,7 +1101,7 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
         </a>
       </div>
       <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;margin-bottom:16px;`}>
-        {`DUE ${fmtDay(plan.deadline).toUpperCase()} · ${plan.reviewers.length} REVIEWERS · ${rp} REVIEW${
+        {`${plan.opensAt ? `OPENS ${fmtDay(plan.opensAt).toUpperCase()} · ` : ''}DUE ${fmtDay(plan.deadline).toUpperCase()} · ${plan.reviewers.length} REVIEWERS · ${rp} REVIEW${
           rp === 1 ? '' : 'S'
         } PER SUBMISSION · CUMULATIVE MAX ${cumMax}`}
       </div>
@@ -1688,6 +1700,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
 type PlanBody = {
   id?: string | null;
   name?: string;
+  opensAt?: string;
   deadline?: string;
   anonymized?: boolean;
   reminders?: boolean;
@@ -1732,7 +1745,10 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
   if (!matched.length) return c.json({ ok: false, error: 'No submissions match — loosen the rules' }, 400);
 
   const reviewsPer = Math.max(1, Math.min(3, Number(body.reviewsPer) || 3));
+  const opensAt = (body.opensAt ?? '').slice(0, 10) || null;
   const deadline = (body.deadline ?? '').slice(0, 10) || null;
+  if (opensAt && deadline && opensAt > deadline)
+    return c.json({ ok: false, error: 'Open date must be on or before the close date' }, 400);
   const anonymized = body.anonymized !== false;
   const reminders = body.reminders !== false;
 
@@ -1756,10 +1772,11 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
   if (existing) {
     await run(
       c.env.DB,
-      `UPDATE eval_plans SET name = ?, instructions = ?, deadline = ?, anonymized = ?, reminders = ?, reviews_per = ?,
+      `UPDATE eval_plans SET name = ?, instructions = ?, opens_at = ?, deadline = ?, anonymized = ?, reminders = ?, reviews_per = ?,
          rules_json = ?, criteria_json = ?, automation_json = ? WHERE id = ?`,
       name,
       body.instructions ?? '',
+      opensAt,
       deadline,
       anonymized ? 1 : 0,
       reminders ? 1 : 0,
@@ -1773,12 +1790,13 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
   } else {
     await run(
       c.env.DB,
-      `INSERT INTO eval_plans (id, event_id, name, instructions, deadline, anonymized, reminders, reviews_per,
-         rules_json, criteria_json, automation_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO eval_plans (id, event_id, name, instructions, opens_at, deadline, anonymized, reminders, reviews_per,
+         rules_json, criteria_json, automation_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       planId,
       event.id,
       name,
       body.instructions ?? '',
+      opensAt,
       deadline,
       anonymized ? 1 : 0,
       reminders ? 1 : 0,

@@ -504,14 +504,15 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
     const id = newId('epl');
     planId.set(p.id, id);
     stmts.push([
-      `INSERT INTO eval_plans (id, event_id, name, instructions, deadline, anonymized, reminders, reviews_per,
+      `INSERT INTO eval_plans (id, event_id, name, instructions, opens_at, deadline, anonymized, reminders, reviews_per,
          rules_json, criteria_json, automation_json, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         id,
         eventId,
         p.name,
         p.instructions,
+        p.opensAt,
         p.deadline,
         p.anonymized ? 1 : 0,
         p.reminders ? 1 : 0,

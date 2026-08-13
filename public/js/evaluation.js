@@ -67,6 +67,7 @@ function planEditor() {
   const $ = (id) => document.getElementById(id);
 
   const name = $('p-name');
+  const opens = $('p-opens');
   const deadline = $('p-deadline');
   const anon = $('p-anon');
   const rem = $('p-reminders');
@@ -288,7 +289,7 @@ function planEditor() {
     renderPreview();
   });
 
-  [name, deadline, instructions].forEach((n) => n.addEventListener('input', renderPreview));
+  [name, opens, deadline, instructions].forEach((n) => n.addEventListener('input', renderPreview));
   [anon, rem].forEach((n) => n.addEventListener('change', renderPreview));
   reviewsPer.addEventListener('change', renderPreview);
 
@@ -391,6 +392,7 @@ function planEditor() {
       ['Reviewers', `${draft.reviewers.length} (${memberN} member${memberN === 1 ? '' : 's'})`],
       ['Reviews per submission', String(rp)],
       ['Evaluations', String(matched.length * rp)],
+      ['Opens', opens.value || '—'],
       ['Deadline', deadline.value || '—'],
       ['Reminders', rem.checked ? 'on' : 'off'],
     ].forEach(([k, v]) => {
@@ -416,6 +418,7 @@ function planEditor() {
       const res = await api('/app/api/evaluation/plan', {
         id: draft.id,
         name: name.value.trim(),
+        opensAt: opens.value,
         deadline: deadline.value,
         anonymized: anon.checked,
         reminders: rem.checked,
