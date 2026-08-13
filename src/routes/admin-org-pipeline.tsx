@@ -15,7 +15,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { Ctx } from '../types';
-import { AdminLayout, MONO } from '../views/layout';
+import { AdminLayout, MONO, initials, initialsGradient } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { all, batch, now, one, run } from '../lib/db';
 import { newId } from '../lib/ids';
@@ -74,6 +74,7 @@ type CardRow = {
   name: string;
   email: string;
   company: string;
+  headshot_file_id: string | null;
 };
 
 type ContactOption = { id: string; name: string; email: string };
@@ -84,7 +85,7 @@ function loadCard(db: D1Database, orgId: string, id: string) {
   return one<CardRow>(
     db,
     `SELECT p.id, p.contact_id, p.stage, p.score, p.rationale, p.updated_at,
-            c.name, c.email, c.company
+            c.name, c.email, c.company, c.headshot_file_id
        FROM pipeline_cards p JOIN org_contacts c ON c.id = p.contact_id
       WHERE p.id = ? AND p.org_id = ?`,
     id,
@@ -108,11 +109,20 @@ function loadCandidates(db: D1Database, orgId: string) {
 /** Whose name the history row carries. */
 const actorOf = (c: Context<Ctx>) => c.var.user?.name || c.var.user?.email || 'System';
 
-/** Change stage and log the transition. Same write for drag, form and API. */
-async function moveCard(db: D1Database, card: CardRow, stage: Stage, actor: string): Promise<void> {
+/**
+ * Change stage and log the transition — the card lands at the end of the
+ * target column. The board's drag drop posts an explicit position instead.
+ */
+async function moveCard(db: D1Database, orgId: string, card: CardRow, stage: Stage, actor: string): Promise<void> {
   const stamp = now();
   await batch(db, [
-    [`UPDATE pipeline_cards SET stage = ?, updated_at = ? WHERE id = ?`, [stage, stamp, card.id]],
+    [
+      `UPDATE pipeline_cards
+          SET stage = ?, updated_at = ?,
+              sort_order = (SELECT COALESCE(MAX(sort_order) + 1, 0) FROM pipeline_cards WHERE org_id = ? AND stage = ?)
+        WHERE id = ?`,
+      [stage, stamp, orgId, stage, card.id],
+    ],
     [
       `INSERT INTO pipeline_history (id, card_id, from_stage, to_stage, actor, created_at) VALUES (?,?,?,?,?,?)`,
       [newId('pph'), card.id, card.stage, stage, actor, stamp],
@@ -136,20 +146,43 @@ const ScoreBadge: FC<{ score: number }> = ({ score }) => (
   </span>
 );
 
+const Avatar: FC<{ card: CardRow }> = ({ card }) =>
+  card.headshot_file_id ? (
+    <div
+      style={`width:26px;height:26px;border-radius:50%;flex:none;background:url(/files/${card.headshot_file_id}) center/cover;`}
+    ></div>
+  ) : (
+    <div
+      style={`width:26px;height:26px;border-radius:50%;flex:none;background:${initialsGradient(
+        card.name || card.email
+      )};color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:9.5px;font-weight:600;`}
+    >
+      {initials(card.name || card.email)}
+    </div>
+  );
+
 const BoardCard: FC<{ card: CardRow }> = ({ card }) => (
   <article
     draggable="true"
     data-card-id={card.id}
     data-href={cardPath(card.id)}
-    style={`${CARD}padding:9px 11px;cursor:grab;display:grid;gap:5px;`}
+    style={`${CARD}padding:9px 11px;cursor:grab;display:grid;gap:6px;`}
   >
-    <a
-      href={`/app/org/contact/${card.contact_id}`}
-      draggable="false"
-      style="font-size:13px;font-weight:600;letter-spacing:-0.01em;color:#16171d;text-decoration:none;"
-    >
-      {card.name}
-    </a>
+    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+      <Avatar card={card} />
+      <div style="min-width:0;">
+        <a
+          href={`/app/org/contact/${card.contact_id}`}
+          draggable="false"
+          style="display:block;font-size:13px;font-weight:600;letter-spacing:-0.01em;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
+        >
+          {card.name}
+        </a>
+        <div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {card.email}
+        </div>
+      </div>
+    </div>
     {/* The body is the link to the card page — a bare card still needs one. */}
     <a href={cardPath(card.id)} draggable="false" style="display:grid;gap:5px;color:inherit;text-decoration:none;">
       {card.company ? <span style="font-size:11.5px;color:#686b74;">{card.company}</span> : null}
@@ -264,10 +297,10 @@ app.get('/app/org/pipeline', async (c) => {
   const cards = await all<CardRow>(
     c.env.DB,
     `SELECT p.id, p.contact_id, p.stage, p.score, p.rationale, p.updated_at,
-            c.name, c.email, c.company
+            c.name, c.email, c.company, c.headshot_file_id
        FROM pipeline_cards p JOIN org_contacts c ON c.id = p.contact_id
       WHERE p.org_id = ?
-      ORDER BY p.updated_at DESC`,
+      ORDER BY p.sort_order, p.updated_at DESC`,
     orgId
   );
 
@@ -364,9 +397,9 @@ app.post('/app/org/pipeline/enroll', requireOrgRole('collaborator'), async (c) =
   const stamp = now();
   await batch(c.env.DB, [
     [
-      `INSERT INTO pipeline_cards (id, org_id, contact_id, stage, score, rationale, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?)`,
-      [id, orgId, contactId, stage, score, rationale, stamp, stamp],
+      `INSERT INTO pipeline_cards (id, org_id, contact_id, stage, score, rationale, sort_order, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(sort_order) + 1, 0) FROM pipeline_cards WHERE org_id = ? AND stage = ?),?,?)`,
+      [id, orgId, contactId, stage, score, rationale, orgId, stage, stamp, stamp],
     ],
     [
       `INSERT INTO pipeline_history (id, card_id, from_stage, to_stage, actor, created_at) VALUES (?,?,?,?,?,?)`,
@@ -385,14 +418,42 @@ app.post('/app/api/org/pipeline/move', requireOrgRole('collaborator'), async (c)
   const orgId = orgIdForRequest(c);
   if (!orgId) return c.json({ ok: false, error: 'No event selected' }, 400);
 
-  const body = await c.req.json<{ id?: string; stage?: string }>();
+  const body = await c.req.json<{ id?: string; stage?: string; index?: number }>();
   const stage = String(body.stage ?? '');
   if (!isStage(stage)) return c.json({ ok: false, error: 'Unknown stage' }, 400);
 
   const card = await loadCard(c.env.DB, orgId, String(body.id ?? ''));
   if (!card) return c.json({ ok: false, error: 'That card is no longer in your pipeline' }, 404);
 
-  if (card.stage !== stage) await moveCard(c.env.DB, card, stage, actorOf(c));
+  // The target column in its current order, the card spliced in where it was
+  // dropped. Rewriting every position keeps them dense; columns are small.
+  const column = await all<{ id: string }>(
+    c.env.DB,
+    `SELECT id FROM pipeline_cards WHERE org_id = ? AND stage = ? AND id != ? ORDER BY sort_order, updated_at DESC`,
+    orgId,
+    stage,
+    card.id
+  );
+  const ids = column.map((r) => r.id);
+  const raw = Number(body.index);
+  const at = Number.isFinite(raw) ? Math.max(0, Math.min(ids.length, Math.trunc(raw))) : ids.length;
+  ids.splice(at, 0, card.id);
+
+  const stamp = now();
+  const writes: Array<[string, unknown[]]> = ids.map((id, i) => [
+    `UPDATE pipeline_cards SET sort_order = ? WHERE id = ?`,
+    [i, id],
+  ]);
+  if (card.stage !== stage) {
+    writes.push(
+      [`UPDATE pipeline_cards SET stage = ?, updated_at = ? WHERE id = ?`, [stage, stamp, card.id]],
+      [
+        `INSERT INTO pipeline_history (id, card_id, from_stage, to_stage, actor, created_at) VALUES (?,?,?,?,?,?)`,
+        [newId('pph'), card.id, card.stage, stage, actorOf(c), stamp],
+      ]
+    );
+  }
+  await batch(c.env.DB, writes);
   return c.json({ ok: true });
 });
 
@@ -685,7 +746,7 @@ app.post('/app/org/pipeline/:id/move', guard, async (c) => {
   if (!isStage(stage)) return c.redirect(backToCard(card.id, 'Unknown stage'));
   if (stage === card.stage) return c.redirect(cardPath(card.id));
 
-  await moveCard(c.env.DB, card, stage, actorOf(c));
+  await moveCard(c.env.DB, orgId, card, stage, actorOf(c));
   return c.redirect(backToCard(card.id, `Moved to ${STAGE_LABEL[stage]}`));
 });
 
