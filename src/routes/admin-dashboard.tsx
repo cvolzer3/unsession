@@ -498,6 +498,30 @@ app.get('/app', async (c) => {
                 <div style="padding:14px 16px;font-size:12.5px;color:#9a9da6;">Nothing scheduled yet.</div>
               )}
             </div>
+
+            {/* The attendee-facing links that used to crowd the sidebar's
+                PUBLIC section. Long form names ellipsize to the card width. */}
+            <div style="background:#fff;border:1px solid #e2e3e8;">
+              <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
+                PUBLIC PAGES
+              </div>
+              {[
+                ...(props.publicForms ?? []).map((f) => ({ name: f.name, href: `/${event.slug}/${f.slug}` })),
+                { name: 'Agenda', href: `/${event.slug}/agenda` },
+                { name: 'Sessions', href: `/${event.slug}/sessions` },
+                { name: 'Speakers', href: `/${event.slug}/speakers` },
+              ].map((p) => (
+                <a
+                  href={p.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;font-size:12.5px;text-decoration:none;"
+                >
+                  <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{p.name}</span>
+                  <span style="margin-left:auto;flex:none;color:#9a9da6;font-size:11px;">↗</span>
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       </div>

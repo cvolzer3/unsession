@@ -221,12 +221,10 @@ export type AdminLayoutProps = PropsWithChildren<{
   sandbox?: SandboxWidget | null;
 }>;
 
-function navLink(href: string, label: string, active: boolean, external = false, compact = false) {
+function navLink(href: string, label: string, active: boolean, external = false) {
   const style = active
     ? 'display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;'
-    : compact
-      ? 'display:block;padding:4px 20px;color:#686b74;font-size:12px;text-decoration:none;'
-      : 'display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;';
+    : 'display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;';
   return external ? (
     <a href={href} target="_blank" rel="noreferrer" style={style}>
       {label}
@@ -243,7 +241,6 @@ const SECTION_LABEL = `padding:14px 20px 4px;font-family:${MONO};font-size:10px;
 export const AdminLayout: FC<AdminLayoutProps> = (props) => {
   const { title, user, event, path, children } = props;
   const events = props.events ?? [];
-  const slug = event?.slug ?? '';
   const host = (props.origin || 'https://unsession.dev').replace(/^https?:\/\//, '');
   const isActive = (p: string) => path === p || (p !== '/app' && path.startsWith(p + '/'));
 
@@ -285,11 +282,8 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink('/app/files', 'Files', isActive('/app/files'))}
             {navLink('/app/agenda', 'Agenda', isActive('/app/agenda'))}
             {navLink('/app/embeds', 'Embeds', isActive('/app/embeds'))}
-            <div style={SECTION_LABEL}>PUBLIC</div>
-            {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true, true))}
-            {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true, true)}
-            {navLink(`/${slug}/sessions`, 'Sessions Page ↗', false, true, true)}
-            {navLink(`/${slug}/speakers`, 'Speakers Page ↗', false, true, true)}
+            {/* Public-page links live on the Dashboard's PUBLIC PAGES card,
+                not here — an event with many forms made this section balloon. */}
             <div style={SECTION_LABEL}>ORGANIZATION</div>
             {navLink('/app/org/contacts', 'Speaker Directory', isActive('/app/org/contacts'))}
             {navLink('/app/org/pipeline', 'Pipeline', isActive('/app/org/pipeline'))}
