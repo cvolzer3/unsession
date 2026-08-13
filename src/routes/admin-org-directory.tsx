@@ -512,7 +512,7 @@ app.get('/app/org/contacts', async (c) => {
   const memberIds = segment && segment.kind === 'curated' ? jsonParse<string[]>(segment.member_ids_json, []) : null;
 
   const where = buildWhere(orgId, filters, memberIds);
-  const [totalRow, companyOpts, titleOpts, tagOpts, events] = await Promise.all([
+  const [totalRow, companyOpts, titleOpts, tagOpts, events, segmentOpts] = await Promise.all([
     one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM org_contacts WHERE ${where.sql}`, ...where.params),
     all<{ value: string; n: number }>(
       c.env.DB,
@@ -537,6 +537,13 @@ app.get('/app/org/contacts', async (c) => {
       `SELECT id, name FROM events WHERE org_id = ? ORDER BY start_date DESC`,
       orgId
     ),
+    // Names and kinds only. Member counts cost one COUNT per segment, which is
+    // worth it on the Segments tab but not behind a filter dropdown.
+    all<{ id: string; name: string; kind: string }>(
+      c.env.DB,
+      `SELECT id, name, kind FROM org_segments WHERE org_id = ? ORDER BY name COLLATE NOCASE LIMIT 50`,
+      orgId
+    ),
   ]);
 
   // The count settles first, so the page number can be clamped before the slice.
@@ -554,10 +561,25 @@ app.get('/app/org/contacts', async (c) => {
   const active = hasFilters(filters);
   const shownIds = rows.map((r) => r.id).join(',');
 
+  /**
+   * Chip-removal link: drops one filter and keeps the rest. A curated segment
+   * scopes the other filters, so it survives; a dynamic one *is* the filters
+   * shown, so removing any of them leaves the segment behind.
+   */
+  const dropFilter = (overrides: Partial<Filters>) => {
+    const href = contactsHref(filters, overrides);
+    if (segment?.kind !== 'curated') return href;
+    return `${href}${href.includes('?') ? '&' : '?'}segment=${segment.id}`;
+  };
+
   /** Same view, another page. Keeps the search, filters and segment in the URL. */
   const pageLink = (p: number) => {
     const sp = new URLSearchParams(url.searchParams);
     sp.delete('ok');
+    // The filter form posts every select, empty ones included. Drop those.
+    [...sp.entries()].forEach(([k, v]) => {
+      if (!v) sp.delete(k);
+    });
     if (p > 0) sp.set('page', String(p));
     else sp.delete('page');
     const s = sp.toString();
@@ -604,7 +626,7 @@ app.get('/app/org/contacts', async (c) => {
         </div>
 
         {/* search + filter panel — plain GET, no island needed */}
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;position:relative;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
           <form id="contacts-search" method="get" action="/app/org/contacts" style="display:flex;gap:8px;margin:0;">
             {filters.company ? <input type="hidden" name="company" value={filters.company} /> : null}
             {filters.job_title ? <input type="hidden" name="job_title" value={filters.job_title} /> : null}
@@ -619,81 +641,103 @@ app.get('/app/org/contacts', async (c) => {
               Search
             </button>
           </form>
-          <button type="button" data-toggle="#filter-panel" style={BTN}>
-            Filter ▾
-          </button>
+          {/* The panel is positioned against this wrapper, so it drops under the
+              button rather than the row — same shape as the header event switcher. */}
+          <div style="position:relative;">
+            <button type="button" data-toggle="#filter-panel" style={BTN}>
+              Filter ▾
+            </button>
+
+            <div
+              id="filter-panel"
+              hidden
+              style="position:absolute;top:calc(100% + 8px);left:0;width:340px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;padding:16px;"
+            >
+              <form method="get" action="/app/org/contacts" style="display:grid;gap:12px;margin:0;">
+                <input type="hidden" name="q" value={filters.q} />
+                {segmentOpts.length ? (
+                  <div>
+                    <div style={`${MICRO}margin-bottom:5px;`}>SEGMENT</div>
+                    <select name="segment" style={`${SELECT}width:100%;`}>
+                      <option value="">All segments</option>
+                      {segmentOpts.map((o) => (
+                        <option value={o.id} selected={segment?.id === o.id}>
+                          {`${o.name} (${o.kind})`}
+                        </option>
+                      ))}
+                    </select>
+                    {segment?.kind === 'dynamic' ? (
+                      <div style="font-size:11.5px;color:#9a9da6;line-height:1.45;margin-top:5px;">
+                        A dynamic segment brings its own search and filters.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>COMPANY</div>
+                  <select name="company" style={`${SELECT}width:100%;`}>
+                    <option value="">All companies</option>
+                    {companyOpts.map((o) => (
+                      <option value={o.value} selected={filters.company === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>JOB TITLE</div>
+                  <select name="job_title" style={`${SELECT}width:100%;`}>
+                    <option value="">All job titles</option>
+                    {titleOpts.map((o) => (
+                      <option value={o.value} selected={filters.job_title === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>TAG</div>
+                  <select name="tag" style={`${SELECT}width:100%;`}>
+                    <option value="">All tags</option>
+                    {tagOpts.map((o) => (
+                      <option value={o.value} selected={filters.tag === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <a href="/app/org/contacts" style="font-size:12.5px;margin-right:auto;">
+                    Clear filters
+                  </a>
+                  <button type="submit" style={PRIMARY}>
+                    Apply
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
           {active && canWrite ? (
             <button type="button" data-dialog-open="#segment-modal" style={BTN}>
               Save segment
             </button>
           ) : null}
-
-          <div
-            id="filter-panel"
-            hidden
-            style="position:absolute;top:calc(100% + 8px);left:0;width:340px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;padding:16px;"
-          >
-            <form method="get" action="/app/org/contacts" style="display:grid;gap:12px;margin:0;">
-              <input type="hidden" name="q" value={filters.q} />
-              <div>
-                <div style={`${MICRO}margin-bottom:5px;`}>COMPANY</div>
-                <select name="company" style={`${SELECT}width:100%;`}>
-                  <option value="">All companies</option>
-                  {companyOpts.map((o) => (
-                    <option value={o.value} selected={filters.company === o.value}>
-                      {`${o.value} (${o.n})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div style={`${MICRO}margin-bottom:5px;`}>JOB TITLE</div>
-                <select name="job_title" style={`${SELECT}width:100%;`}>
-                  <option value="">All job titles</option>
-                  {titleOpts.map((o) => (
-                    <option value={o.value} selected={filters.job_title === o.value}>
-                      {`${o.value} (${o.n})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <div style={`${MICRO}margin-bottom:5px;`}>TAG</div>
-                <select name="tag" style={`${SELECT}width:100%;`}>
-                  <option value="">All tags</option>
-                  {tagOpts.map((o) => (
-                    <option value={o.value} selected={filters.tag === o.value}>
-                      {`${o.value} (${o.n})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <a href="/app/org/contacts" style="font-size:12.5px;margin-right:auto;">
-                  Clear filters
-                </a>
-                <button type="submit" style={PRIMARY}>
-                  Apply
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
 
-        {active ? (
+        {active || segment ? (
           <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
-            {filters.q ? (
-              <FilterChip label="SEARCH" value={filters.q} href={contactsHref(filters, { q: '' })} />
+            {segment ? (
+              <FilterChip label="SEGMENT" value={segment.name} href={contactsHref(filters)} />
             ) : null}
+            {filters.q ? <FilterChip label="SEARCH" value={filters.q} href={dropFilter({ q: '' })} /> : null}
             {filters.company ? (
-              <FilterChip label="COMPANY" value={filters.company} href={contactsHref(filters, { company: '' })} />
+              <FilterChip label="COMPANY" value={filters.company} href={dropFilter({ company: '' })} />
             ) : null}
             {filters.job_title ? (
-              <FilterChip label="TITLE" value={filters.job_title} href={contactsHref(filters, { job_title: '' })} />
+              <FilterChip label="TITLE" value={filters.job_title} href={dropFilter({ job_title: '' })} />
             ) : null}
-            {filters.tag ? (
-              <FilterChip label="TAG" value={filters.tag} href={contactsHref(filters, { tag: '' })} />
-            ) : null}
+            {filters.tag ? <FilterChip label="TAG" value={filters.tag} href={dropFilter({ tag: '' })} /> : null}
             <a href="/app/org/contacts" style="font-size:12.5px;margin-left:4px;">
               Clear filters
             </a>
