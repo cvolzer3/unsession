@@ -101,7 +101,7 @@ app.get('/app/team', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions}>
-      <div style="padding:24px 28px;max-width:1160px;">
+      <div style="padding:24px 28px;">
         {inviteLink ? (
           <div style="border:1px solid #b08800;background:#fdf5dc;padding:12px 14px;margin-bottom:16px;">
             <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#b08800;margin-bottom:6px;`}>
