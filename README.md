@@ -15,43 +15,7 @@ The [sandbox](https://unsession.dev) is a live event mid-lifecycle: submissions 
 - **Hosted service:** https://unsession.dev — runs this repo unmodified (admin at `/app`)
 - **License:** [AGPL-3.0](LICENSE)
 
-## How it works
-
-### 01 · Collect — a call for speakers people actually finish
-
-Every abandoned draft is a talk you never got to consider. Unsession's forms are easy to start, hard to lose, and painless on a phone.
-
-- **Drafts survive anything.** Autosaved from the first keystroke, resumable on any device via an emailed draft link.
-- **Ask only what's relevant.** Conditional show/hide logic: a workshop pitch and a lightning talk each see their own questions.
-- **Your brand, your questions.** A form builder with fixed core fields (title, abstract, format, per-speaker name/email/bio/headshot) plus custom fields: word-limited text with live counters, selects bound to event taxonomies, URLs, file uploads. Co-speakers, multiple forms per event, themed mobile-first public forms.
-
-### 02 · Decide — fair decisions, made in an evening
-
-Give every proposal the same fair read, see the results ranked, and send decisions knowing exactly what each speaker will receive.
-
-- **Talks win on merit.** Blind review hides names and bios in one toggle, so the work gets judged, not the byline.
-- **Your committee flies through the queue.** Evaluation plans scoped to a slice of submissions, reviewer rosters, 1–5 rubric criteria, keyboard-driven scoring, reviewer progress tracking.
-- **No decision leaves unchecked.** Accept / decline / waitlist individually or in bulk; templated decision emails always go through preview + confirm. CSV import, CSV/XLSX export.
-
-### 03 · Onboard — speakers arrive ready, without the chasing
-
-The weeks between "accepted" and stage day are where events go sideways. Give each speaker one link and a clear checklist, and get out of the reminder-email business.
-
-- **One portal, one checklist.** Speakers sign in to see their submissions, statuses, tasks, and profile. An explicit participation confirmation can gate public agenda display.
-- **Slides, headshots, A/V needs.** Task templates (checkbox / file request / form / profile) with due dates; files land in your storage instead of your inbox.
-- **Schedule changes that stick.** ICS calendar invites update themselves when a session moves, and every submission keeps its own activity log.
-
-### 04 · Publish — an agenda you can stand behind on stage day
-
-Build the schedule by dragging sessions into place, and catch double-booked rooms and speakers before your attendees do.
-
-- **Conflicts surface instantly.** Double-booked rooms and a speaker in two places flag themselves while you're still dragging.
-- **Looks like your event.** One brand color becomes a polished public agenda and speaker directory with a WCAG-checked palette.
-- **Everywhere at once.** Embeddable agenda/speaker widgets and edge-cached public pages, invalidated on publish.
-
-Underneath all four: nothing falls through the cracks. The whole pipeline lives in one place, not spread across a form tool, a spreadsheet, and someone's inbox. Every decision, email, task, and schedule change is logged per submission, so "did we tell them?" is always one click away.
-
-## Your AI agent can work the CFP with you
+## Unsession MCP: Your AI agent can work the CFP with you
 
 Unsession ships an MCP server, so Claude Code, Claude, Cursor, and anything else that speaks MCP can read your submission queue, pull evaluation scores, accept a talk, add a sponsor session, or move something on the agenda. Same engines, same permissions, same activity log as the admin UI. There is also a bearer-token REST API (`/api/v1/*`) over the same operations. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
 
