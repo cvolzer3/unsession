@@ -518,6 +518,180 @@ export function sanitizeConditions(fields: FormField[]): { fields: FormField[]; 
   return { fields: out, dropped };
 }
 
+/* ------------------------------------------------------------------ option-rename cascade */
+
+/**
+ * Options have no stable id — the label string IS the stored value, in both
+ * `cond.val` and `answers_json`. Renaming an option therefore has to cascade
+ * into everything still holding the old label, or conditions silently orphan
+ * (the field never shows again) and stored answers stop matching any option.
+ */
+
+export type OptionRename = { src: string; from: string; to: string };
+
+/** Replaces `from` with `to` wherever the given fields' answers hold it. */
+function renameInAnswers(
+  answers: Record<string, unknown>,
+  fieldIds: ReadonlySet<string>,
+  from: string,
+  to: string
+): boolean {
+  let changed = false;
+  for (const fid of fieldIds) {
+    const v = answers[fid];
+    if (typeof v === 'string' && v === from) {
+      answers[fid] = to;
+      changed = true;
+    } else if (Array.isArray(v) && v.some((x) => x === from)) {
+      answers[fid] = v.map((x) => (x === from ? to : x));
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
+ * Positional diff of a field's options between two saves. The builder edits
+ * options in place (add appends, remove shrinks), so an equal-length list with
+ * a changed slot is a rename — unless either side of the pair still exists in
+ * the other list, which means a same-save add+remove, not a rename. Taxonomy-
+ * bound fields are skipped: their labels cascade from Setup, and their `opts`
+ * are hydrated snapshots that drift for reasons that aren't renames.
+ */
+export function detectOptionRenames(before: FormField[], after: FormField[]): OptionRename[] {
+  const prev = new Map(before.map((f) => [f.id, f]));
+  const renames: OptionRename[] = [];
+  for (const f of after) {
+    if (f.type !== 'SEL' && f.type !== 'MULTI') continue;
+    if (f.taxonomyId || f.taxonomyName) continue;
+    const p = prev.get(f.id);
+    if (!p || p.taxonomyId || p.taxonomyName) continue;
+    const po = p.opts ?? [];
+    const no = f.opts ?? [];
+    if (po.length !== no.length) continue;
+    for (let i = 0; i < po.length; i++) {
+      if (po[i] !== no[i] && !no.includes(po[i]) && !po.includes(no[i])) {
+        renames.push({ src: f.id, from: po[i], to: no[i] });
+      }
+    }
+  }
+  return renames;
+}
+
+/** Follows detected renames into the schema's own conditions. */
+export function applyOptionRenames(fields: FormField[], renames: OptionRename[]): FormField[] {
+  if (!renames.length) return fields;
+  return fields.map((f) => {
+    if (!f.cond) return f;
+    const r = renames.find((x) => x.src === f.cond!.src && x.from === f.cond!.val);
+    return r ? { ...f, cond: { ...f.cond, val: r.to } } : f;
+  });
+}
+
+/**
+ * Follows builder option renames into draft answers. Only drafts: they render
+ * against the *latest* schema on the public form, while non-draft submissions
+ * display against their frozen pinned version, which keeps the old labels.
+ */
+export async function cascadeRenamesIntoDrafts(
+  db: D1Database,
+  formId: string,
+  renames: OptionRename[]
+): Promise<void> {
+  if (!renames.length) return;
+  const subs = await all<{ id: string; answers_json: string }>(
+    db,
+    `SELECT id, answers_json FROM submissions WHERE form_id = ? AND status = 'draft'`,
+    formId
+  );
+  for (const s of subs) {
+    const answers = jsonParse<Record<string, unknown>>(s.answers_json, {});
+    let changed = false;
+    for (const r of renames) {
+      changed = renameInAnswers(answers, new Set([r.src]), r.from, r.to) || changed;
+    }
+    if (changed) await run(db, `UPDATE submissions SET answers_json = ? WHERE id = ?`, JSON.stringify(answers), s.id);
+  }
+}
+
+/**
+ * Follows a taxonomy option's label change (rename or duration edit) through
+ * the whole event: `cond.val` in every form version whose source field is
+ * bound to the taxonomy, and every submission's stored answers. Unlike the
+ * builder cascade this rewrites *all* versions and *all* submissions — frozen
+ * versions hydrate their bound `opts` from the live taxonomy on every read, and
+ * evaluation/tasks match answers against live labels, so old labels break
+ * everywhere the moment the taxonomy changes.
+ */
+export async function cascadeTaxonomyOptionRename(
+  db: D1Database,
+  eventId: string,
+  tax: { id: string; name: string },
+  oldLabel: string,
+  newLabel: string
+): Promise<void> {
+  if (oldLabel === newLabel) return;
+  const versions = await all<{ id: string; form_id: string; schema_json: string }>(
+    db,
+    `SELECT v.id, v.form_id, v.schema_json FROM form_versions v
+       JOIN forms f ON f.id = v.form_id WHERE f.event_id = ?`,
+    eventId
+  );
+  const boundByVersion = new Map<string, Set<string>>();
+  const boundByForm = new Map<string, Set<string>>();
+  for (const v of versions) {
+    const { fields } = parseSchema(v.schema_json);
+    const bound = new Set(
+      fields
+        .filter(
+          (f) =>
+            (f.type === 'SEL' || f.type === 'MULTI') &&
+            (f.taxonomyId === tax.id || (f.taxonomyName ?? '').toLowerCase() === tax.name.toLowerCase())
+        )
+        .map((f) => f.id)
+    );
+    boundByVersion.set(v.id, bound);
+    const formSet = boundByForm.get(v.form_id) ?? new Set<string>();
+    for (const id of bound) formSet.add(id);
+    boundByForm.set(v.form_id, formSet);
+    if (!bound.size) continue;
+
+    let changed = false;
+    const next = fields.map((f) => {
+      let out = f;
+      if (f.cond && bound.has(f.cond.src) && f.cond.val === oldLabel) {
+        out = { ...out, cond: { ...f.cond!, val: newLabel } };
+        changed = true;
+      }
+      // Stored opts on bound fields are point-in-time snapshots (hydrateSchema
+      // overwrites them on read) — keep the snapshot in step anyway.
+      if (bound.has(f.id) && f.opts?.includes(oldLabel)) {
+        out = { ...out, opts: f.opts.map((o) => (o === oldLabel ? newLabel : o)) };
+        changed = true;
+      }
+      return out;
+    });
+    if (changed) {
+      await run(db, `UPDATE form_versions SET schema_json = ? WHERE id = ?`, JSON.stringify({ fields: next }), v.id);
+    }
+  }
+
+  const subs = await all<{ id: string; form_id: string; form_version_id: string | null; answers_json: string }>(
+    db,
+    `SELECT id, form_id, form_version_id, answers_json FROM submissions WHERE event_id = ?`,
+    eventId
+  );
+  for (const s of subs) {
+    const bound =
+      (s.form_version_id ? boundByVersion.get(s.form_version_id) : undefined) ?? boundByForm.get(s.form_id);
+    if (!bound?.size) continue;
+    const answers = jsonParse<Record<string, unknown>>(s.answers_json, {});
+    if (renameInAnswers(answers, bound, oldLabel, newLabel)) {
+      await run(db, `UPDATE submissions SET answers_json = ? WHERE id = ?`, JSON.stringify(answers), s.id);
+    }
+  }
+}
+
 /* ------------------------------------------------------------------ loading */
 
 export type LoadedForm = {

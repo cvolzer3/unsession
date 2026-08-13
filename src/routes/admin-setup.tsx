@@ -15,6 +15,7 @@ import { slugTaken } from '../lib/events';
 import { slugify } from '../lib/slugify';
 import { logActivity } from '../lib/activity';
 import { requireOrgRole } from '../lib/auth';
+import { cascadeTaxonomyOptionRename, optionLabel } from '../lib/forms';
 
 const app = new Hono<Ctx>();
 
@@ -887,14 +888,28 @@ app.post('/app/setup/options/update', guard, async (c) => {
   if (!row) return c.redirect('/app/setup');
   const name = String(body.name ?? '').trim() || row.name;
   const duration = Number.parseInt(String(body.duration ?? ''), 10);
+  const nextDuration = row.has_duration && Number.isFinite(duration) ? duration : row.has_duration ? row.duration_min : null;
   await run(
     c.env.DB,
     `UPDATE taxonomy_options SET name=?, color=?, duration_min=? WHERE id=?`,
     name,
     row.has_color ? normalizeHex(String(body.color ?? row.color ?? '#7048e8')) : row.color,
-    row.has_duration && Number.isFinite(duration) ? duration : row.has_duration ? row.duration_min : null,
+    nextDuration,
     optionId
   );
+  // Conditions and answers store the option's *label* — follow the rename so
+  // "show if format is Workshop (90 min)" fields don't silently orphan.
+  const oldLabel = optionLabel(row.name, row.duration_min);
+  const newLabel = optionLabel(name, nextDuration);
+  if (oldLabel !== newLabel) {
+    await cascadeTaxonomyOptionRename(
+      c.env.DB,
+      event.id,
+      { id: row.taxonomy_id, name: row.taxonomy },
+      oldLabel,
+      newLabel
+    );
+  }
   return c.redirect(
     '/app/setup?ok=' + encodeURIComponent(`“${name}” updated`)
   );

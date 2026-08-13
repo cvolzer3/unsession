@@ -207,7 +207,12 @@ function boot(D) {
     if (!f.cond) return null;
     const src = fields.find((x) => x.id === f.cond.src);
     if (!src) return 'IF (ARCHIVED FIELD)';
-    return `IF ${src.label.toUpperCase()} ${String(f.cond.op).toUpperCase()} ${String(f.cond.val).split(' (')[0].toUpperCase()}`;
+    const base = `IF ${src.label.toUpperCase()} ${String(f.cond.op).toUpperCase()} ${String(f.cond.val).split(' (')[0].toUpperCase()}`;
+    // Mirrors the server's condChip: a value no longer among the source's
+    // options means the condition can never match — surface it, don't hide it.
+    const needsVal = ['is', 'is not', 'contains', 'does not contain'].includes(String(f.cond.op));
+    const orphaned = needsVal && (src.opts || []).length > 0 && !(src.opts || []).includes(String(f.cond.val));
+    return orphaned ? `${base} — MISSING OPTION` : base;
   }
 
   function tagLine(f) {
@@ -418,6 +423,12 @@ function boot(D) {
     fields = fields.map((f) => (f.id === id ? { ...f, ...delta } : f));
     renderList();
     markDirty();
+  }
+
+  // The value <select> visually defaults to the source's first option, so the
+  // stored val must match it — '' would silently never satisfy the condition.
+  function firstCondVal(src) {
+    return src.type === 'CHK' ? 'true' : (src.opts || [])[0] || '';
   }
 
   function patchValidation(id, delta) {
@@ -669,8 +680,13 @@ function boot(D) {
     }
     if (t.hasAttribute('data-opt')) {
       const oi = Number(t.getAttribute('data-opt'));
+      const oldVal = (f.opts || [])[oi];
       const opts = [...(f.opts || [])];
       opts[oi] = t.value;
+      // Conditions store the option's label — follow the rename or they orphan.
+      fields
+        .filter((x) => x.cond && x.cond.src === f.id && x.cond.val === oldVal)
+        .forEach((x) => patch(x.id, { cond: { ...x.cond, val: t.value } }));
       patch(f.id, { opts });
     }
   });
@@ -707,13 +723,17 @@ function boot(D) {
       const i = fields.indexOf(f);
       const srcOpts = fields.slice(0, i).filter((x) => x.type === 'SEL' || x.type === 'CHK');
       patch(f.id, {
-        cond: t.checked && srcOpts.length ? { src: srcOpts[0].id, op: 'is', val: '', alsoReq: false } : null,
+        cond:
+          t.checked && srcOpts.length
+            ? { src: srcOpts[0].id, op: 'is', val: firstCondVal(srcOpts[0]), alsoReq: false }
+            : null,
       });
       renderRail();
       return;
     }
     if (t.hasAttribute('data-cond-src')) {
-      patch(f.id, { cond: { ...f.cond, src: t.value, val: '' } });
+      const src = fields.find((x) => x.id === t.value);
+      patch(f.id, { cond: { ...f.cond, src: t.value, val: src ? firstCondVal(src) : '' } });
       renderRail();
       return;
     }
