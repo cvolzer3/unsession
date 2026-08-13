@@ -5,7 +5,7 @@
  * email log) and the log itself is the dedup source — a reminder fires at most
  * once per subject per day, so the 15-minute cadence is safe.
  */
-import { all, one, now } from './db';
+import { all, one, now, run } from './db';
 import { sendEmail, renderTemplate } from './email';
 import {
   parseReminders,
@@ -267,6 +267,13 @@ async function cfpClosingReminders(env: Bindings, ev: EventRow, budget: { left: 
   }
 }
 
+/* ------------------------------------------------- 4 · oauth code sweep */
+
+/** OAuth auth codes live 10 minutes and are single-use — sweep the spent rows. */
+async function sweepOauthCodes(env: Bindings): Promise<void> {
+  await run(env.DB, `DELETE FROM oauth_codes WHERE used_at IS NOT NULL OR expires_at < ?`, now());
+}
+
 /* ------------------------------------------------------------------ main */
 
 export async function runScheduledJobs(env: Bindings, event: ScheduledController): Promise<void> {
@@ -274,6 +281,7 @@ export async function runScheduledJobs(env: Bindings, event: ScheduledController
   const budget = { left: MAX_SENDS_PER_TICK };
   let eventsScanned = 0;
   try {
+    await sweepOauthCodes(env);
     const events = await all<EventRow>(env.DB, `SELECT id, name, slug, start_date FROM events`);
     eventsScanned = events.length;
     for (const ev of events) {

@@ -139,7 +139,7 @@ import { newId, nextSeq } from '../lib/ids';
 ```
 
 - Ids are app-generated: `newId('sub')` → `sub_a1b2c3d4e5f6`. Prefixes in use:
-  `usr ses mtk org inv evt rom tax tpo frm fvr sub ssp spk epl evl tsk tsi etp eml act file fcm`.
+  `usr ses mtk org inv evt rom tax tpo frm fvr sub ssp spk epl evl tsk tsi etp eml act file fcm atk ocl oac`.
 - Timestamps are `now()` — ISO-8601 UTC, second precision. Dates that mean a
   calendar day (`start_date`, `due_date`, `closes_at`) are `YYYY-MM-DD`.
 - Every `*_json` column is TEXT; read with `jsonParse(row.x_json, fallback)`.

@@ -14,6 +14,7 @@ import { Favicons } from './views/meta';
 
 import api from './routes/api';
 import mcp from './routes/mcp';
+import oauth from './routes/oauth';
 import landing from './routes/landing';
 import docs from './routes/docs';
 import auth from './routes/auth';
@@ -60,10 +61,13 @@ app.use('/app/*', requireUser);
 app.get('/healthz', (c) => c.json({ ok: true, service: 'unsession' }));
 
 // Landing + docs + auth. `docs` claims /docs and /mcp before the /:event
-// catch-alls, so those two slugs are effectively reserved.
+// catch-alls, so those two slugs are effectively reserved — `oauth` likewise
+// reserves /oauth and /.well-known (OAuth 2.1 + DCR for MCP clients; its
+// /oauth/authorize consent page needs the session middleware above).
 app.route('/', landing);
 app.route('/', docs);
 app.route('/', auth);
+app.route('/', oauth);
 app.route('/', sandbox);
 app.route('/', confirm);
 app.route('/', files);

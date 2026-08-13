@@ -344,9 +344,12 @@ app.get('/docs/mcp', (c) => {
             {/* ----------------------------------------------- connect */}
             <h2 id="connect">2 · Connect your agent</h2>
             <p>
-              Any MCP client that supports a remote HTTP server with a custom header will work. Below are the ones
-              people ask about most; the pattern is always the same — the URL above, plus{' '}
-              <code>Authorization: Bearer uns_…</code>.
+              Two ways in. Clients that speak <b>OAuth</b> (claude.ai connectors, VS Code, Cursor and most modern
+              MCP clients) need only the endpoint URL — the server supports OAuth 2.1 with dynamic client
+              registration, so the client sends you to a consent page where you sign in, pick a workspace and a
+              scope, and the connection appears under <b>API access</b> like any other token. Everything else
+              takes a remote HTTP server with a custom header; the pattern is always the same — the URL above,
+              plus <code>Authorization: Bearer uns_…</code>.
             </p>
 
             <h3 id="claude-code">Claude Code</h3>
@@ -385,15 +388,14 @@ app.get('/docs/mcp', (c) => {
             <h3 id="claude-apps">Claude apps (claude.ai and desktop)</h3>
             <p>
               Add it as a <b>custom connector</b>: <b>Settings → Connectors → Add custom connector</b>, paste the
-              endpoint URL, then open <b>Request headers</b> and add <code>authorization</code> with the value{' '}
-              <code>Bearer uns_your_token_here</code> — including the word <code>Bearer</code> and the space, since
-              Claude sends the value exactly as you type it.
+              endpoint URL, and click <b>Connect</b>. Claude registers itself via OAuth and sends you to the
+              Unsession consent page — sign in, pick the workspace and scope, and you’re connected. No token to
+              paste; the connection shows up under <b>API access</b> and is revoked from there.
             </p>
             <div class="note">
-              Request-header authentication in the Claude apps is in beta and rolling out gradually. Unsession
-              authenticates with a static token rather than OAuth, so if your account doesn’t offer the{' '}
-              <b>Request headers</b> section yet, the connector will fail with a 401 — use Claude Code or another
-              client until it lands for you.
+              Prefer a static token? The <b>Request headers</b> section (beta) still works: add{' '}
+              <code>authorization</code> with the value <code>Bearer uns_your_token_here</code> — including the
+              word <code>Bearer</code> and the space, since Claude sends the value exactly as you type it.
             </div>
 
             <h3 id="cursor">Cursor</h3>

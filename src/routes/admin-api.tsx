@@ -123,6 +123,13 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
                 <div style="min-width:0;padding-right:12px;">
                   <div style={`font-size:13.5px;font-weight:600;color:${fg};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
                     {t.name}
+                    {t.oauth_client_id ? (
+                      <span
+                        style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;padding:1px 5px;margin-left:6px;font-weight:600;color:${revoked ? '#868e96' : '#0b7285'};background:${revoked ? '#f1f3f5' : '#e3fafc'};`}
+                      >
+                        OAUTH
+                      </span>
+                    ) : null}
                   </div>
                   <div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {`by ${t.created_by}`}
@@ -192,7 +199,9 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
               <span style={MICRO}>MCP ENDPOINT&ensp;</span>
               <span style={`font-family:${MONO};font-size:12.5px;`}>{`${origin}/api/mcp`}</span>
               &ensp;The same tokens drive agents (Claude Code, Claude connectors, Cursor, VS Code) over stateless
-              Streamable HTTP. Read-only tokens see only the read tools.{' '}
+              Streamable HTTP. Read-only tokens see only the read tools. Clients that speak OAuth can skip the
+              token entirely: add the endpoint URL, sign in on the consent page, and the connection appears in
+              the list above tagged OAUTH — revoke it like any other token.{' '}
               <a href="/docs/mcp" style="color:#4c5fd5;font-weight:600;">
                 Setup guide, tool reference and connection snippets →
               </a>
