@@ -84,15 +84,32 @@ function boot(D) {
   const byStart = (a, b) => a.start - b.start || a.end - b.end || (a.allRooms ? -1 : 1);
   const statusDot = (s) => (s.status === 'confirmed' ? '#2b8a3e' : '#e6a817');
   const speakerNames = (p) => p.speakers.map((x) => x.name).join(', ');
+  // Padding lives in `.ag-tab` (admin-agenda.tsx) so the phone can grow these
+  // to a 38px hit area — an inline padding could not be beaten by a media query.
   const tabBtn = (on) =>
-    `padding:7px 13px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${
+    `border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${on ? '#16171d' : '#fff'};color:${
       on ? '#fff' : '#686b74'
     };white-space:nowrap;`;
 
+  /* ---------------------------------------------------------------- mobile */
+  /**
+   * The one breakpoint (`SPECS/M-mobile.md`). Below it the builder swaps to the
+   * touch shape: bin as a tray, grids that pan inside their own scroll box,
+   * stacked list rows, cards as bottom sheets, and tap-to-place instead of
+   * relying on HTML5 drag-and-drop (which never fires on a touchscreen).
+   */
+  const MQ = window.matchMedia('(max-width:768px)');
+  const mob = () => MQ.matches;
+  const onMQ = () => render();
+  if (MQ.addEventListener) MQ.addEventListener('change', onMQ);
+  else MQ.addListener(onMQ);
+
   /* ------------------------------------------------------------- filters */
   const SEL_STYLE = 'padding:7px 8px;border:1px solid #d4d5db;font-size:12px;background:#fff;color:#33343c;';
+  // The shell forces every control to 16px below 768px (iOS zoom rule), so the
+  // filter selects need a share of the row rather than their intrinsic width.
   const filterSel = (name, value, opts) =>
-    `<select data-filter="${name}" style="${SEL_STYLE}">` +
+    `<select data-filter="${name}" style="${SEL_STYLE}${mob() ? 'flex:1 1 calc(50% - 4px);min-width:0;' : ''}">` +
     opts.map((o) => `<option value="${esc(o.v)}"${String(o.v) === String(value) ? ' selected' : ''}>${esc(o.label)}</option>`).join('') +
     '</select>';
   const trackOpts = () => [{ v: 'all', label: 'All tracks' }, ...D.tracks.map((t) => ({ v: t.id, label: t.name }))];
@@ -327,24 +344,29 @@ function boot(D) {
     let h = '';
     if (showDays) {
       h += '<div style="display:flex;border:1px solid #e2e3e8;background:#fff;">';
-      for (const d of D.days) h += `<button type="button" data-day="${d.index}" style="${tabBtn(S.day === d.index)}">${esc(d.label)}</button>`;
+      for (const d of D.days)
+        h += `<button type="button" class="ag-tab" data-day="${d.index}" style="${tabBtn(S.day === d.index)}">${esc(
+          mob() ? d.short || d.label : d.label
+        )}</button>`;
       h += '</div>';
     }
+    // The filter group trails the day tabs on a desktop; on a phone it takes a
+    // row of its own and wraps inside it — the 16px controls the shell forces
+    // below 768px do not fit beside the tabs.
+    const groupOpen = mob()
+      ? '<div style="flex:1 1 100%;display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;">'
+      : '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">';
     if (S.view === 'rooms') {
       h +=
-        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">' +
+        groupOpen +
         filterSel('fTrack', S.fTrack, trackOpts()) +
-        `<span style="font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;">LAYOUT</span>` +
+        `<span class="us-desktop-only" style="font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;">LAYOUT</span>` +
         '<div style="display:flex;border:1px solid #e2e3e8;background:#fff;">' +
-        `<button type="button" data-layout="cols" style="${tabBtn(S.layout === 'cols')}">Columns</button>` +
-        `<button type="button" data-layout="lanes" style="${tabBtn(S.layout === 'lanes')}">Lanes</button>` +
+        `<button type="button" class="ag-tab" data-layout="cols" style="${tabBtn(S.layout === 'cols')}">Columns</button>` +
+        `<button type="button" class="ag-tab" data-layout="lanes" style="${tabBtn(S.layout === 'lanes')}">Lanes</button>` +
         '</div></div>';
     } else if (S.view === 'day' || S.view === 'week') {
-      h +=
-        '<div style="margin-left:auto;display:flex;align-items:center;gap:8px;">' +
-        filterSel('fTrack', S.fTrack, trackOpts()) +
-        filterSel('fRoom', S.fRoom, roomOpts()) +
-        '</div>';
+      h += groupOpen + filterSel('fTrack', S.fTrack, trackOpts()) + filterSel('fRoom', S.fRoom, roomOpts()) + '</div>';
     }
     daybar.innerHTML = h;
     daybar.style.display = h ? 'flex' : 'none';
@@ -353,11 +375,16 @@ function boot(D) {
   function renderBin() {
     const list = bin();
     binCount.textContent = `${list.length} SESSION${list.length === 1 ? '' : 'S'}`;
+    // The mobile tray lays cards out in a row; its empty state wants the row back.
+    binEl.classList.toggle('ag-bin-empty', !list.length);
     if (!list.length) {
       binEl.innerHTML =
         '<div style="border:1px dashed #d4d5db;padding:20px 14px;font-size:12.5px;color:#9a9da6;text-align:center;">Nothing waiting. Accepted sessions land here.</div>';
       return;
     }
+    // "Schedule…" is the touch path onto the grid: on a phone dragging a card
+    // out of the tray is not available, so every card carries the button.
+    const withBtn = S.view === 'list' || mob();
     binEl.innerHTML = list
       .map((b) => {
         const tr = trackOf(b.trackId);
@@ -372,8 +399,10 @@ function boot(D) {
           '</div>' +
           `<div style="font-size:12.5px;font-weight:600;line-height:1.3;">${esc(b.type === 'sponsor' ? 'SP · ' + b.title : b.title)}</div>` +
           `<div style="font-size:11.5px;color:#686b74;margin-top:2px;">${esc(speakerNames(b))}</div>` +
-          (S.view === 'list'
-            ? `<button type="button" data-schedule="${b.id}" style="margin-top:7px;width:100%;padding:5px 0;background:#eef0fb;border:1px solid #cdd4f0;color:#4c5fd5;font-size:11.5px;font-weight:600;cursor:pointer;">Schedule…</button>`
+          (withBtn
+            ? `<button type="button" data-schedule="${b.id}" style="margin-top:7px;width:100%;padding:${
+                mob() ? '9px' : '5px'
+              } 0;background:#eef0fb;border:1px solid #cdd4f0;color:#4c5fd5;font-size:11.5px;font-weight:600;cursor:pointer;">Schedule…</button>`
             : '') +
           '</div>'
         );
@@ -426,10 +455,13 @@ function boot(D) {
   }
 
   function svcPill(p, vertical) {
+    // The pill is the only handle on a venue-wide band, so on a phone it grows
+    // to a comfortable tap target inside the band it already fills.
+    const pad = vertical ? '8px 3px' : mob() ? '9px 12px' : '3px 9px';
     return (
       `<span draggable="true" data-drag data-sid="${p.id}" title="Drag to move · click to edit" style="pointer-events:auto;cursor:grab;font-family:${MONO};font-size:${
         vertical ? 9 : 10
-      }px;letter-spacing:0.08em;padding:${vertical ? '8px 3px' : '3px 9px'};background:#fff;border:1px solid #d4d7dc;color:#686b74;${
+      }px;letter-spacing:0.08em;padding:${pad};background:#fff;border:1px solid #d4d7dc;color:#686b74;${
         vertical ? 'writing-mode:vertical-rl;' : ''
       }${S.svcId === p.id ? 'outline:2px solid #4c5fd5;' : ''}">${esc(p.title.toUpperCase())}${vertical ? '' : ' · ' + span(p) + ' ✎'}</span>`
     );
@@ -439,7 +471,13 @@ function boot(D) {
     const cset = conflictSet();
     const items = dayPlaced(S.day);
     const hours = hourList();
-    let gutter = `<div style="position:relative;height:${gridH() + HEAD}px;">`;
+    const m0 = mob();
+    // A time grid × N rooms cannot compress to a phone: the columns keep a
+    // readable floor and the whole grid pans inside `.ag-main`, with the hour
+    // gutter pinned to the left edge so the times stay next to the blocks.
+    let gutter = `<div style="${
+      m0 ? 'position:sticky;left:0;z-index:6;background:#f4f4f6;' : 'position:relative;'
+    }height:${gridH() + HEAD}px;">`;
     for (const m of hours) {
       gutter += `<div style="position:absolute;top:${(m - D0) * K - 7 + HEAD}px;right:8px;font-family:${MONO};font-size:10px;color:#9a9da6;">${fmtTime(
         m
@@ -447,7 +485,9 @@ function boot(D) {
     }
     gutter += '</div>';
 
-    let cols = `<div style="display:grid;grid-template-columns:repeat(${Math.max(1, D.rooms.length)},1fr);gap:6px;">`;
+    let cols = `<div style="display:grid;grid-template-columns:repeat(${Math.max(1, D.rooms.length)},${
+      m0 ? 'minmax(148px,1fr)' : '1fr'
+    });gap:6px;">`;
     for (const room of D.rooms) {
       const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id && passTrack(p));
       cols +=
@@ -496,9 +536,11 @@ function boot(D) {
       const blocks = items.filter((p) => !p.allRooms && p.roomId === room.id && passTrack(p));
       lanes +=
         '<div style="display:grid;grid-template-columns:120px 1fr;border-bottom:1px solid #e9eaee;">' +
-        `<div style="padding:12px 10px;font-size:12.5px;font-weight:700;background:#fff;border-right:1px solid #e2e3e8;">${esc(
-          room.name
-        )}<div style="font-family:${MONO};font-size:10px;color:#9a9da6;font-weight:400;">${blocks.length} sessions</div></div>` +
+        `<div style="padding:12px 10px;font-size:12.5px;font-weight:700;background:#fff;border-right:1px solid #e2e3e8;${
+          mob() ? 'position:sticky;left:0;z-index:4;' : ''
+        }">${esc(room.name)}<div style="font-family:${MONO};font-size:10px;color:#9a9da6;font-weight:400;">${
+          blocks.length
+        } sessions</div></div>` +
         `<div data-drop="lane:${room.id}" data-axis="h" style="position:relative;height:74px;background:#fff;">` +
         hours
           .map((m) => `<div style="position:absolute;left:${(m - D0) * KB}px;top:0;bottom:0;border-left:1px solid #f0f1f4;pointer-events:none;"></div>`)
@@ -609,11 +651,26 @@ function boot(D) {
     return out;
   }
 
+  /** Widest concurrency on a day — how many block columns the day view needs. */
+  function maxConcurrency(day) {
+    const items = dayPlaced(day).filter((p) => passTrack(p) && passRoom(p));
+    return Math.max(1, ...lay(items).map((o) => o.cols || 1));
+  }
+
+  /**
+   * Phone floor for the percentage-laid views: N side-by-side blocks squeezed
+   * into 320px are unreadable, so the board keeps a per-column minimum and pans
+   * inside `.ag-main` instead. Empty on desktop — the views stay fluid there.
+   */
+  function boardMinWidth(cols, per) {
+    return mob() ? `min-width:${GUT + RPAD + cols * per}px;` : '';
+  }
+
   function renderDayView() {
     const cset = conflictSet();
     const maxEnd = Math.max(DMAX, ...dayPlaced(S.day).map((p) => p.end), DMAX);
     gridEl.innerHTML =
-      '<div style="background:#fff;border:1px solid #e2e3e8;padding-top:8px;">' +
+      `<div style="background:#fff;border:1px solid #e2e3e8;padding-top:8px;${boardMinWidth(maxConcurrency(S.day), 155)}">` +
       `<div data-drop="pvday" data-axis="v" style="position:relative;height:${(maxEnd - D0 + 25) * K}px;">` +
       hourMarks(maxEnd) +
       pvLayout(S.day, 0, 1, cset) +
@@ -640,7 +697,7 @@ function boot(D) {
     let blocks = '';
     for (let i = 0; i < nDays; i++) blocks += pvLayout(i, i * w, (i + 1) * w - 0.01, cset);
     gridEl.innerHTML =
-      '<div style="background:#fff;border:1px solid #e2e3e8;">' +
+      `<div style="background:#fff;border:1px solid #e2e3e8;${boardMinWidth(nDays, 190)}">` +
       heads +
       `<div data-drop="pvweek" data-axis="v" style="position:relative;height:${(maxEnd - D0 + 25) * K}px;">` +
       hourMarks(maxEnd) +
@@ -686,8 +743,11 @@ function boot(D) {
     const pageRows = rows.slice(page * PAGE, (page + 1) * PAGE);
     const hasFilters = !!fq || S.fDay !== 'all' || S.fTrack !== 'all' || S.fRoom !== 'all' || S.fStatus !== 'all';
 
+    const m0 = mob();
     let head = '<div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">';
-    head += `<input data-filter="q" value="${esc(S.q)}" placeholder="Search title or speaker…" style="flex:1;min-width:180px;max-width:280px;padding:7px 10px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">`;
+    head += `<input data-filter="q" value="${esc(S.q)}" placeholder="Search title or speaker…" style="${
+      m0 ? 'flex:1 1 100%;min-width:0;' : 'flex:1;min-width:180px;max-width:280px;'
+    }padding:7px 10px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">`;
     head += filterSel('fDay', S.fDay, [{ v: 'all', label: 'All days' }, ...D.days.map((d) => ({ v: String(d.index), label: d.label }))]);
     head += filterSel('fTrack', S.fTrack, trackOpts());
     head += filterSel('fRoom', S.fRoom, roomOpts());
@@ -706,42 +766,80 @@ function boot(D) {
       '<a href="/app/api/sessions/export.csv" style="margin-left:auto;padding:7px 10px;border:1px solid #e2e3e8;background:#fff;color:#16171d;font-size:12px;text-decoration:none;">Export CSV</a>';
     head += '</div>';
 
-    const cols = '80px 96px 1fr 150px 110px 90px';
-    let table = '<div style="background:#fff;border:1px solid #e2e3e8;">';
-    table += `<div style="display:grid;grid-template-columns:${cols};gap:12px;padding:9px 14px;border-bottom:1px solid #e2e3e8;">`;
-    for (const [k, label] of [
+    const SORTS = [
       ['day', 'DAY'],
       ['time', 'TIME'],
       ['title', 'SESSION'],
       ['track', 'TRACK'],
       ['room', 'ROOM'],
       ['status', 'STATUS'],
-    ]) {
-      table += `<button type="button" data-sort="${k}" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:${
-        S.sortKey === k ? '#4c5fd5' : '#9a9da6'
-      };">${label}${S.sortKey === k ? (S.sortDir === 1 ? ' ▲' : ' ▼') : ''}</button>`;
+    ];
+    const arrow = (k) => (S.sortKey === k ? (S.sortDir === 1 ? ' ▲' : ' ▼') : '');
+    const cols = '80px 96px 1fr 150px 110px 90px';
+    let table = '<div style="background:#fff;border:1px solid #e2e3e8;">';
+    if (m0) {
+      // Six columns do not survive 320px, and a row whose action is "tap to
+      // open" reads better stacked than scrolled sideways. The column headers
+      // were also the sort control, so they come back as a strip of pills.
+      table += '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-bottom:1px solid #e2e3e8;">';
+      table += `<span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:#9a9da6;align-self:center;">SORT</span>`;
+      for (const [k, label] of SORTS) {
+        const on = S.sortKey === k;
+        table += `<button type="button" data-sort="${k}" style="padding:11px 11px;border:1px solid ${
+          on ? '#4c5fd5' : '#e2e3e8'
+        };background:${on ? '#eef0fb' : '#fff'};cursor:pointer;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:${
+          on ? '#4c5fd5' : '#686b74'
+        };">${label}${arrow(k)}</button>`;
+      }
+      table += '</div>';
+    } else {
+      table += `<div style="display:grid;grid-template-columns:${cols};gap:12px;padding:9px 14px;border-bottom:1px solid #e2e3e8;">`;
+      for (const [k, label] of SORTS) {
+        table += `<button type="button" data-sort="${k}" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;font-family:${MONO};font-size:9.5px;letter-spacing:0.12em;color:${
+          S.sortKey === k ? '#4c5fd5' : '#9a9da6'
+        };">${label}${arrow(k)}</button>`;
+      }
+      table += '</div>';
     }
-    table += '</div>';
     for (const p of pageRows) {
       const svc = p.allRooms;
       const conflicted = cset.has(p.id);
       const tr = trackOf(p.trackId);
       const st = svc ? 'SERVICE' : conflicted ? 'CONFLICT' : String(p.type === 'sponsor' ? 'sponsor' : p.status || p.type).toUpperCase();
       const stColor = conflicted ? '#b03434' : svc ? '#9a9da6' : p.status === 'confirmed' ? '#2b8a3e' : '#b08800';
+      const tint = svc ? 'background:#f8f8fa;' : conflicted ? 'background:#fdecec;' : '';
+      const ring = S.selId === p.id || S.svcId === p.id ? 'outline:2px solid #4c5fd5;outline-offset:-2px;' : '';
+      const titleStyle = svc
+        ? `font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:#9a9da6;`
+        : 'font-size:13px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;';
+      const titleText = esc(svc ? p.title.toUpperCase() : (p.type === 'sponsor' ? 'SP · ' : '') + p.title);
+      if (m0) {
+        table +=
+          `<div data-open="${p.id}" style="padding:11px 12px;border-bottom:1px solid #f0f1f4;cursor:pointer;${tint}${ring}">` +
+          `<div style="display:flex;gap:8px;align-items:baseline;font-family:${MONO};font-size:10.5px;">` +
+          `<span style="color:#9a9da6;">${esc((D.days[p.day] || {}).short || '')}</span>` +
+          `<span style="font-weight:600;">${span(p)}</span>` +
+          `<span style="margin-left:auto;font-size:9.5px;color:${stColor};">${st}</span></div>` +
+          `<div style="${titleStyle}margin-top:4px;">${titleText}</div>` +
+          (svc ? '' : `<div style="font-size:11.5px;color:#686b74;margin-top:2px;">${esc(speakerNames(p))}</div>`) +
+          '<div style="display:flex;gap:8px;align-items:center;margin-top:5px;min-width:0;">' +
+          (svc
+            ? ''
+            : `<span style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#33343c;min-width:0;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(
+                tr.name
+              )}</span></span>`) +
+          `<span style="margin-left:auto;flex-shrink:0;font-family:${MONO};font-size:10px;color:#9a9da6;">${esc(roomName(p))}</span>` +
+          '</div></div>';
+        continue;
+      }
       table +=
         `<div data-open="${p.id}" style="display:grid;grid-template-columns:${cols};gap:12px;padding:10px 14px;border-bottom:1px solid #f0f1f4;align-items:${
           svc ? 'center' : 'start'
-        };cursor:pointer;${svc ? 'background:#f8f8fa;' : conflicted ? 'background:#fdecec;' : ''}${
-          S.selId === p.id || S.svcId === p.id ? 'outline:2px solid #4c5fd5;outline-offset:-2px;' : ''
-        }">` +
+        };cursor:pointer;${tint}${ring}">` +
         `<span style="font-family:${MONO};font-size:10.5px;color:#9a9da6;">${esc((D.days[p.day] || {}).short || '')}</span>` +
         `<span style="font-family:${MONO};font-size:10.5px;font-weight:600;">${span(p)}</span>` +
         '<span>' +
-        `<span style="${
-          svc
-            ? `font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:#9a9da6;`
-            : 'font-size:13px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;'
-        }">${esc(svc ? p.title.toUpperCase() : (p.type === 'sponsor' ? 'SP · ' : '') + p.title)}</span>` +
+        `<span style="${titleStyle}">${titleText}</span>` +
         `<div style="font-size:11.5px;color:#686b74;margin-top:2px;">${esc(svc ? '' : speakerNames(p))}</div></span>` +
         `<span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:#33343c;">${
           svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
@@ -752,14 +850,16 @@ function boot(D) {
     }
     if (!rows.length) table += '<div style="padding:28px 14px;text-align:center;font-size:12.5px;color:#9a9da6;">No sessions match these filters.</div>';
     table +=
-      `<div style="display:flex;align-items:center;gap:8px;padding:9px 14px;font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;">` +
+      `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 14px;font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;">` +
       `<span>${rows.length ? `${page * PAGE + 1}–${Math.min(rows.length, (page + 1) * PAGE)} OF ${rows.length} ITEMS` : '0 ITEMS'}</span>` +
       '<div style="margin-left:auto;display:flex;gap:8px;align-items:center;">' +
-      `<button type="button" data-page="prev" style="padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${
-        page === 0 ? 'opacity:0.4;pointer-events:none;' : ''
-      }">← Prev</button>` +
+      `<button type="button" data-page="prev" style="padding:${
+        m0 ? '9px 12px' : '5px 10px'
+      };border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${page === 0 ? 'opacity:0.4;pointer-events:none;' : ''}">← Prev</button>` +
       `<span>PAGE ${page + 1} / ${pages}</span>` +
-      `<button type="button" data-page="next" style="padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${
+      `<button type="button" data-page="next" style="padding:${
+        m0 ? '9px 12px' : '5px 10px'
+      };border:1px solid #e2e3e8;background:#fff;font-size:11.5px;cursor:pointer;${
         page >= pages - 1 ? 'opacity:0.4;pointer-events:none;' : ''
       }">Next →</button>` +
       '</div></div></div>';
@@ -774,7 +874,30 @@ function boot(D) {
   }
 
   /* ------------------------------------------------------ selection cards */
-  const CARD = 'position:fixed;right:20px;bottom:20px;width:320px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);touch-action:none;';
+  const CARD_DESK = 'position:fixed;right:20px;bottom:20px;width:320px;';
+  /**
+   * On a phone the floating card becomes a bottom sheet: full width, scrolling
+   * inside itself, and sitting above the sandbox chip (z-index 70) but below
+   * toasts (80). The trailing pad keeps the chip off the sheet's last button.
+   * `touch-action` lives in `.ag-card` so the sheet can scroll.
+   */
+  const CARD_MOB =
+    'position:fixed;left:0;right:0;bottom:0;width:auto;max-height:min(72vh,560px);overflow-y:auto;padding-bottom:56px;border-bottom:none;';
+  const cardBase = () =>
+    (mob() ? CARD_MOB : CARD_DESK) + 'background:#fff;border:1px solid #e2e3e8;box-shadow:0 16px 48px rgba(22,23,29,0.18);';
+  // Mobile sheets are pinned, so the drag offset never applies and the three
+  // cards get their own layer above the chip instead of 50/60/70.
+  const cardZ = (desk) => `z-index:${mob() ? desk === 50 ? 72 : desk === 60 ? 74 : 76 : desk};`;
+
+  /** Card / banner action buttons grow to a comfortable tap target on a phone. */
+  const CPAD = () => (mob() ? '11px 0' : '7px 0');
+  const BPAD = (desk) => (mob() ? '10px 14px' : desk);
+
+  /** Card dismiss — 40x40 on a phone, the desktop glyph everywhere else. */
+  const closeBtn = (which) =>
+    `<button type="button" data-close="${which}" aria-label="Close" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;${
+      mob() ? 'width:40px;height:40px;margin:-10px -10px -10px auto;flex:none;' : ''
+    }">✕</button>`;
 
   // Drag offsets per card kind, kept only while the same item stays open so
   // re-renders (day/time/room changes) don't snap the card back.
@@ -782,7 +905,7 @@ function boot(D) {
 
   function cardPos(key, id) {
     const d = cardDrag[key];
-    if (!d || d.id !== String(id)) {
+    if (!d || d.id !== String(id) || mob()) {
       cardDrag[key] = null;
       return '';
     }
@@ -808,7 +931,7 @@ function boot(D) {
       D.days
         .map(
           (d) =>
-            `<button type="button" ${attr}="${d.index}" title="${esc(d.label)}" style="${tabBtn(active === d.index)}flex:1 1 auto;min-width:0;">${esc(
+            `<button type="button" class="ag-tab" ${attr}="${d.index}" title="${esc(d.label)}" style="${tabBtn(active === d.index)}flex:1 1 auto;min-width:0;">${esc(
               compact ? `Day ${d.index + 1}` : d.label
             )}</button>`
         )
@@ -816,6 +939,14 @@ function boot(D) {
       '</div>'
     );
   }
+
+  /**
+   * The conflict / auto-schedule banners are centred and capped at 560px on a
+   * desktop; on a phone they take the full width between 12px gutters instead
+   * of a 560px box that cannot fit.
+   */
+  const bannerX = () =>
+    mob() ? 'left:12px;right:12px;' : 'left:50%;transform:translateX(-50%);max-width:560px;';
 
   function renderCards() {
     let h = '';
@@ -829,13 +960,13 @@ function boot(D) {
     if (sel && sel.day !== null) {
       const dur = sel.end - sel.start;
       h +=
-        `<div data-card="sel" data-card-id="${esc(String(sel.id))}" style="${CARD}z-index:50;${cardPos('sel', sel.id)}">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;cursor:move;">' +
+        `<div class="ag-card" data-card="sel" data-card-id="${esc(String(sel.id))}" style="${cardBase()}${cardZ(50)}${cardPos('sel', sel.id)}">` +
+        `<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;${mob() ? '' : 'cursor:move;'}">` +
         `<div><div style="font-size:14px;font-weight:700;line-height:1.3;">${esc(sel.title)}</div>` +
         `<div style="font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:2px;">${span(sel)} · ${esc(roomName(sel))} · ${esc(
           String(sel.status || sel.type).toUpperCase()
         )}</div></div>` +
-        '<button type="button" data-close="sel" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button></div>' +
+        closeBtn('sel') + '</div>' +
         '<div style="padding:12px 16px;font-size:12.5px;color:#33343c;display:grid;gap:10px;">' +
         `<div>${esc(speakerNames(sel) || 'No speakers (service block)')}</div>` +
         '<div style="border-top:1px solid #eceded;padding-top:10px;display:grid;gap:8px;">' +
@@ -860,13 +991,13 @@ function boot(D) {
           `<label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;"><input type="checkbox" data-qe-pub${
             sel.published ? ' checked' : ''
           } style="width:14px;height:14px;accent-color:#4c5fd5;">Show on the public agenda</label>` +
-          '<button type="button" data-qe-save style="padding:7px 0;background:#4c5fd5;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;">Save</button></div>';
+          `<button type="button" data-qe-save style="padding:${CPAD()};background:#4c5fd5;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;">Save</button></div>`;
       }
 
       h +=
         '<div style="display:flex;gap:6px;">' +
-        '<button type="button" data-to-bin style="flex:1;padding:7px 0;background:#fde8e8;border:1px solid #f0c4c4;color:#8a2c2c;font-size:12px;cursor:pointer;">Back to bin</button>' +
-        `<button type="button" data-quick-edit style="flex:1;padding:7px 0;background:${
+        `<button type="button" data-to-bin style="flex:1;padding:${CPAD()};background:#fde8e8;border:1px solid #f0c4c4;color:#8a2c2c;font-size:12px;cursor:pointer;">Back to bin</button>` +
+        `<button type="button" data-quick-edit style="flex:1;padding:${CPAD()};background:${
           S.quickEdit ? '#eef0fb' : '#fff'
         };border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Quick edit</button></div></div></div>`;
     }
@@ -874,11 +1005,11 @@ function boot(D) {
     if (svc && svc.day !== null) {
       const nextDay = (svc.day + 1) % nDays;
       h +=
-        `<div data-card="svc" data-card-id="${esc(String(svc.id))}" style="${CARD}z-index:60;${cardPos('svc', svc.id)}">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:center;gap:8px;cursor:move;">' +
+        `<div class="ag-card" data-card="svc" data-card-id="${esc(String(svc.id))}" style="${cardBase()}${cardZ(60)}${cardPos('svc', svc.id)}">` +
+        `<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:center;gap:8px;${mob() ? '' : 'cursor:move;'}">` +
         '<div style="font-size:14px;font-weight:700;">Service block</div>' +
         `<div style="font-family:${MONO};font-size:10px;color:#9a9da6;">${svc.allRooms ? 'SPANS ALL ROOMS' : esc(roomName(svc))}</div>` +
-        '<button type="button" data-close="svc" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button></div>' +
+        closeBtn('svc') + '</div>' +
         '<div style="padding:12px 16px;display:grid;gap:10px;">' +
         '<label style="display:grid;gap:4px;font-size:11px;color:#686b74;">Title' +
         `<input data-svc-title value="${esc(svc.title)}" style="padding:7px 9px;border:1px solid #d4d5db;font-size:13px;font-weight:600;"></label>` +
@@ -897,20 +1028,20 @@ function boot(D) {
           (m) => m > svc.start
         )}</select></label></div>` +
         '<div style="display:flex;gap:6px;">' +
-        `<button type="button" data-svc-copy="${nextDay}" style="flex:1;padding:7px 0;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Copy to Day ${
+        `<button type="button" data-svc-copy="${nextDay}" style="flex:1;padding:${CPAD()};background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Copy to Day ${
           nextDay + 1
         }</button>` +
-        '<button type="button" data-svc-del style="flex:1;padding:7px 0;background:#fff;border:1px solid #f0c4c4;color:#c92a2a;font-size:12px;cursor:pointer;">Delete</button>' +
+        `<button type="button" data-svc-del style="flex:1;padding:${CPAD()};background:#fff;border:1px solid #f0c4c4;color:#c92a2a;font-size:12px;cursor:pointer;">Delete</button>` +
         '</div></div></div>';
     }
 
     if (sched) {
       h +=
-        `<div data-card="sched" data-card-id="${esc(String(S.schedId))}" style="${CARD}z-index:70;${cardPos('sched', S.schedId)}">` +
-        '<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;cursor:move;">' +
+        `<div class="ag-card" data-card="sched" data-card-id="${esc(String(S.schedId))}" style="${cardBase()}${cardZ(70)}${cardPos('sched', S.schedId)}">` +
+        `<div style="padding:14px 16px;border-bottom:1px solid #eceded;display:flex;align-items:flex-start;gap:8px;${mob() ? '' : 'cursor:move;'}">` +
         `<div><div style="font-size:14px;font-weight:700;line-height:1.3;">${esc(sched.title)}</div>` +
         `<div style="font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-top:2px;">SCHEDULE · ${sched.dur} MIN</div></div>` +
-        '<button type="button" data-close="sched" style="margin-left:auto;background:none;border:none;font-size:16px;color:#9a9da6;cursor:pointer;">✕</button></div>' +
+        closeBtn('sched') + '</div>' +
         '<div style="padding:12px 16px;display:grid;gap:10px;">' +
         '<div style="display:grid;gap:4px;font-size:11px;color:#686b74;">Day' +
         dayToggle(S.schedDay, 'data-sched-day') +
@@ -924,19 +1055,22 @@ function boot(D) {
         `<select data-sched-room style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${D.rooms
           .map((r) => `<option value="${r.id}"${r.id === S.schedRoom ? ' selected' : ''}>${esc(r.name)}</option>`)
           .join('')}</select></label></div>` +
-        '<button type="button" data-sched-place style="padding:9px 0;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Place on agenda</button>' +
+        `<button type="button" data-sched-place style="padding:${mob() ? '13px 0' : '9px 0'};background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Place on agenda</button>` +
         '</div></div>';
     }
 
     if (S.warn) {
       h +=
-        '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#402b00;color:#ffe8b3;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">' +
-        '<div style="display:flex;gap:10px;align-items:flex-start;"><span style="font-size:15px;">⚠</span>' +
-        '<div style="flex:1;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">Placed with conflicts</div>' +
+        `<div style="position:fixed;bottom:24px;${bannerX()}background:#402b00;color:#ffe8b3;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);">` +
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;">' +
+        (mob() ? '' : '<span style="font-size:15px;">⚠</span>') +
+        `<div style="flex:${mob() ? '1 1 100%' : '1'};"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">${
+          mob() ? '⚠ ' : ''
+        }Placed with conflicts</div>` +
         S.warn.msgs.map((m) => `<div style="font-size:12.5px;line-height:1.45;">${esc(m)}</div>`).join('') +
         '</div>' +
-        '<button type="button" data-undo style="padding:6px 12px;background:#ffe8b3;color:#402b00;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>' +
-        '<button type="button" data-dismiss-warn style="padding:6px 10px;background:transparent;color:#ffe8b3;border:1px solid #7a5c1a;font-size:12px;cursor:pointer;">Replace</button>' +
+        `<button type="button" data-undo style="padding:${BPAD('6px 12px')};background:#ffe8b3;color:#402b00;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>` +
+        `<button type="button" data-dismiss-warn style="padding:${BPAD('6px 10px')};background:transparent;color:#ffe8b3;border:1px solid #7a5c1a;font-size:12px;cursor:pointer;">Replace</button>` +
         '</div></div>';
     }
 
@@ -947,9 +1081,9 @@ function boot(D) {
         : 'Nothing could be placed';
       const detailed = !!(r.skipped.length || r.over.length);
       h +=
-        '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">' +
-        `<div style="display:flex;gap:10px;align-items:${detailed ? 'flex-start' : 'center'};">` +
-        '<div style="flex:1;">' +
+        `<div style="position:fixed;bottom:24px;${bannerX()}background:#16171d;color:#fff;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);">` +
+        `<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:${detailed ? 'flex-start' : 'center'};">` +
+        `<div style="flex:${mob() ? '1 1 100%' : '1'};">` +
         `<div style="font-weight:700;font-size:13px;line-height:1.45;margin-bottom:${detailed ? '5px' : '0'};">${esc(headline)}</div>` +
         r.over
           .map(
@@ -965,16 +1099,18 @@ function boot(D) {
           .join('') +
         '</div>' +
         (r.placed
-          ? '<button type="button" data-auto-undo style="padding:6px 12px;background:#fff;color:#16171d;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>'
+          ? `<button type="button" data-auto-undo style="padding:${BPAD('6px 12px')};background:#fff;color:#16171d;border:none;font-size:12px;font-weight:700;cursor:pointer;">Undo</button>`
           : '') +
-        '<button type="button" data-auto-dismiss style="padding:6px 10px;background:transparent;color:#c3c5cc;border:1px solid #3d3f47;font-size:12px;cursor:pointer;">Dismiss</button>' +
+        `<button type="button" data-auto-dismiss style="padding:${BPAD('6px 10px')};background:transparent;color:#c3c5cc;border:1px solid #3d3f47;font-size:12px;cursor:pointer;">Dismiss</button>` +
         '</div></div>';
     }
     cardsEl.innerHTML = h;
   }
 
+  // Desktop only: the cards float, so they can be dragged out of the way. The
+  // mobile sheet is pinned to the bottom edge and scrolls instead.
   cardsEl.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || mob()) return;
     const card = e.target.closest('[data-card]');
     if (!card || e.target.closest('button, select, input, textarea, a, label')) return;
     const key = card.dataset.card;
@@ -1001,6 +1137,8 @@ function boot(D) {
   /* --------------------------------------------------------- interactions */
   document.addEventListener('click', async (e) => {
     const t = e.target;
+    // The synthetic click a touch drag leaves behind is not a tap on the block.
+    if (Date.now() - dragEndedAt < 400) return;
 
     const viewBtn = t.closest('[data-view]');
     if (viewBtn) {
@@ -1050,6 +1188,15 @@ function boot(D) {
     const blk = t.closest('[data-sid]');
     if (blk && !t.closest('[data-schedule]')) {
       const s = byId(blk.dataset.sid);
+      // Tray card on a phone: open the schedule card, the same as its button.
+      if (s && s.day === null && mob()) {
+        S.schedId = s.id;
+        S.schedDay = S.day;
+        S.selId = null;
+        S.svcId = null;
+        renderCards();
+        return;
+      }
       if (s && s.day !== null) {
         if (s.allRooms) {
           S.svcId = s.id;
@@ -1321,8 +1468,8 @@ function boot(D) {
     if (ghost && ghost.parentElement) ghost.parentElement.removeChild(ghost);
   }
 
-  function dragDur() {
-    const s = byId(window.__dragId);
+  function dragDur(id) {
+    const s = byId(id);
     if (!s) return 30;
     return s.start !== null && s.end !== null ? s.end - s.start : s.dur;
   }
@@ -1359,15 +1506,19 @@ function boot(D) {
 
   document.addEventListener('dragend', clearGhost);
 
-  document.addEventListener('dragover', (e) => {
-    const zone = e.target.closest('[data-drop]');
-    if (!zone) return;
-    e.preventDefault();
+  /**
+   * Draw the drop preview for a zone at a point. Shared by the desktop HTML5
+   * dragover and the pointer drag below, so both paths land in the same place.
+   */
+  function paintGhost(zone, pt, id) {
     const kind = zone.dataset.drop;
-    if (kind === 'bin') return;
-    const dur = dragDur();
+    if (kind === 'bin') {
+      clearGhost();
+      return;
+    }
+    const dur = dragDur(id);
     const g = ensureGhost(zone);
-    const start = zoneTime(zone, e);
+    const start = zoneTime(zone, pt);
     if (kind.startsWith('room:')) {
       g.style.cssText = `position:absolute;top:${(start - D0) * K}px;height:${
         dur * K - 3
@@ -1377,7 +1528,7 @@ function boot(D) {
         dur * KB - 3
       }px;top:5px;bottom:5px;background:rgba(76,95,213,0.10);border:1px dashed #4c5fd5;pointer-events:none;z-index:4;display:flex;align-items:flex-start;`;
     } else {
-      const day = kind === 'pvweek' ? weekDayAt(zone, e) : S.day;
+      const day = kind === 'pvweek' ? weekDayAt(zone, pt) : S.day;
       const w = kind === 'pvweek' ? 1 / nDays : 1;
       const fx0 = kind === 'pvweek' ? day * w : 0;
       const fx1 = fx0 + w - (kind === 'pvweek' ? 0.01 : 0);
@@ -1388,6 +1539,13 @@ function boot(D) {
       } - 5px);background:rgba(76,95,213,0.10);border:1px dashed #4c5fd5;pointer-events:none;z-index:4;display:flex;align-items:flex-start;`;
     }
     g.innerHTML = ghostLabel(start, dur);
+  }
+
+  document.addEventListener('dragover', (e) => {
+    const zone = e.target.closest('[data-drop]');
+    if (!zone) return;
+    e.preventDefault();
+    paintGhost(zone, e, window.__dragId);
   });
 
   document.addEventListener('dragleave', (e) => {
@@ -1403,13 +1561,9 @@ function boot(D) {
     return (free || D.rooms[0] || {}).id || null;
   }
 
-  document.addEventListener('drop', async (e) => {
-    const zone = e.target.closest('[data-drop]');
-    if (!zone) return;
-    e.preventDefault();
+  /** Commit a drag onto a zone. Shared by the HTML5 and pointer drag paths. */
+  async function commitDrop(zone, pt, id) {
     clearGhost();
-    const id = window.__dragId || (e.dataTransfer && e.dataTransfer.getData('text'));
-    window.__dragId = null;
     const s = byId(id);
     if (!s) return;
     const kind = zone.dataset.drop;
@@ -1417,15 +1571,122 @@ function boot(D) {
       if (s.day !== null) await unschedule(s.id);
       return;
     }
-    const start = zoneTime(zone, e);
+    const start = zoneTime(zone, pt);
     if (kind.startsWith('room:') || kind.startsWith('lane:')) {
       await place(s.id, kind.slice(kind.indexOf(':') + 1), start, S.day);
       return;
     }
-    const day = kind === 'pvweek' ? weekDayAt(zone, e) : S.day;
+    const day = kind === 'pvweek' ? weekDayAt(zone, pt) : S.day;
     const dur = s.start !== null && s.end !== null ? s.end - s.start : s.dur;
     await place(s.id, s.roomId || autoRoom(start, dur, day), start, day);
+  }
+
+  document.addEventListener('drop', async (e) => {
+    const zone = e.target.closest('[data-drop]');
+    if (!zone) return;
+    e.preventDefault();
+    const id = window.__dragId || (e.dataTransfer && e.dataTransfer.getData('text'));
+    window.__dragId = null;
+    await commitDrop(zone, e, id);
   });
+
+  /* --------------------------------------------------- pointer (touch) drag */
+  /**
+   * `dragstart` / `dragover` / `drop` never fire on a touchscreen, so touch and
+   * pen get their own drag built on pointer events. A press has to stay still
+   * for LONG_PRESS ms before it becomes a drag — until then the finger belongs
+   * to the page, which is what lets the tray and the grid keep panning. Mouse
+   * input returns immediately and keeps the native HTML5 path.
+   *
+   * Dragging is the shortcut, not the only route: every card also carries a
+   * tap path (Schedule… in the tray, the MOVE controls on a selected session),
+   * which is the flow that is guaranteed to work on every phone.
+   */
+  const LONG_PRESS = 320;
+  const SLOP = 9;
+  let dragEndedAt = 0;
+
+  function zoneAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el ? el.closest('[data-drop]') : null;
+  }
+
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.pointerType === 'mouse' || e.isPrimary === false) return;
+      const card = e.target.closest('[data-drag]');
+      if (!card) return;
+      const id = card.dataset.sid;
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      let armed = false;
+      let float = null;
+
+      const timer = setTimeout(() => {
+        armed = true;
+        card.style.opacity = '0.4';
+        if (navigator.vibrate) {
+          try {
+            navigator.vibrate(8);
+          } catch {
+            /* not permitted */
+          }
+        }
+        float = document.createElement('div');
+        float.style.cssText =
+          `position:fixed;z-index:95;pointer-events:none;font-family:${MONO};font-size:10px;font-weight:700;` +
+          'background:#4c5fd5;color:#fff;padding:4px 8px;box-shadow:0 6px 18px rgba(22,23,29,0.3);transform:translate(-50%,-160%);';
+        float.textContent = (byId(id) || {}).title || 'Session';
+        document.body.appendChild(float);
+        float.style.left = `${x0}px`;
+        float.style.top = `${y0}px`;
+      }, LONG_PRESS);
+
+      const stop = () => {
+        clearTimeout(timer);
+        card.style.opacity = '';
+        if (float && float.parentElement) float.parentElement.removeChild(float);
+        float = null;
+        clearGhost();
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', stop);
+      };
+
+      const move = (ev) => {
+        if (!armed) {
+          // Still a scroll gesture as far as the browser is concerned.
+          if (Math.abs(ev.clientX - x0) > SLOP || Math.abs(ev.clientY - y0) > SLOP) stop();
+          return;
+        }
+        if (ev.cancelable) ev.preventDefault();
+        if (float) {
+          float.style.left = `${ev.clientX}px`;
+          float.style.top = `${ev.clientY}px`;
+        }
+        const zone = zoneAt(ev.clientX, ev.clientY);
+        if (zone) paintGhost(zone, ev, id);
+        else clearGhost();
+      };
+
+      const up = async (ev) => {
+        const wasArmed = armed;
+        const zone = wasArmed ? zoneAt(ev.clientX, ev.clientY) : null;
+        const pt = { clientX: ev.clientX, clientY: ev.clientY };
+        stop();
+        if (!wasArmed) return;
+        // A finished drag must not also read as a tap on the block underneath.
+        dragEndedAt = Date.now();
+        if (zone) await commitDrop(zone, pt, id);
+      };
+
+      document.addEventListener('pointermove', move, { passive: false });
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', stop);
+    },
+    { passive: true }
+  );
 
   /* ---------------------------------------------------------- embed dialog */
   // The transparent-background checkbox rewrites both iframe snippets (and

@@ -55,8 +55,62 @@ const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:14px;overflow-y:auto;';
 const CODE_BLOCK = `display:block;font-family:${MONO};font-size:11px;line-height:1.55;background:#f4f5f9;border:1px solid #e2e3e8;padding:10px 12px;color:#16171d;word-break:break-all;white-space:pre-wrap;margin-bottom:6px;`;
 const COPY_LINK = 'background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;';
 
+/**
+ * Mobile port. The two-pane shell (264px rail + time grid) stacks below 768px:
+ * the unscheduled bin becomes a horizontal tray above a grid that pans inside
+ * its own scroll box, with the hour gutter / room labels pinned to the left.
+ * `agenda-builder.js` carries the matching JS half (tap-to-place, bottom-sheet
+ * cards, pointer-event dragging).
+ *
+ * Every value here is the byte-for-byte desktop value the inline style used to
+ * carry — an inline style cannot be beaten by a media query, so anything that
+ * has to change on a phone had to move out. The breakpoint is written as the
+ * literal 768: importing MOBILE_MAX into a route module's top-level template
+ * leaves it undefined at module-evaluation time and crashes the worker.
+ */
+const PAGE_CSS = `
+  .ag-layout{display:grid;grid-template-columns:264px 1fr;gap:0;align-items:start;}
+  .ag-rail{border-right:1px solid #e2e3e8;background:#fff;min-height:calc(100vh - 69px);padding:16px;position:sticky;top:0;min-width:0;}
+  .ag-main{padding:18px 24px;overflow-x:auto;min-width:0;}
+  .ag-bin{display:grid;gap:8px;min-height:200px;}
+  .ag-add>button:first-child{margin-bottom:6px;}
+  .ag-tab{padding:7px 13px;}
+  .ag-hactions{gap:10px;}
+  .ag-hbtn{padding:8px 14px;}
+  .ag-hbtn-primary{padding:8px 16px;}
+  /* The selection / service / schedule cards. agenda-builder.js sets the rest
+     inline; touch-action lives here so the mobile sheet can scroll itself. */
+  .ag-card{touch-action:none;}
+  @media (max-width:768px){
+    .ag-layout{grid-template-columns:1fr;}
+    .ag-rail{border-right:none;border-bottom:1px solid #e2e3e8;min-height:0;position:static;padding:12px 14px;}
+    .ag-main{padding:12px 12px 28px;overflow-x:visible;}
+    /* The pan moves off .ag-main and onto the grid alone, so panning to the
+       last room does not carry the day switcher and the filters off screen.
+       The negative margin lets the board reach both edges while the daybar
+       keeps its gutter — and leaves the sticky hour column flush at x=0, which
+       a padding inside the scroll box would break. */
+    #grid{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -12px;}
+    /* The bin turns into a swipeable tray so the grid stays one screen away.
+       Its empty state is a single full-width panel, not a 230px card. */
+    .ag-bin{grid-auto-flow:column;grid-auto-columns:min(74vw,230px);min-height:0;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;}
+    .ag-bin.ag-bin-empty{grid-auto-flow:row;}
+    .ag-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+    .ag-add>button:first-child{margin-bottom:0;}
+    .ag-tab{padding:11px 12px;}
+    /* The shell gives headerActions a row of its own; this inner row has to
+       wrap inside it or the four view tabs push publish off the screen. */
+    .ag-hactions{gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+    .ag-hbtn,.ag-hbtn-primary{padding:10px 12px;}
+    #daybar{flex-wrap:wrap;}
+    .ag-dialog-card{max-width:calc(100vw - 24px);}
+    .ag-dialog-close{width:40px;height:40px;margin:-10px -10px -10px auto;}
+    .ag-card{touch-action:auto;}
+  }
+`;
+
 function tabBtn(on: boolean): string {
-  return `padding:7px 13px;border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${
+  return `border:none;font-size:12.5px;cursor:pointer;font-weight:600;background:${
     on ? '#16171d' : '#fff'
   };color:${on ? '#fff' : '#686b74'};white-space:nowrap;`;
 }
@@ -88,11 +142,12 @@ const EmbedDialog: FC<{ event: Event; origin: string }> = ({ event, origin }) =>
       data-embed-base={`${origin}/${event.slug}/embed`}
       data-event-name={event.name}
     >
-      <div style={DIALOG_CARD}>
+      <div class="ag-dialog-card" style={DIALOG_CARD}>
         <div style={DIALOG_HEAD}>
           <div style="font-size:15px;font-weight:700;">Embed on your website</div>
           <button
             type="button"
+            class="ag-dialog-close"
             data-dialog-close="#embed-dialog"
             style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
           >
@@ -182,10 +237,10 @@ app.get('/app/agenda', async (c) => {
   ];
 
   const headerActions = (
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div class="ag-hactions" style="display:flex;align-items:center;">
       <div style="display:flex;border:1px solid #e2e3e8;">
         {views.map(([id, label]) => (
-          <button type="button" data-view={id} style={tabBtn(id === 'rooms')}>
+          <button type="button" class="ag-tab" data-view={id} style={tabBtn(id === 'rooms')}>
             {label}
           </button>
         ))}
@@ -197,19 +252,25 @@ app.get('/app/agenda', async (c) => {
         style="display:flex;align-items:center;gap:7px;"
       >
         <span style="width:7px;height:7px;border-radius:50%;background:#e6a817;"></span>
-        <span style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#686b74;`}>UNPUBLISHED CHANGES</span>
+        {/* The dot alone carries the state on a phone; the words need a row of
+            their own that the header cannot spare. The title attribute stays. */}
+        <span class="us-desktop-only" style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#686b74;`}>
+          UNPUBLISHED CHANGES
+        </span>
       </div>
       <button
         type="button"
+        class="ag-hbtn"
         data-dialog-open="#embed-dialog"
-        style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
+        style="background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;"
       >
         Embed
       </button>
       <button
         type="button"
         id="publish-btn"
-        style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+        class="ag-hbtn-primary"
+        style="background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
       >
         Publish changes
       </button>
@@ -218,9 +279,10 @@ app.get('/app/agenda', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/agenda-builder.js']}>
+      <style>{raw(PAGE_CSS)}</style>
       {jsonBlock('data-agenda', payload)}
-      <div style="display:grid;grid-template-columns:264px 1fr;gap:0;align-items:start;">
-        <aside style="border-right:1px solid #e2e3e8;background:#fff;min-height:calc(100vh - 69px);padding:16px;position:sticky;top:0;">
+      <div class="ag-layout">
+        <aside class="ag-rail">
           <div style="display:flex;align-items:baseline;margin-bottom:10px;">
             <div style="font-size:14px;font-weight:700;">Unscheduled</div>
             <div id="bin-count" style={`margin-left:auto;font-family:${MONO};font-size:11px;color:#9a9da6;`}></div>
@@ -233,25 +295,30 @@ app.get('/app/agenda', async (c) => {
           >
             Auto-schedule the bin
           </button>
-          <div id="bin" data-drop="bin" style="display:grid;gap:8px;min-height:200px;"></div>
+          <div id="bin" class="ag-bin" data-drop="bin"></div>
           <div style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;">
             <div style={`${MICRO}margin-bottom:8px;`}>ADD DIRECTLY</div>
-            <button
-              type="button"
-              id="add-service"
-              style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;margin-bottom:6px;"
-            >
-              + Service block (break, lunch…)
-            </button>
-            <button
-              type="button"
-              data-dialog-open="#new-session"
-              style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;"
-            >
-              + Sponsor session
-            </button>
+            <div class="ag-add">
+              <button
+                type="button"
+                id="add-service"
+                style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;"
+              >
+                + Service block (break, lunch…)
+              </button>
+              <button
+                type="button"
+                data-dialog-open="#new-session"
+                style="width:100%;padding:8px 0;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;"
+              >
+                + Sponsor session
+              </button>
+            </div>
           </div>
-          <div style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;font-size:12px;color:#686b74;line-height:1.5;">
+          <div
+            class="us-desktop-only"
+            style="margin-top:18px;border-top:1px solid #eceded;padding-top:12px;font-size:12px;color:#686b74;line-height:1.5;"
+          >
             <div style={`${MICRO}margin-bottom:6px;`}>LEGEND</div>
             <span style="display:inline-block;width:8px;height:8px;background:#2b8a3e;"></span> confirmed &nbsp;
             <span style="display:inline-block;width:8px;height:8px;background:#e6a817;"></span> pending speaker
@@ -260,7 +327,7 @@ app.get('/app/agenda', async (c) => {
             <span style={`font-family:${MONO};font-size:10px;`}>SP</span> sponsor
           </div>
         </aside>
-        <div style="padding:18px 24px;overflow-x:auto;">
+        <div class="ag-main">
           <div id="daybar" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;"></div>
           <div id="grid"></div>
         </div>
