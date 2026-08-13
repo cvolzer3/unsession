@@ -1,11 +1,17 @@
 /**
  * Public agenda island — view switching (LIST / DAY / WEEK / TRACK / ROOMS),
- * day tabs, track chips, search, sortable list headers and the session detail
- * popover. All times are shown in the event's timezone.
+ * day tabs, track chips, search, sortable list headers, the session detail
+ * sheet and the EVENT TIME ↔ YOUR TIME timezone toggle (spec B4 §1).
  *
  * Ported from `Agenda.dc.html`: 1.3 px/min time grid, 56px gutter, 10px right
  * pad, concurrency columns inside each overlap cluster. Colours come from the
  * event theme's CSS custom properties — never a hard-coded orange.
+ *
+ * The class names here (`ag-row`, `ag-dayhead`, `ag-sheet`, …) are styled by
+ * the responsive <style> block the route emits — keep both sides in sync.
+ * View, day, track, search, tz and the open session live in the URL
+ * (`?view=…&day=…&track=…&q=…&tz=local` + `#s=<id>`) so agenda links are
+ * shareable and survive a reload.
  *
  * OWNER: B4.
  */
@@ -19,17 +25,112 @@ function boot(D) {
   const MONO = 'var(--font-mono)';
   const nDays = D.days.length;
 
-  const S = { view: 'list', day: 0, track: 'all', q: '', sortKey: 'time', sortDir: 1, selId: null };
-
   const esc = (s) =>
     String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
+  /* ----------------------------------------------------------- URL state */
+  const VIEW_IDS = ['list', 'day', 'week', 'track', 'rooms'].filter((v) => v !== 'week' || nDays > 1);
+  const q0 = new URL(location.href).searchParams;
+  const day0 = parseInt(q0.get('day'), 10);
+  const S = {
+    view: VIEW_IDS.includes(q0.get('view')) ? q0.get('view') : 'list',
+    day: Number.isInteger(day0) && day0 >= 0 && day0 < nDays ? day0 : 0,
+    track: D.tracks.some((t) => t.id === q0.get('track')) ? q0.get('track') : 'all',
+    q: (q0.get('q') || '').trim().toLowerCase(),
+    sortKey: 'time',
+    sortDir: 1,
+    tz: q0.get('tz') === 'local' ? 'local' : 'event',
+    selId: (location.hash.match(/^#s=([\w-]+)$/) || [])[1] || null,
+  };
+  if (S.selId && !D.sessions.some((s) => s.id === S.selId)) S.selId = null;
+
+  function syncUrl() {
+    const u = new URL(location.href);
+    const set = (k, v) => (v ? u.searchParams.set(k, v) : u.searchParams.delete(k));
+    const dayViews = S.view === 'day' || S.view === 'rooms' || S.view === 'track';
+    set('view', S.view !== 'list' && S.view);
+    set('day', dayViews && S.day > 0 && String(S.day));
+    set('track', S.track !== 'all' && S.track);
+    set('q', S.q);
+    set('tz', S.tz === 'local' && 'local');
+    u.hash = S.selId ? `s=${S.selId}` : '';
+    history.replaceState(null, '', u);
+  }
+
   /* ---------------------------------------------------------------- time */
-  const fmtTime = (m) => {
+  // Event-time labels are minutes from the 08:00 grid origin, matching the
+  // server-rendered list. "Your time" converts via the event's IANA timezone.
+  const evTime = (m) => {
     const t = (((480 + Math.round(m)) % 1440) + 1440) % 1440;
     return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   };
-  const span = (a) => `${fmtTime(a.start)}–${fmtTime(a.end)}`;
+
+  const dtfCache = new Map();
+  const dtf = (tz, opts) => {
+    const k = tz + JSON.stringify(opts);
+    if (!dtfCache.has(k)) dtfCache.set(k, new Intl.DateTimeFormat('en-US', Object.assign({ timeZone: tz }, opts)));
+    return dtfCache.get(k);
+  };
+  const tzParts = (epoch, tz, opts) => {
+    const out = {};
+    for (const p of dtf(tz, opts).formatToParts(epoch)) out[p.type] = p.value;
+    return out;
+  };
+  /** Minutes east of UTC for `tz` at `epoch`. */
+  const tzOffset = (epoch, tz) => {
+    const p = tzParts(epoch, tz, { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' });
+    return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - epoch) / 60000;
+  };
+  const epochCache = new Map();
+  /** Epoch ms of event day `day` at `m` minutes past the 08:00 grid origin. */
+  const epochOf = (day, m) => {
+    const key = day * 100000 + m;
+    if (epochCache.has(key)) return epochCache.get(key);
+    const wall = Date.parse(`${(D.days[day] || D.days[0]).date}T00:00:00Z`) + (480 + m) * 60000;
+    let epoch = wall - tzOffset(wall, D.timezone) * 60000;
+    epoch = wall - tzOffset(epoch, D.timezone) * 60000; // second pass settles DST edges
+    epochCache.set(key, epoch);
+    return epoch;
+  };
+
+  const viewerTz = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch {
+      return null;
+    }
+  })();
+  // The toggle only appears when the viewer's clock actually differs from the
+  // event's during the event days (Berlin vs. Paris viewers see no button).
+  let tzReady = false;
+  try {
+    if (viewerTz && D.timezone && viewerTz !== D.timezone && nDays) {
+      const probes = [epochOf(0, 0), epochOf(nDays - 1, 0)];
+      tzReady = probes.some((e) => tzOffset(e, viewerTz) !== tzOffset(e, D.timezone));
+    }
+  } catch {
+    tzReady = false;
+  }
+  if (!tzReady) S.tz = 'event';
+
+  const localHm = viewerTz ? new Intl.DateTimeFormat(undefined, { timeZone: viewerTz, hour: 'numeric', minute: '2-digit' }) : null;
+  const timeLabel = (day, m) => (S.tz === 'local' && tzReady ? localHm.format(epochOf(day, m)) : evTime(m));
+  /** "+1d" / "−1d" when the viewer's calendar date differs from the event's. */
+  const dayShift = (day, m) => {
+    if (S.tz !== 'local' || !tzReady) return '';
+    const p = tzParts(epochOf(day, m), viewerTz, { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const local = `${p.year}-${p.month}-${p.day}`;
+    const event = (D.days[day] || {}).date || local;
+    return local === event ? '' : local < event ? ' −1d' : ' +1d';
+  };
+  const span = (a) => `${timeLabel(a.day, a.start)}–${timeLabel(a.day, a.end)}${dayShift(a.day, a.start)}`;
+  const tzAbbr = (tz) => {
+    try {
+      return tzParts(epochOf(0, 240), tz, { timeZoneName: 'short' }).timeZoneName || tz;
+    } catch {
+      return tz;
+    }
+  };
 
   /* -------------------------------------------------------------- data */
   const trackOf = (id) => D.tracks.find((t) => t.id === id) || { id: null, name: '—', color: '#adb5bd' };
@@ -47,6 +148,8 @@ function boot(D) {
   const chipsEl = document.getElementById('track-chips');
   const searchEl = document.getElementById('agenda-search');
   const clearEl = document.getElementById('clear-filters');
+  const tzBtn = document.getElementById('tz-toggle');
+  const toolbarEl = document.getElementById('agenda-toolbar');
 
   /* ------------------------------------------------------------- layout */
   function lay(items) {
@@ -83,12 +186,13 @@ function boot(D) {
   const titleStyle = 'font-size:11.5px;font-weight:600;line-height:1.25;letter-spacing:-0.01em;margin-top:1px;';
   const svcTitleStyle = `font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:var(--muted);margin-top:1px;`;
 
-  function hourMarks(maxEnd) {
+  function hourMarks(maxEnd, tzDay) {
     let out = '';
     for (let m = 0; m <= maxEnd; m += 60) {
       out +=
         `<div style="position:absolute;left:${GUT}px;right:0;top:${m * PPM}px;border-top:1px solid var(--chip);"></div>` +
-        `<div style="position:absolute;left:0;top:${m * PPM - 6}px;width:${GUT - 10}px;text-align:right;font-family:${MONO};font-size:9.5px;color:var(--faint);">${fmtTime(
+        `<div style="position:absolute;left:0;top:${m * PPM - 6}px;width:${GUT - 10}px;text-align:right;font-family:${MONO};font-size:9.5px;color:var(--faint);">${timeLabel(
+          tzDay,
           m
         )}</div>`;
     }
@@ -109,7 +213,7 @@ function boot(D) {
         ? 'background:var(--chip);padding:5px 10px;'
         : `background:var(--card);border:1px solid var(--border);border-left:3px solid ${tr.color};padding:5px 8px;cursor:pointer;${selOut}`);
     return (
-      `<div ${svc ? '' : `data-sid="${a.id}"`} style="${style}">` +
+      `<div ${svc ? '' : `data-sid="${a.id}" role="button" tabindex="0"`} style="${style}">` +
       `<div style="display:flex;gap:6px;font-family:${MONO};font-size:9px;color:var(--muted);overflow:hidden;"><span style="white-space:nowrap;flex-shrink:0;">${span(
         a
       )}</span><span style="margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${
@@ -132,7 +236,40 @@ function boot(D) {
     return out;
   }
 
+  /** Widest concurrency cluster of the day — sets the DAY view's minimum width. */
+  function maxCols(day) {
+    let n = 1;
+    for (const o of lay(vis(day))) n = Math.max(n, o.cols);
+    return n;
+  }
+
   /* -------------------------------------------------------------- views */
+  const rowHtml = (a) => {
+    const svc = a.allRooms;
+    const tr = trackOf(a.trackId);
+    return (
+      `<div class="ag-row" ${svc ? '' : `data-sid="${a.id}" role="button" tabindex="0"`} style="${
+        svc ? 'background:var(--bg);' : `cursor:pointer;${S.selId === a.id ? 'outline:2px solid var(--primary);outline-offset:-2px;' : ''}`
+      }">` +
+      `<span class="ag-c-day">${esc((D.days[a.day] || {}).short || '')}</span>` +
+      `<span class="ag-c-time">${span(a)}</span>` +
+      '<span class="ag-c-main">' +
+      `<span style="${svc ? svcTitleStyle : 'font-size:13.5px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;'}">${esc(
+        svc ? a.title.toUpperCase() : a.title
+      )}</span>` +
+      (a.sponsorBadge
+        ? `<span style="font-family:${MONO};font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">SPONSORED</span>`
+        : '') +
+      (svc ? '' : `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(speakerLine(a))}</div>`) +
+      '</span>' +
+      `<span class="ag-c-track">${
+        svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
+      }</span>` +
+      `<span class="ag-c-room">${svc ? 'ALL ROOMS' : esc(a.room || '')}</span>` +
+      '</div>'
+    );
+  };
+
   function renderList() {
     const rows = [];
     for (let i = 0; i < nDays; i++) rows.push(...vis(i).filter(matchesQ));
@@ -150,9 +287,8 @@ function boot(D) {
       const kb = kf(b);
       return ((ka > kb) - (ka < kb)) * S.sortDir || chrono(a) - chrono(b);
     });
-    const cols = '96px 100px 1fr 160px 120px';
     let h = '<div style="background:var(--card);border:1px solid var(--border);">';
-    h += `<div style="display:grid;grid-template-columns:${cols};gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">`;
+    h += '<div class="ag-headrow">';
     for (const [k, label] of [
       ['day', 'DAY'],
       ['time', 'TIME'],
@@ -165,28 +301,15 @@ function boot(D) {
       };">${label}${S.sortKey === k ? (S.sortDir === 1 ? ' ▲' : ' ▼') : ''}</button>`;
     }
     h += '</div>';
+    // Chronological sorts read as a programme — split them under day headers.
+    const grouped = (S.sortKey === 'time' || S.sortKey === 'day') && nDays > 1;
+    let lastDay = -1;
     for (const a of rows) {
-      const svc = a.allRooms;
-      const tr = trackOf(a.trackId);
-      h +=
-        `<div ${svc ? '' : `data-sid="${a.id}"`} style="display:grid;grid-template-columns:${cols};gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);align-items:start;${
-          svc ? 'background:var(--bg);' : `cursor:pointer;${S.selId === a.id ? 'outline:2px solid var(--primary);outline-offset:-2px;' : ''}`
-        }">` +
-        `<span style="font-family:${MONO};font-size:10.5px;color:var(--muted);">${esc((D.days[a.day] || {}).short || '')}</span>` +
-        `<span style="font-family:${MONO};font-size:10.5px;color:var(--text);font-weight:600;">${span(a)}</span>` +
-        '<span>' +
-        `<span style="${
-          svc ? `font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:var(--muted);` : 'font-size:13.5px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;'
-        }">${esc(svc ? a.title.toUpperCase() : a.title)}</span>` +
-        (a.sponsorBadge
-          ? `<span style="font-family:${MONO};font-size:8.5px;background:var(--chip);color:var(--muted);padding:2px 6px;letter-spacing:0.08em;margin-left:8px;">SPONSORED</span>`
-          : '') +
-        `<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">${esc(svc ? '' : speakerLine(a))}</div></span>` +
-        `<span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">${
-          svc ? '' : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr.color};flex-shrink:0;"></span>${esc(tr.name)}`
-        }</span>` +
-        `<span style="font-family:${MONO};font-size:10px;color:var(--muted);">${esc(roomLabel(a))}</span>` +
-        '</div>';
+      if (grouped && a.day !== lastDay) {
+        lastDay = a.day;
+        h += `<div class="ag-dayhead">${esc(((D.days[a.day] || {}).label || '').toUpperCase())}</div>`;
+      }
+      h += rowHtml(a);
     }
     if (!rows.length)
       h += '<div style="padding:28px 16px;text-align:center;font-size:12.5px;color:var(--muted);">No sessions match — try clearing the search or track filter.</div>';
@@ -196,15 +319,16 @@ function boot(D) {
 
   function renderDay() {
     const maxEnd = Math.max(D.dayEnd, ...vis(S.day).map((a) => a.end));
+    const minW = GUT + RPAD + 130 * maxCols(S.day);
     bodyEl.innerHTML =
-      '<div style="background:var(--card);border:1px solid var(--border);padding-top:8px;">' +
-      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd)}${dayLayout(S.day, 0, 1)}</div></div>`;
+      `<div class="ag-hscroll"><div style="min-width:${minW}px;background:var(--card);border:1px solid var(--border);padding-top:8px;">` +
+      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd, S.day)}${dayLayout(S.day, 0, 1)}</div></div></div>`;
   }
 
   function renderWeek() {
     const maxEnd = Math.max(D.dayEnd, ...D.sessions.filter(matchesTrack).map((a) => a.end));
     const w = 1 / nDays;
-    let heads = `<div style="display:grid;grid-template-columns:56px repeat(${nDays},1fr);border-bottom:1px solid var(--border);"><div></div>`;
+    let heads = `<div style="display:grid;grid-template-columns:${GUT}px repeat(${nDays},1fr);border-bottom:1px solid var(--border);"><div></div>`;
     for (const d of D.days)
       heads += `<div style="padding:9px 10px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:var(--muted);border-left:1px solid var(--chip);">${esc(
         d.long
@@ -218,14 +342,13 @@ function boot(D) {
     let blocks = '';
     for (let i = 0; i < nDays; i++) blocks += dayLayout(i, i * w, (i + 1) * w - 0.01);
     bodyEl.innerHTML =
-      '<div style="background:var(--card);border:1px solid var(--border);">' +
+      `<div class="ag-hscroll"><div style="min-width:${GUT + 170 * nDays}px;background:var(--card);border:1px solid var(--border);">` +
       heads +
-      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd)}${dividers}${blocks}</div></div>`;
+      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd, 0)}${dividers}${blocks}</div></div></div>`;
   }
 
   function renderTrack() {
-    const n = Math.max(1, D.tracks.length);
-    let h = `<div style="display:grid;grid-template-columns:repeat(${n},1fr);gap:14px;">`;
+    let h = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">';
     for (const tr of D.tracks) {
       const items = D.sessions.filter((a) => a.day === S.day && !a.allRooms && a.trackId === tr.id).sort(byStart);
       h += '<div>';
@@ -235,7 +358,7 @@ function boot(D) {
       h += '<div style="display:grid;gap:8px;">';
       for (const a of items) {
         h +=
-          `<div data-sid="${a.id}" style="background:var(--card);border:1px solid var(--border);padding:11px 12px;cursor:pointer;${
+          `<div data-sid="${a.id}" role="button" tabindex="0" style="background:var(--card);border:1px solid var(--border);padding:11px 12px;cursor:pointer;${
             S.selId === a.id ? 'outline:2px solid var(--primary);outline-offset:-2px;' : ''
           }">` +
           `<div style="display:flex;gap:6px;font-family:${MONO};font-size:9.5px;color:var(--muted);"><span style="color:var(--text);font-weight:600;">${span(
@@ -256,7 +379,7 @@ function boot(D) {
     const rooms = D.rooms;
     const n = Math.max(1, rooms.length);
     const maxEnd = Math.max(D.dayEnd, ...vis(S.day).map((a) => a.end));
-    let heads = `<div style="display:grid;grid-template-columns:56px repeat(${n},1fr);border-bottom:1px solid var(--border);"><div></div>`;
+    let heads = `<div style="display:grid;grid-template-columns:${GUT}px repeat(${n},1fr);border-bottom:1px solid var(--border);"><div></div>`;
     for (const r of rooms)
       heads += `<div style="padding:9px 8px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:var(--muted);border-left:1px solid var(--chip);">${esc(
         r.toUpperCase()
@@ -273,9 +396,9 @@ function boot(D) {
       blocks += block(a, at / n, (at + 1) / n, true);
     }
     bodyEl.innerHTML =
-      '<div style="background:var(--card);border:1px solid var(--border);">' +
+      `<div class="ag-hscroll"><div style="min-width:${GUT + 150 * n}px;background:var(--card);border:1px solid var(--border);">` +
       heads +
-      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd)}${blocks}</div></div>`;
+      `<div style="position:relative;height:${(maxEnd + 25) * PPM}px;">${hourMarks(maxEnd, S.day)}${blocks}</div></div></div>`;
   }
 
   /* ------------------------------------------------------------- detail */
@@ -290,8 +413,9 @@ function boot(D) {
     const fmt = (D.formats || []).find((f) => f.id === a.formatId);
     const fmtLabel = fmt ? (fmt.duration ? `${fmt.name} (${fmt.duration} min)` : fmt.name) : '';
     detailEl.innerHTML =
-      '<div style="position:fixed;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 40px);background:var(--card);border:1px solid var(--border);box-shadow:0 16px 48px rgba(26,26,46,0.18);z-index:50;">' +
-      '<div style="padding:14px 16px;border-bottom:1px solid var(--chip);display:flex;align-items:flex-start;gap:8px;"><div>' +
+      '<div class="ag-backdrop" data-close-detail></div>' +
+      `<div class="ag-sheet" role="dialog" aria-label="${esc(a.title)}">` +
+      '<div style="padding:14px 16px;border-bottom:1px solid var(--chip);display:flex;align-items:flex-start;gap:8px;flex-shrink:0;"><div>' +
       '<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;">' +
       `<span style="font-size:10px;font-family:${MONO};color:#fff;background:${tr.color};padding:2px 7px;letter-spacing:0.04em;">${esc(
         tr.name
@@ -308,8 +432,8 @@ function boot(D) {
         ? `<div style="font-family:${MONO};font-size:10px;color:var(--muted);margin-top:3px;">FORMAT: ${esc(fmtLabel.toUpperCase())}</div>`
         : '') +
       '</div>' +
-      '<button type="button" data-close-detail style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;">✕</button></div>' +
-      '<div style="padding:16px;display:grid;gap:16px;">' +
+      '<button type="button" data-close-detail aria-label="Close" style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;padding:2px 4px;">✕</button></div>' +
+      '<div class="ag-sheet-body" style="padding:16px;display:grid;gap:16px;">' +
       `<div style="font-size:13px;line-height:1.7;color:var(--text-secondary);padding-bottom:16px;border-bottom:1px solid var(--chip);">${esc(
         a.abstract || 'Session details coming soon.'
       )}</div>` +
@@ -349,7 +473,11 @@ function boot(D) {
     };color:${on ? '#fff' : 'var(--text-secondary)'};font-size:11.5px;cursor:pointer;white-space:nowrap;flex-shrink:0;`;
 
   function renderChrome() {
-    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('style', viewBtn(b.dataset.view === S.view)));
+    document.querySelectorAll('[data-view]').forEach((b) => {
+      const on = b.dataset.view === S.view;
+      b.setAttribute('style', viewBtn(on));
+      b.setAttribute('aria-pressed', String(on));
+    });
     const showDays = S.view === 'day' || S.view === 'rooms' || S.view === 'track';
     dayTabs.hidden = !showDays || nDays < 2;
     if (showDays) {
@@ -363,11 +491,19 @@ function boot(D) {
       const color = id === 'all' ? null : trackOf(id).color;
       const on = S.track === id;
       b.setAttribute('style', chipStyle(on, color));
+      b.setAttribute('aria-pressed', String(on));
       const dot = b.querySelector('[data-dot]');
       if (dot) dot.style.background = on ? '#fff' : color || '#adb5bd';
     });
     searchEl.hidden = S.view !== 'list';
     clearEl.hidden = !(S.q || S.track !== 'all');
+    if (tzBtn) {
+      tzBtn.hidden = !tzReady;
+      if (tzReady) {
+        tzBtn.textContent = S.tz === 'local' ? `YOUR TIME · ${tzAbbr(viewerTz)}` : `EVENT TIME · ${tzAbbr(D.timezone)}`;
+        tzBtn.setAttribute('aria-pressed', String(S.tz === 'local'));
+      }
+    }
   }
 
   function render() {
@@ -378,9 +514,15 @@ function boot(D) {
     else if (S.view === 'track') renderTrack();
     else renderRooms();
     renderDetail();
+    syncUrl();
   }
 
   /* -------------------------------------------------------------- events */
+  const toggleDetail = (sid) => {
+    S.selId = S.selId === sid ? null : sid;
+    render();
+  };
+
   document.addEventListener('click', (e) => {
     const view = e.target.closest('[data-view]');
     if (view) {
@@ -388,13 +530,15 @@ function boot(D) {
       render();
       return;
     }
-    const day = e.target.closest('[data-day]');
+    // Day tabs and track chips live in the toolbar — scope the lookup so a
+    // stray data-* attribute elsewhere can never swallow a session click.
+    const day = e.target.closest('#day-tabs [data-day]');
     if (day) {
       S.day = +day.dataset.day;
       render();
       return;
     }
-    const chip = e.target.closest('[data-track]');
+    const chip = e.target.closest('#track-chips [data-track]');
     if (chip) {
       S.track = chip.dataset.track;
       render();
@@ -416,6 +560,11 @@ function boot(D) {
       render();
       return;
     }
+    if (e.target === tzBtn) {
+      S.tz = S.tz === 'local' ? 'event' : 'local';
+      render();
+      return;
+    }
     if (e.target === clearEl || e.target.closest('#clear-filters')) {
       S.q = '';
       S.track = 'all';
@@ -424,24 +573,50 @@ function boot(D) {
       return;
     }
     const card = e.target.closest('[data-sid]');
-    if (card) {
-      S.selId = S.selId === card.dataset.sid ? null : card.dataset.sid;
-      render();
-    }
+    if (card) toggleDetail(card.dataset.sid);
   });
 
   searchEl.addEventListener('input', () => {
     S.q = searchEl.value.trim().toLowerCase();
     renderChrome();
     if (S.view === 'list') renderList();
+    syncUrl();
   });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && S.selId) {
       S.selId = null;
       render();
+      return;
+    }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.closest && e.target.matches('[data-sid]')) {
+      e.preventDefault();
+      const sid = e.target.dataset.sid;
+      toggleDetail(sid);
+      const again = document.querySelector(`[data-sid="${sid}"]`);
+      if (again) again.focus();
     }
   });
 
-  renderChrome();
+  /* ---------------------------------------------------------------- boot */
+  // The toolbar sticks below the site header, whose height varies when the
+  // event name wraps on small screens — measure instead of hard-coding 51px.
+  const headerEl = document.body.firstElementChild;
+  const setTop = () => {
+    if (toolbarEl && headerEl) toolbarEl.style.top = `${Math.max(0, headerEl.offsetHeight - 1)}px`;
+  };
+  setTop();
+  window.addEventListener('resize', setTop);
+
+  if (S.q) searchEl.value = S.q;
+  const restored = S.view !== 'list' || S.day || S.track !== 'all' || S.q || S.tz === 'local' || S.selId;
+  if (restored) {
+    render();
+    if (S.selId) {
+      const row = document.querySelector(`[data-sid="${S.selId}"]`);
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: 'center' });
+    }
+  } else {
+    renderChrome();
+  }
 }

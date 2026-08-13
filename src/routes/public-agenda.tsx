@@ -2,9 +2,12 @@
  * Public agenda — `/{event}` (redirect), `/{event}/agenda`, `/{event}/agenda.json`
  * and the speaker-only ICS feed `/{event}/portal/session/<id>.ics`.
  *
- * Ported from `Agenda.dc.html`. The LIST view is server-rendered so the page
- * reads without JavaScript; `public/js/public-agenda.js` swaps views, filters,
- * sorts, opens the detail popover and re-labels times for the viewer's timezone.
+ * Ported from `Agenda.dc.html`. The LIST view is server-rendered (grouped by
+ * day) so the page reads without JavaScript; `public/js/public-agenda.js`
+ * swaps views, filters, sorts, opens the detail sheet, keeps the URL
+ * shareable and re-labels times for the viewer's timezone (spec B4 §1's
+ * EVENT TIME ↔ YOUR TIME toggle). Layout is responsive: the list turns into
+ * stacked cards below `AGENDA_BREAK`, grid views pan horizontally.
  *
  * Responses are cached for 60s in the Cache API under a key that includes
  * `events.published_rev`, so publishing invalidates every cached view at once.
@@ -111,6 +114,51 @@ function notPublished(event: { name: string; slug: string }, theme: Theme) {
 
 /* ------------------------------------------------------------------ page */
 
+/** Below this width the list becomes cards and the detail popover a bottom sheet. */
+const AGENDA_BREAK = 719;
+
+/**
+ * Responsive rules for the agenda page. Mirrored by `public/js/public-agenda.js`,
+ * which emits the same class names when it re-renders views client-side.
+ */
+const agendaCss = () => `
+#agenda-page{max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 60px;}
+.ag-toolbar{position:sticky;top:51px;background:var(--bg);padding:10px 0 12px;z-index:5;border-bottom:1px solid var(--border);margin:16px 0 18px;display:grid;gap:9px;}
+.ag-bar{display:flex;gap:14px;align-items:center;min-width:0;}
+.ag-scroll{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;min-width:0;}
+.ag-scroll::-webkit-scrollbar{display:none;}
+#track-chips{flex-wrap:wrap;}
+#agenda-search{margin-left:auto;width:220px;padding:6px 10px;border:1px solid var(--border-strong);font-size:12px;background:var(--card);color:var(--text);}
+.ag-headrow,.ag-row{display:grid;grid-template-columns:92px 108px minmax(0,1fr) 150px 110px;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);align-items:start;}
+.ag-headrow{padding:10px 16px;}
+.ag-dayhead{padding:9px 16px;border-bottom:1px solid var(--border);background:var(--chip);font-family:var(--font-mono);font-size:10px;letter-spacing:0.12em;color:var(--text-secondary);}
+.ag-c-day{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);}
+.ag-c-time{font-family:var(--font-mono);font-size:10.5px;color:var(--text);font-weight:600;white-space:nowrap;}
+.ag-c-track{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);}
+.ag-c-room{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.ag-hscroll{overflow-x:auto;}
+.ag-sheet{position:fixed;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 40px);max-height:min(72vh,560px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);box-shadow:0 16px 48px rgba(26,26,46,0.18);z-index:50;}
+.ag-sheet-body{overflow-y:auto;}
+.ag-backdrop{display:none;}
+@media (max-width:${AGENDA_BREAK}px){
+  #agenda-page{padding:16px 14px 48px;}
+  .ag-toolbar{gap:7px;padding:8px 0 10px;}
+  .ag-bar{flex-wrap:wrap;gap:8px;}
+  #track-chips{flex-wrap:nowrap;}
+  #agenda-search{margin-left:0;width:100%;flex:1 1 100%;}
+  .ag-headrow{display:none;}
+  .ag-row{display:flex;flex-wrap:wrap;gap:1px 10px;padding:12px 14px;}
+  .ag-c-day{display:none;}
+  .ag-c-time{order:1;}
+  .ag-c-room{order:2;margin-left:auto;padding-top:1px;}
+  .ag-c-main{order:3;flex:1 1 100%;}
+  .ag-c-track{order:4;flex:1 1 100%;margin-top:3px;font-size:10.5px;}
+  .ag-c-track:empty{display:none;}
+  .ag-backdrop{display:block;position:fixed;inset:0;background:rgba(26,26,46,0.4);z-index:49;}
+  .ag-sheet{left:10px;right:10px;bottom:10px;width:auto;max-width:none;max-height:80vh;}
+}
+`;
+
 app.get('/:event', async (c) => {
   const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
   if (!found) return c.notFound();
@@ -172,21 +220,15 @@ app.get('/:event/agenda', async (c) => {
       const svc = s.allRooms;
       return (
         <div
+          class="ag-row"
           data-sid={svc ? undefined : s.id}
-          data-day={String(s.day)}
-          data-track={s.trackId ?? ''}
-          data-search={`${s.title} ${s.speakers.map((p) => p.name).join(' ')}`.toLowerCase()}
-          style={`display:grid;grid-template-columns:96px 100px 1fr 160px 120px;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border);align-items:start;${
-            svc ? 'background:var(--bg);' : 'cursor:pointer;'
-          }`}
+          role={svc ? undefined : 'button'}
+          tabindex={svc ? undefined : 0}
+          style={svc ? 'background:var(--bg);' : 'cursor:pointer;'}
         >
-          <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--muted);" data-cell="day">
-            {days[s.day]?.short ?? ''}
-          </span>
-          <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--text);font-weight:600;" data-cell="time">
-            {fmtSpan(s.start, s.end)}
-          </span>
-          <span>
+          <span class="ag-c-day">{days[s.day]?.short ?? ''}</span>
+          <span class="ag-c-time">{fmtSpan(s.start, s.end)}</span>
+          <span class="ag-c-main">
             <span
               style={
                 svc
@@ -201,11 +243,13 @@ app.get('/:event/agenda', async (c) => {
                 SPONSORED
               </span>
             ) : null}
-            <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
-              {svc ? '' : s.speakers.map((p) => (p.affiliation ? `${p.name} (${p.affiliation})` : p.name)).join(', ')}
-            </div>
+            {svc ? null : (
+              <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">
+                {s.speakers.map((p) => (p.affiliation ? `${p.name} (${p.affiliation})` : p.name)).join(', ')}
+              </div>
+            )}
           </span>
-          <span style="display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text-secondary);">
+          <span class="ag-c-track">
             {svc ? null : (
               <>
                 <span style={`display:inline-block;width:8px;height:8px;border-radius:50%;background:${tr?.color ?? '#adb5bd'};flex-shrink:0;`}></span>
@@ -213,7 +257,7 @@ app.get('/:event/agenda', async (c) => {
               </>
             )}
           </span>
-          <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">{svc ? 'ALL ROOMS' : s.room ?? ''}</span>
+          <span class="ag-c-room">{svc ? 'ALL ROOMS' : s.room ?? ''}</span>
         </div>
       );
     };
@@ -242,22 +286,32 @@ app.get('/:event/agenda', async (c) => {
         scripts={['/js/public-agenda.js']}
       >
         {jsonBlock('data-public-agenda', payload)}
-        <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 60px;`}>
+        <style>{raw(agendaCss())}</style>
+        <div id="agenda-page">
           <h1 style="margin:12px 0 2px;font-size:28px;letter-spacing:-0.02em;">Agenda</h1>
           <div style="font-size:13px;color:var(--muted);">{subtitle}</div>
-          <div
-            style="position:sticky;top:51px;background:var(--bg);padding:10px 0 12px;z-index:5;border-bottom:1px solid var(--border);margin:16px 0 18px;display:grid;gap:9px;"
-          >
-            <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              {VIEWS.map(([id, label]) => (
-                <button type="button" data-view={id} style={viewBtn(id === 'list')}>
-                  {label}
-                </button>
-              ))}
+          <div id="agenda-toolbar" class="ag-toolbar">
+            <div class="ag-bar">
+              <div id="view-btns" class="ag-scroll">
+                {VIEWS.map(([id, label]) => (
+                  <button type="button" data-view={id} style={viewBtn(id === 'list')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                id="tz-toggle"
+                hidden
+                title="Switch between the event's timezone and yours"
+                style="margin-left:auto;flex-shrink:0;padding:6px 10px;background:var(--card);border:1px solid var(--border-strong);font-family:var(--font-mono);font-size:10px;letter-spacing:0.06em;color:var(--text-secondary);cursor:pointer;white-space:nowrap;"
+              >
+                EVENT TIME
+              </button>
             </div>
-            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
-              <div id="day-tabs" hidden style="display:flex;gap:5px;"></div>
-              <div id="track-chips" style="display:flex;gap:5px;flex-wrap:wrap;">
+            <div id="day-tabs" class="ag-scroll" hidden></div>
+            <div class="ag-bar">
+              <div id="track-chips" class="ag-scroll">
                 <button type="button" data-track="all" style={chipStyle(true, null)}>
                   All tracks
                 </button>
@@ -271,16 +325,12 @@ app.get('/:event/agenda', async (c) => {
                   </button>
                 ))}
               </div>
-              <input
-                id="agenda-search"
-                placeholder="Search title or speaker…"
-                style="margin-left:auto;width:220px;padding:6px 10px;border:1px solid var(--border-strong);font-size:12px;background:var(--card);"
-              />
+              <input id="agenda-search" placeholder="Search title or speaker…" />
               <button
                 type="button"
                 id="clear-filters"
                 hidden
-                style="padding:6px 4px;background:none;border:none;color:var(--primary);font-size:11.5px;cursor:pointer;text-decoration:underline;"
+                style="padding:6px 4px;background:none;border:none;color:var(--primary);font-size:11.5px;cursor:pointer;text-decoration:underline;flex-shrink:0;"
               >
                 Clear filters
               </button>
@@ -288,7 +338,7 @@ app.get('/:event/agenda', async (c) => {
           </div>
           <div id="agenda-body">
             <div style="background:var(--card);border:1px solid var(--border);">
-              <div style="display:grid;grid-template-columns:96px 100px 1fr 160px 120px;gap:12px;padding:10px 16px;border-bottom:1px solid var(--border);">
+              <div class="ag-headrow">
                 {[
                   ['day', 'DAY'],
                   ['time', 'TIME'],
@@ -307,7 +357,16 @@ app.get('/:event/agenda', async (c) => {
                   </button>
                 ))}
               </div>
-              {view.map(listRow)}
+              {days.map((d) => {
+                const dayRows = view.filter((s) => s.day === d.index);
+                if (!dayRows.length) return null;
+                return (
+                  <>
+                    {days.length > 1 ? <div class="ag-dayhead">{d.label.toUpperCase()}</div> : null}
+                    {dayRows.map(listRow)}
+                  </>
+                );
+              })}
               {view.length === 0 ? (
                 <div style="padding:28px 16px;text-align:center;font-size:12.5px;color:var(--muted);">
                   No sessions on the agenda yet.
