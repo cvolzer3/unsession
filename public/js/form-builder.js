@@ -10,7 +10,7 @@
  *   · Preview mode is not rendered here at all — it frames the real public
  *     page (`/{event}/{form}?preview=1`), so there is only one renderer
  */
-import { toast, api, copy, openDialog } from './ui.js';
+import { toast, api, copy, openDialog, busy, done } from './ui.js';
 // Importing rich-editor.js also auto-mounts the drawer's `data-rich-editor`
 // textareas (post-submit message) as a side effect.
 import { mountRichEditor, sanitizeHtml } from './rich-editor.js';
@@ -126,7 +126,7 @@ function boot(D) {
   async function save() {
     if (saving || rev === savedRev) return;
     saving = true;
-    if (saveBtn) saveBtn.disabled = true;
+    if (saveBtn) busy(saveBtn, 'Saving…');
     setSaveState('SAVING…', '#b08800');
     const at = rev;
     // Posting an unchanged schema to a frozen version would fork a spurious
@@ -159,15 +159,18 @@ function boot(D) {
       } else {
         // Edits arrived while saving — keep the button live.
         setSaveState('UNSAVED CHANGES', '#b08800');
-        if (saveBtn) saveBtn.disabled = false;
       }
     } catch (err) {
       if (postSchema) schemaDirty = true;
       setSaveState('NOT SAVED', '#c92a2a');
-      if (saveBtn) saveBtn.disabled = false;
       toast(err.message, false);
     } finally {
       saving = false;
+      if (saveBtn) {
+        done(saveBtn);
+        // Nothing left to save → the button rests disabled, as touch() expects.
+        saveBtn.disabled = rev === savedRev;
+      }
     }
   }
 

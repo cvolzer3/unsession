@@ -93,6 +93,15 @@ Declarative behaviour it already provides — prefer these over new code:
 | `data-dialog-open="#id"` | Opens that modal |
 | `data-dialog-close[="#id"]` | Closes the nearest (or named) modal |
 | `data-copy="text"` `data-copy-msg="…"` | Clipboard copy + toast |
+| `data-busy="Sending…"` on a submit button | Spinner + label while the plain form POST is in flight |
+
+Any button whose action takes a round trip shows a progress state — the user
+must see that the click landed. Plain form POSTs get `data-busy` (declarative,
+nothing to restore: the navigation replaces the page). Island buttons wrap
+their `api()` call in `busy(btn, 'Saving…')` / `done(btn)` from `ui.js`; call
+`done` on the error path (and skip it when success navigates away). The label
+is a present-progressive verb — `Saving…`, `Sending…`, `Creating plan…` — the
+in-flight twin of the §6 past-tense toast.
 
 Progressive enhancement: a page must work with plain form POSTs where it
 reasonably can. Modals are server-rendered `hidden` overlays containing real

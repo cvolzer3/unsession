@@ -7,7 +7,7 @@
  * edit path here — the server rejects a second write anyway. All URLs come
  * from the server-built `#data-evaluate` payload, so either base path works.
  */
-import { toast, api } from './ui.js';
+import { toast, api, busy, done } from './ui.js';
 
 const node = document.getElementById('data-evaluate');
 const DATA = node ? JSON.parse(node.textContent) : null;
@@ -85,7 +85,7 @@ function card(current) {
       toast(`Fill in every criterion first (“${missing.name}” is missing)`, false);
       return;
     }
-    submitBtn.disabled = true;
+    busy(submitBtn, 'Submitting…');
     try {
       await api('/p/api/evaluate/score', {
         slug: DATA.slug,
@@ -97,7 +97,7 @@ function card(current) {
       go(DATA.back, 'Score submitted');
     } catch (err) {
       toast(err.message, false);
-      submitBtn.disabled = false;
+      done(submitBtn);
     }
   }
 
@@ -109,7 +109,7 @@ function card(current) {
 
   document.getElementById('abstain').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
-    btn.disabled = true;
+    busy(btn, 'Abstaining…');
     try {
       await api('/p/api/evaluate/abstain', {
         slug: DATA.slug,
@@ -120,7 +120,7 @@ function card(current) {
       go(DATA.back, 'Abstained');
     } catch (err) {
       toast(err.message, false);
-      btn.disabled = false;
+      done(btn);
     }
   });
 

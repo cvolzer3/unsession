@@ -11,7 +11,7 @@
  *
  * OWNER: B4.
  */
-import { toast, api, openDialog } from './ui.js';
+import { toast, api, openDialog, busy, done } from './ui.js';
 import { wireNewSession } from './sessions.js';
 
 const root = document.getElementById('data-agenda');
@@ -225,9 +225,8 @@ function boot(D) {
 
   function autoBusy(on) {
     if (!autoBtn) return;
-    autoBtn.disabled = on;
-    autoBtn.textContent = on ? 'Scheduling…' : 'Auto-schedule the bin';
-    autoBtn.style.opacity = on ? '0.6' : '1';
+    if (on) busy(autoBtn, 'Scheduling…');
+    else done(autoBtn);
   }
 
   /** Fill the bin server-side, then fold the placements into local state. */
@@ -1127,8 +1126,10 @@ function boot(D) {
       return;
     }
     if (t.closest('[data-qe-save]')) {
+      const btn = t.closest('[data-qe-save]');
       const title = cardsEl.querySelector('[data-qe-title]').value.trim();
       const published = cardsEl.querySelector('[data-qe-pub]').checked;
+      busy(btn, 'Saving…');
       try {
         const res = await api('/app/api/sessions/update', { id: S.selId, patch: { title, published } });
         upsert(res.session);
@@ -1137,6 +1138,7 @@ function boot(D) {
         render();
       } catch (err) {
         toast(err.message, false);
+        done(btn);
       }
       return;
     }
@@ -1218,7 +1220,7 @@ function boot(D) {
 
     if (t.closest('#publish-btn')) {
       const btn = t.closest('#publish-btn');
-      btn.disabled = true;
+      busy(btn, 'Publishing…');
       try {
         await api('/app/api/agenda/publish', {});
         S.unpublished = false;
@@ -1228,7 +1230,7 @@ function boot(D) {
       } catch (err) {
         toast(err.message, false);
       }
-      btn.disabled = false;
+      done(btn);
     }
   });
 

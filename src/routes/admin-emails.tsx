@@ -266,6 +266,7 @@ app.get('/app/emails', async (c) => {
                 <form method="post" action="/app/emails/outbox/send" style="margin-left:auto;">
                   <button
                     type="submit"
+                    data-busy="Sending…"
                     style="padding:10px 20px;background:#2b8a3e;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;"
                   >
                     {queuedCount > OUTBOX_SEND_LIMIT
@@ -641,6 +642,7 @@ app.get('/app/emails/t/:id', async (c) => {
                 type="submit"
                 name="action"
                 value="test"
+                data-busy="Sending…"
                 style="padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;margin-right:auto;"
               >
                 Send test to me
@@ -656,6 +658,7 @@ app.get('/app/emails/t/:id', async (c) => {
                 type="submit"
                 name="action"
                 value="save"
+                data-busy="Saving…"
                 style="padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
               >
                 Save template

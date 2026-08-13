@@ -23,6 +23,7 @@ export const ADMIN_BASE_CSS = `
   [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes us-spin{to{transform:rotate(360deg)}}
   /* Side drawers. Every drawer header carries the full-screen toggle: ui.js
      flips [data-expanded] on the nearest [data-drawer] and these rules widen
      the panel to the viewport. Expanding widens the shell, not the text — the
@@ -439,6 +440,7 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
   [hidden]{display:none !important;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+  @keyframes us-spin{to{transform:rotate(360deg)}}
   #sandbox-switcher summary::-webkit-details-marker{display:none;}
 `;
   return (

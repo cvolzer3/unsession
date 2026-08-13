@@ -5,7 +5,7 @@
  * prototype animates: the plan editor (criteria, reviewers, live rule preview,
  * scoring demo) and the reminders modal (selection, merged preview, automation).
  */
-import { toast, api } from './ui.js';
+import { toast, api, busy, done } from './ui.js';
 
 const MONO = "'IBM Plex Mono',monospace";
 const node = document.getElementById('data-evaluation');
@@ -413,7 +413,9 @@ function planEditor() {
     );
     if (emptySelect) return toast(`Give “${emptySelect.name}” at least two dropdown options`, false);
     if (!draft.reviewers.some((r) => r.role !== 'chair')) return toast('Assign at least one member reviewer', false);
-    btn.disabled = true;
+    // Creating a plan emails every new reviewer before the response comes back,
+    // so the button owes the organizer a progress state.
+    busy(btn, draft.id ? 'Saving…' : 'Creating plan…');
     try {
       const res = await api('/app/api/evaluation/plan', {
         id: draft.id,
@@ -430,13 +432,17 @@ function planEditor() {
       });
       if (res.links && res.links.length) {
         // Email sending is simulated in dev — surface the invite links (DECISIONS D6).
+        // The plan is saved, so the button stays disabled: a re-click would
+        // create a second plan.
+        done(btn);
+        btn.disabled = true;
         showInviteLinks(res.links, res.redirect);
       } else {
         location.href = res.redirect;
       }
     } catch (err) {
       toast(err.message, false);
-      btn.disabled = false;
+      done(btn);
     }
   });
 
@@ -612,7 +618,7 @@ function reminders() {
   $('send-rem').addEventListener('click', async (e) => {
     if (!selected.size) return toast('Select at least one evaluator', false);
     const btn = e.currentTarget;
-    btn.disabled = true;
+    busy(btn, 'Sending…');
     try {
       const res = await api('/app/api/evaluation/remind', {
         planId: R.planId,
@@ -630,11 +636,12 @@ function reminders() {
     } catch (err) {
       toast(err.message, false);
     }
-    btn.disabled = false;
+    done(btn);
   });
 
   modal.querySelectorAll('[data-send-test]').forEach((b) =>
     b.addEventListener('click', async () => {
+      busy(b, 'Sending…');
       try {
         const useEditor = pane === 'editor';
         const res = await api('/app/api/evaluation/remind-test', {
@@ -646,6 +653,7 @@ function reminders() {
       } catch (err) {
         toast(err.message, false);
       }
+      done(b);
     })
   );
 

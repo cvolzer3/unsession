@@ -295,7 +295,7 @@ app.get('/app/team', async (c) => {
                 <button type="button" data-dialog-close="#invite-dialog" style={CANCEL_BTN}>
                   Cancel
                 </button>
-                <button type="submit" style={PRIMARY_BTN}>
+                <button type="submit" data-busy="Sending…" style={PRIMARY_BTN}>
                   Send invite
                 </button>
               </div>

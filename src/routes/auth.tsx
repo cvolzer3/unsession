@@ -129,7 +129,7 @@ app.get('/signin', (c) => {
             <div style={LABEL}>PASSWORD</div>
             <input name="password" type="password" required autocomplete="current-password" style={INPUT} />
           </label>
-          <button type="submit" style={PRIMARY_BTN}>
+          <button type="submit" data-busy="Signing in…" style={PRIMARY_BTN}>
             Sign in
           </button>
         </form>
@@ -147,6 +147,7 @@ app.get('/signin', (c) => {
           <form method="post" action="/sandbox">
             <button
               type="submit"
+              data-busy="Opening the sandbox…"
               style="display:flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:center;"
             >
               <span style={`width:26px;height:26px;border-radius:50%;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}>
@@ -225,7 +226,7 @@ app.get('/signup', (c) => {
               style={INPUT}
             />
           </label>
-          <button type="submit" style={PRIMARY_BTN}>
+          <button type="submit" data-busy="Creating account…" style={PRIMARY_BTN}>
             Create account
           </button>
         </form>
@@ -295,7 +296,7 @@ app.get('/auth/forgot', (c) => {
             <div style={LABEL}>EMAIL</div>
             <input name="email" type="email" required autofocus placeholder="you@example.com" style={INPUT} />
           </label>
-          <button type="submit" style={PRIMARY_BTN}>
+          <button type="submit" data-busy="Sending…" style={PRIMARY_BTN}>
             Email me a reset link
           </button>
         </form>
@@ -371,7 +372,7 @@ const ResetForm: FC<{ token: string; err?: string | null }> = (props) => (
           <div style={LABEL}>CONFIRM PASSWORD</div>
           <input name="confirm" type="password" required autocomplete="new-password" style={INPUT} />
         </label>
-        <button type="submit" style={PRIMARY_BTN}>
+        <button type="submit" data-busy="Saving…" style={PRIMARY_BTN}>
           Set password
         </button>
       </form>
@@ -447,7 +448,7 @@ app.get('/auth/set-password', requireUser, (c) => {
               style={INPUT}
             />
           </label>
-          <button type="submit" style={PRIMARY_BTN}>
+          <button type="submit" data-busy="Saving…" style={PRIMARY_BTN}>
             Set password
           </button>
         </form>

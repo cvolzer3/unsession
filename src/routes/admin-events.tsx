@@ -109,6 +109,7 @@ app.get('/app/events/new', async (c) => {
               </a>
               <button
                 type="submit"
+                data-busy="Creating…"
                 style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
               >
                 Create event

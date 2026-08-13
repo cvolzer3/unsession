@@ -7,7 +7,7 @@
  * its apply-to-open-instances dialog, bulk assignment, the reminder-email
  * editor and the file review loop.
  */
-import { toast, api, openDialog, closeDialog, expandButton } from './ui.js';
+import { toast, api, openDialog, closeDialog, expandButton, busy, done } from './ui.js';
 
 const DATA = JSON.parse(document.getElementById('data-speakers').textContent);
 const MONO = "'IBM Plex Mono',monospace";
@@ -403,13 +403,13 @@ document.addEventListener('click', async (e) => {
 
   const remindAll = e.target.closest('#remind-all');
   if (remindAll) {
-    remindAll.disabled = true;
+    busy(remindAll, 'Queueing…');
     try {
       const res = await api('/app/api/speakers/task/remind-all', { speakerProfileId: current.speaker.id });
       toast(res.message);
       await refreshSpeaker();
     } catch (err) {
-      remindAll.disabled = false;
+      done(remindAll);
       toast(err.message, false);
     }
     return;
@@ -417,16 +417,19 @@ document.addEventListener('click', async (e) => {
 
   const remind = e.target.closest('[data-remind]');
   if (remind) {
+    busy(remind, 'Queueing…');
     try {
       const res = await api('/app/api/speakers/task/remind', {
         taskId: remind.getAttribute('data-remind'),
         speakerProfileId: current.speaker.id,
       });
+      done(remind);
       remind.textContent = 'Queued ✓';
       remind.disabled = true;
       remind.style.color = '#2b8a3e';
       toast(res.message);
     } catch (err) {
+      done(remind);
       toast(err.message, false);
     }
     return;
@@ -434,7 +437,7 @@ document.addEventListener('click', async (e) => {
 
   const travelSave = e.target.closest('#travel-save');
   if (travelSave) {
-    travelSave.disabled = true;
+    busy(travelSave, 'Saving…');
     try {
       const res = await api('/app/api/speakers/travel', {
         speakerProfileId: current.speaker.id,
@@ -445,13 +448,13 @@ document.addEventListener('click', async (e) => {
     } catch (err) {
       toast(err.message, false);
     }
-    travelSave.disabled = false;
+    done(travelSave);
     return;
   }
 
   const restoreVersion = e.target.closest('[data-restore-version]');
   if (restoreVersion) {
-    restoreVersion.disabled = true;
+    busy(restoreVersion, 'Restoring…');
     try {
       const res = await api('/app/api/speakers/restore', {
         id: current.speaker.id,
@@ -461,7 +464,7 @@ document.addEventListener('click', async (e) => {
       await refreshSpeaker();
       markStale();
     } catch (err) {
-      restoreVersion.disabled = false;
+      done(restoreVersion);
       toast(err.message, false);
     }
     return;
@@ -524,12 +527,14 @@ document.addEventListener('change', (e) => {
 });
 
 document.addEventListener('click', async (e) => {
-  if (!e.target.closest('#asg-do') || !current) return;
+  const go = e.target.closest('#asg-do');
+  if (!go || !current) return;
   const pick = $('#asg-pick').value;
   if (!pick) {
     toast('Pick a template first', false);
     return;
   }
+  busy(go, 'Assigning…');
   try {
     const payload =
       pick === 'oneoff'
@@ -545,6 +550,7 @@ document.addEventListener('click', async (e) => {
   } catch (err) {
     toast(err.message, false);
   }
+  done(go);
 });
 
 /** The grid is server-rendered: after a mutation, offer the fresh numbers. */
@@ -560,8 +566,10 @@ function markStale() {
   document.body.appendChild(bar);
 }
 
-$('#changes-go').addEventListener('click', async () => {
-  const taskId = $('#changes-go').dataset.taskId;
+$('#changes-go').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  const taskId = btn.dataset.taskId;
+  busy(btn, 'Sending…');
   try {
     const res = await api('/app/api/speakers/task/review', {
       taskId,
@@ -575,6 +583,7 @@ $('#changes-go').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, false);
   }
+  done(btn);
 });
 
 $('#compose-tpl').addEventListener('change', (e) => {
@@ -584,8 +593,10 @@ $('#compose-tpl').addEventListener('change', (e) => {
   $('#compose-body').value = tpl.body;
 });
 
-$('#compose-send').addEventListener('click', async () => {
+$('#compose-send').addEventListener('click', async (e) => {
   if (!current) return;
+  const btn = e.currentTarget;
+  busy(btn, 'Sending…');
   try {
     const res = await api('/app/api/speakers/email', {
       speakerProfileId: current.speaker.id,
@@ -597,6 +608,7 @@ $('#compose-send').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, false);
   }
+  done(btn);
 });
 
 /* ------------------------------------------------------- template editor */
@@ -1051,11 +1063,13 @@ $('#ed-save').addEventListener('click', async () => {
     openDialog('#dlg-apply');
     return;
   }
+  busy($('#ed-save'), 'Saving…');
   try {
     await saveTemplate(null);
   } catch (err) {
     toast(err.message, false);
   }
+  done($('#ed-save'));
 });
 
 let applyChoice = 'future';
@@ -1067,12 +1081,15 @@ function pickApply(v) {
   });
 }
 $$('[data-apply]').forEach((el) => el.addEventListener('click', () => pickApply(el.getAttribute('data-apply'))));
-$('#apply-go').addEventListener('click', async () => {
+$('#apply-go').addEventListener('click', async (e) => {
+  const btn = e.currentTarget; // currentTarget is gone after the await
+  busy(btn, 'Saving…');
   try {
     await saveTemplate(applyChoice);
   } catch (err) {
     toast(err.message, false);
   }
+  done(btn);
 });
 
 /* --------------------------------------------------- reminder email editor */
@@ -1128,7 +1145,9 @@ $('#eml-save').addEventListener('click', () => {
   renderEditor();
   toast('Reminder email updated. Save the template to apply.');
 });
-$('#eml-test').addEventListener('click', async () => {
+$('#eml-test').addEventListener('click', async (e) => {
+  const btn = e.currentTarget; // currentTarget is gone after the await
+  busy(btn, 'Sending…');
   try {
     const res = await api('/app/api/speakers/test-email', {
       subject: $('#eml-subj').value,
@@ -1139,6 +1158,7 @@ $('#eml-test').addEventListener('click', async () => {
   } catch (err) {
     toast(err.message, false);
   }
+  done(btn);
 });
 
 /* ------------------------------------------------------------ bulk assign */
@@ -1216,14 +1236,17 @@ function openBulkForNewTemplate(tplId, preview, createdMessage) {
 
 $('#bulk-tpl').addEventListener('change', renderBulk);
 $('#bulk-go').addEventListener('click', async () => {
-  const ids = ($('#bulk-go').dataset.ids || '').split(',').filter(Boolean);
+  const btn = $('#bulk-go');
+  const ids = (btn.dataset.ids || '').split(',').filter(Boolean);
   if (!ids.length) return;
+  busy(btn, 'Assigning…');
   try {
-    const res = await api('/app/api/speakers/bulk-assign', { templateId: $('#bulk-go').dataset.tpl, speakerIds: ids });
+    const res = await api('/app/api/speakers/bulk-assign', { templateId: btn.dataset.tpl, speakerIds: ids });
     bulkPreset = null; // assigned — the decline path must not fire
     reload(res.message);
   } catch (err) {
     toast(err.message, false);
+    done(btn);
   }
 });
 
@@ -1435,13 +1458,16 @@ $('#dlg-assign').addEventListener('change', (e) => {
 });
 
 $('#as-go').addEventListener('click', async () => {
-  const ids = ($('#as-go').dataset.ids || '').split(',').filter(Boolean);
+  const btn = $('#as-go');
+  const ids = (btn.dataset.ids || '').split(',').filter(Boolean);
   if (!ids.length) return;
+  busy(btn, 'Assigning…');
   try {
-    const res = await api('/app/api/speakers/bulk-assign', { templateId: $('#as-go').dataset.tpl, speakerIds: ids });
+    const res = await api('/app/api/speakers/bulk-assign', { templateId: btn.dataset.tpl, speakerIds: ids });
     reload(res.message);
   } catch (err) {
     toast(err.message, false);
+    done(btn);
   }
 });
 
@@ -1625,7 +1651,7 @@ if (importModal) {
 
   importRun.addEventListener('click', async () => {
     if (!imp.text) return;
-    importRunStyle(false);
+    busy(importRun, 'Importing…');
     try {
       const res = await api('/app/api/speakers/import', { text: imp.text, mapping: currentMapping() });
       const parts = [];
@@ -1636,7 +1662,7 @@ if (importModal) {
       reload([parts.join(' · ')].concat(res.warnings || []).join(' — '));
     } catch (err) {
       toast(err.message, false);
-      importRunStyle(true);
+      done(importRun);
     }
   });
 }

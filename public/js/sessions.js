@@ -5,7 +5,7 @@
  *
  * OWNER: B4.
  */
-import { toast, api, closeDialog } from './ui.js';
+import { toast, api, closeDialog, busy, done } from './ui.js';
 
 const dataEl = document.getElementById('data-sessions');
 if (dataEl) {
@@ -224,7 +224,7 @@ if (dataEl) {
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-restore]');
     if (!btn || !editing) return;
-    btn.disabled = true;
+    busy(btn, 'Restoring…');
     try {
       const res = await api('/app/api/sessions/restore', { id: editing, versionId: btn.dataset.restore });
       repaint(res.session);
@@ -233,7 +233,7 @@ if (dataEl) {
       renderHistory(res.versions);
       toast('Version restored');
     } catch (err) {
-      btn.disabled = false;
+      done(btn);
       toast(err.message, false);
     }
   });
@@ -431,7 +431,7 @@ export function wireNewSession() {
       toast('Give the session a title.', false);
       return;
     }
-    btn.disabled = true;
+    busy(btn, 'Creating…');
     try {
       const res = await api('/app/api/sessions/create', body);
       closeDialog('#new-session');
@@ -443,7 +443,7 @@ export function wireNewSession() {
       location.href = url.toString();
     } catch (err) {
       toast(err.message, false);
-      btn.disabled = false;
+      done(btn);
     }
   });
 }

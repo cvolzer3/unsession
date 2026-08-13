@@ -7,7 +7,7 @@
  * The server renders every row; this file only shows, hides, reorders and
  * decorates them, so the page works (filtered by query params) without JS.
  */
-import { api, toast, openDialog, closeDialog } from './ui.js';
+import { api, toast, openDialog, closeDialog, busy, done } from './ui.js';
 
 const node = document.getElementById('data-submissions');
 if (node) boot(JSON.parse(node.textContent));
@@ -657,8 +657,7 @@ function boot(DATA) {
         feedback,
         requestConfirmation: $('#decision-request-confirmation').checked,
       };
-      sendBtn.disabled = true;
-      sendBtn.textContent = 'Queueing…';
+      busy(sendBtn, 'Queueing…');
       try {
         let queued = 0;
         let replaced = 0;
@@ -679,8 +678,7 @@ function boot(DATA) {
         location.href = `/app/submissions?ok=${encodeURIComponent(msg)}`;
       } catch (err) {
         toast(err.message, false);
-        sendBtn.disabled = false;
-        sendBtn.textContent = `Queue ${ids.length} decision${plural(ids.length)}`;
+        done(sendBtn);
       }
     });
 
@@ -754,7 +752,7 @@ function boot(DATA) {
   if (mailSend)
     mailSend.addEventListener('click', async () => {
       if (!state.mail) return;
-      mailSend.disabled = true;
+      busy(mailSend, 'Sending…');
       try {
         const res = await api('/app/api/submissions/mail', {
           ids: state.mail.ids,
@@ -771,7 +769,7 @@ function boot(DATA) {
       } catch (err) {
         toast(err.message, false);
       } finally {
-        mailSend.disabled = false;
+        done(mailSend);
       }
     });
 
@@ -947,7 +945,7 @@ function boot(DATA) {
         const sel = document.querySelector(`[data-map="${i}"]`);
         return sel ? sel.value : 'ignore';
       });
-      importRun.disabled = true;
+      busy(importRun, 'Importing…');
       try {
         const res = await api('/app/api/submissions/import', {
           text: state.import.text,
@@ -959,7 +957,7 @@ function boot(DATA) {
         )}`;
       } catch (err) {
         toast(err.message, false);
-        importRun.disabled = false;
+        done(importRun);
       }
     });
 

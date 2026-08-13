@@ -4,6 +4,8 @@
  *
  *   toast('Saved')                       dark prototype toast, auto-hides
  *   api('/app/api/x', { a: 1 })          JSON POST → parsed body, throws on !ok
+ *   busy(btn, 'Saving…') / done(btn)     spinner + label while an api() call runs
+ *   data-busy="Sending…"                 submit buttons get the busy state on plain form POSTs
  *   data-toggle="#id"                    click toggles [hidden] on the target, closes on outside click
  *   data-dialog-open="#id"               opens a dialog overlay
  *   data-dialog-close                    closes the nearest dialog overlay
@@ -47,6 +49,75 @@ export async function api(url, body, method = 'POST') {
   }
   return data;
 }
+
+/**
+ * Progress state for an action button while its request runs: swaps the label
+ * for a spinner + present-progressive verb ('Saving…'), blocks re-clicks, and
+ * keeps the button's width so the row doesn't shift. `done(btn)` restores it.
+ *
+ * Islands wrap their api() calls by hand:
+ *
+ *   busy(btn, 'Saving…');
+ *   try { await api(…); } catch (err) { toast(err.message, false); done(btn); }
+ *
+ * Plain form POSTs are declarative — `<button type="submit" data-busy="Sending…">`
+ * gets the same treatment from the submit listener below, and the navigation
+ * replaces the page so nothing needs restoring. A bare `data-busy` keeps the
+ * button's own label under the spinner.
+ */
+export function busy(btn, label) {
+  if (!btn || btn.dataset.busyPrev != null) return;
+  const text = label ?? btn.getAttribute('data-busy') ?? '';
+  btn.dataset.busyPrev = btn.getAttribute('style') || '';
+  btn.dataset.busyHtml = btn.innerHTML;
+  btn.dataset.busyDisabled = btn.disabled ? '1' : '';
+  const width = btn.offsetWidth;
+  btn.textContent = text || btn.textContent.trim();
+  const spin = document.createElement('span');
+  spin.setAttribute('aria-hidden', 'true');
+  spin.style.cssText =
+    'width:12px;height:12px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;flex:none;animation:us-spin 0.6s linear infinite;';
+  btn.prepend(spin);
+  // The saved style attribute is restored verbatim by done(), so appending here
+  // never loses the button's own inline styles.
+  btn.style.cssText +=
+    `;display:inline-flex;align-items:center;justify-content:center;gap:8px;pointer-events:none;` +
+    (width ? `min-width:${Math.ceil(width)}px;` : '');
+  btn.setAttribute('aria-disabled', 'true');
+  // Disable after the tick: a submit button disabled during the submit event
+  // would drop its own name/value from the POST body (see /oauth deny).
+  setTimeout(() => {
+    if (btn.dataset.busyPrev != null) btn.disabled = true;
+  }, 0);
+}
+
+export function done(btn) {
+  if (!btn || btn.dataset.busyPrev == null) return;
+  btn.innerHTML = btn.dataset.busyHtml;
+  if (btn.dataset.busyPrev) btn.setAttribute('style', btn.dataset.busyPrev);
+  else btn.removeAttribute('style');
+  btn.disabled = !!btn.dataset.busyDisabled;
+  btn.removeAttribute('aria-disabled');
+  delete btn.dataset.busyPrev;
+  delete btn.dataset.busyHtml;
+  delete btn.dataset.busyDisabled;
+}
+
+// Submit buttons marked data-busy show progress on plain form POSTs. Runs on
+// document so island handlers (validation, previews) get to preventDefault first.
+document.addEventListener('submit', (e) => {
+  if (e.defaultPrevented) return;
+  // When the browser names a submitter, trust it alone — falling back would
+  // spin a sibling button (forms with several named submit buttons).
+  const btn = e.submitter ?? e.target.querySelector('button[type="submit"][data-busy]');
+  if (btn && btn.hasAttribute('data-busy')) busy(btn);
+});
+
+// A bfcache restore (back button) would otherwise revive the page with the
+// button still spinning.
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) document.querySelectorAll('[data-busy-prev]').forEach((btn) => done(btn));
+});
 
 /**
  * Drawer header full-screen toggle for drawers rendered from JS — the twin of
@@ -179,4 +250,4 @@ document.addEventListener('click', (e) => {
   copy(btn.getAttribute('data-copy'), btn.getAttribute('data-copy-msg') || 'Copied');
 });
 
-window.us = { toast, api, openDialog, closeDialog, copy };
+window.us = { toast, api, openDialog, closeDialog, copy, busy, done };

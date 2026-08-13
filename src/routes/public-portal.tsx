@@ -500,7 +500,7 @@ const MiniFormDialog: FC<{ task: ChecklistTask; slug: string }> = ({ task, slug 
             <button type="button" data-dialog-close={`#form-${task.id}`} style={`${SMALL_BTN}padding:9px 16px;font-size:13px;`}>
               Cancel
             </button>
-            <button type="submit" style="padding:9px 16px;background:var(--primary);color:var(--on-primary);border:none;font-size:13px;font-weight:600;cursor:pointer;">
+            <button type="submit" data-busy="Submitting…" style="padding:9px 16px;background:var(--primary);color:var(--on-primary);border:none;font-size:13px;font-weight:600;cursor:pointer;">
               Submit
             </button>
           </div>
@@ -573,7 +573,7 @@ app.get('/:event/portal', async (c) => {
               <div style="display:flex;gap:8px;">
                 <form method="post" action={`/${event.slug}/portal/confirm`}>
                   <input type="hidden" name="submissionId" value={s.id} />
-                  <button type="submit" style="padding:10px 18px;background:var(--primary);color:var(--on-primary);border:none;font-size:13.5px;font-weight:700;cursor:pointer;">
+                  <button type="submit" data-busy="Confirming…" style="padding:10px 18px;background:var(--primary);color:var(--on-primary);border:none;font-size:13.5px;font-weight:700;cursor:pointer;">
                     Confirm participation
                   </button>
                 </form>
@@ -793,7 +793,7 @@ app.get('/:event/portal', async (c) => {
               <span id="headshot-name" style={`font-family:${MONO};font-size:11px;color:var(--muted);`}></span>
             </div>
           </div>
-          <button type="submit" style={`${DARK_BTN}justify-self:start;`}>
+          <button type="submit" data-busy="Saving…" style={`${DARK_BTN}justify-self:start;`}>
             Save profile
           </button>
         </form>
@@ -888,7 +888,7 @@ const SignIn: FC<{ event: Event; theme: Theme; toast: string | null; err: string
           <div style={`${LABEL}margin-bottom:5px;`}>PASSWORD</div>
           <input name="password" type="password" required autocomplete="current-password" style={INPUT} />
         </div>
-        <button type="submit" style="padding:11px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;">
+        <button type="submit" data-busy="Signing in…" style="padding:11px;background:var(--primary);color:var(--on-primary);border:none;font-size:14px;font-weight:600;cursor:pointer;">
           Sign in
         </button>
         <div style="display:flex;justify-content:space-between;gap:12px;font-size:12.5px;flex-wrap:wrap;">

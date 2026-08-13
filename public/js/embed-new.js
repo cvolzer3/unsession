@@ -5,7 +5,7 @@
  * `embeds` table until Create embed is pressed. The widget × format → URL
  * mapping comes from the server as `data-preview-urls`.
  */
-import { api, toast } from './ui.js';
+import { api, toast, busy, done } from './ui.js';
 
 const preview = document.getElementById('ne-preview');
 const frame = document.getElementById('ne-frame');
@@ -94,7 +94,7 @@ syncFields();
 
 if (createBtn) {
   createBtn.addEventListener('click', async () => {
-    createBtn.disabled = true;
+    busy(createBtn, 'Creating…');
     try {
       const res = await api('/app/api/embeds/create', {
         name: document.getElementById('ne-name').value,
@@ -105,7 +105,7 @@ if (createBtn) {
       location.href = '/app/embeds?ok=' + encodeURIComponent('Embed created') + '&code=' + encodeURIComponent(res.id);
     } catch (err) {
       toast(err.message, false);
-      createBtn.disabled = false;
+      done(createBtn);
     }
   });
 }

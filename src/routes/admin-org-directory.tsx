@@ -977,7 +977,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button type="button" data-dialog-close="#import-modal" style={BTN}>
                   Cancel
                 </button>
-                <button type="submit" id="import-next" style={PRIMARY}>
+                <button type="submit" id="import-next" data-busy="Uploading…" style={PRIMARY}>
                   Continue
                 </button>
               </div>
@@ -1042,7 +1042,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button type="button" data-dialog-close="#communicate-modal" style={BTN}>
                   Cancel
                 </button>
-                <button type="submit" style={PRIMARY}>
+                <button type="submit" data-busy="Sending…" style={PRIMARY}>
                   Send
                 </button>
               </div>
@@ -1454,7 +1454,7 @@ app.post('/app/org/contacts/import', requireOrgRole('admin'), async (c) => {
               <a href="/app/org/contacts" style={`${BTN}text-decoration:none;color:#16171d;`}>
                 Cancel
               </a>
-              <button type="submit" style={PRIMARY}>
+              <button type="submit" data-busy="Importing…" style={PRIMARY}>
                 Import contacts
               </button>
             </div>

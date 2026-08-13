@@ -868,6 +868,7 @@ function renderPage(opts: {
             <button
               type="submit"
               id="pf-submit"
+              data-busy={editing ? 'Saving…' : 'Submitting…'}
               style="padding:15px 0;background:var(--primary);color:var(--on-primary);border:none;font-size:15.5px;font-weight:700;cursor:pointer;letter-spacing:0.01em;"
             >
               {editing ? 'Save changes →' : 'Submit session →'}
