@@ -406,70 +406,39 @@ app.get('/app', async (c) => {
         </div>
 
         <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;">
-          <div style="background:#fff;border:1px solid #e2e3e8;">
-            <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
-              NEEDS ATTENTION
-            </div>
-            {attention.length ? (
-              attention.map((a) => (
-                <a
-                  href={a.href}
-                  style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
-                >
-                  <span style={`width:9px;height:9px;background:${a.dot};flex:none;`}></span>
-                  <span style="min-width:0;">
-                    <span style="display:block;font-size:13px;font-weight:500;">{a.title}</span>
-                    <span
-                      style={
-                        a.subMono
-                          ? `display:block;font-family:${MONO};font-size:11px;color:#686b74;margin-top:2px;word-break:break-all;`
-                          : 'display:block;font-size:11.5px;color:#686b74;margin-top:1px;'
-                      }
-                    >
-                      {a.sub}
+          <div style="min-width:0;display:flex;flex-direction:column;gap:12px;">
+            <div style="background:#fff;border:1px solid #e2e3e8;">
+              <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
+                NEEDS ATTENTION
+              </div>
+              {attention.length ? (
+                attention.map((a) => (
+                  <a
+                    href={a.href}
+                    style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                  >
+                    <span style={`width:9px;height:9px;background:${a.dot};flex:none;`}></span>
+                    <span style="min-width:0;">
+                      <span style="display:block;font-size:13px;font-weight:500;">{a.title}</span>
+                      <span
+                        style={
+                          a.subMono
+                            ? `display:block;font-family:${MONO};font-size:11px;color:#686b74;margin-top:2px;word-break:break-all;`
+                            : 'display:block;font-size:11.5px;color:#686b74;margin-top:1px;'
+                        }
+                      >
+                        {a.sub}
+                      </span>
                     </span>
-                  </span>
-                  <span style="margin-left:auto;flex:none;padding:5px 12px;border:1px solid #cdd2ea;background:#fff;color:#4c5fd5;font-size:12px;font-weight:600;white-space:nowrap;">
-                    {a.cta}
-                  </span>
-                </a>
-              ))
-            ) : (
-              <div style="padding:16px;font-size:12.5px;color:#9a9da6;">Nothing needs attention right now.</div>
-            )}
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
-              <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
-                REVIEW PROGRESS
-              </div>
-              <div style="display:flex;align-items:baseline;gap:8px;">
-                <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{`${review.pct}%`}</div>
-                <div style="font-size:11.5px;color:#686b74;">{`${review.done} of ${review.total} reviews submitted`}</div>
-              </div>
-              <div style="height:6px;background:#f0f1f4;margin-top:9px;">
-                <div style={`height:100%;width:${review.pct}%;background:#4c5fd5;`}></div>
-              </div>
-              <div style="font-size:11.5px;margin-top:9px;">
-                <a href="/app/evaluation">Open evaluation →</a>
-              </div>
+                    <span style="margin-left:auto;flex:none;padding:5px 12px;border:1px solid #cdd2ea;background:#fff;color:#4c5fd5;font-size:12px;font-weight:600;white-space:nowrap;">
+                      {a.cta}
+                    </span>
+                  </a>
+                ))
+              ) : (
+                <div style="padding:16px;font-size:12.5px;color:#9a9da6;">Nothing needs attention right now.</div>
+              )}
             </div>
-
-            {myQueue ? (
-              <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
-                <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
-                  MY REVIEWS
-                </div>
-                <div style="display:flex;align-items:baseline;gap:8px;">
-                  <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{myQueue.remaining}</div>
-                  <div style="font-size:11.5px;color:#686b74;">{`${myQueue.done} in · ${myQueue.remaining} to go`}</div>
-                </div>
-                <div style="font-size:11.5px;margin-top:9px;">
-                  <a href="/app/evaluation?tab=mine">Open my queue →</a>
-                </div>
-              </div>
-            ) : null}
 
             <div style="background:#fff;border:1px solid #e2e3e8;">
               <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
@@ -522,6 +491,39 @@ app.get('/app', async (c) => {
                 </a>
               ))}
             </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+              <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
+                REVIEW PROGRESS
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;">
+                <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{`${review.pct}%`}</div>
+                <div style="font-size:11.5px;color:#686b74;">{`${review.done} of ${review.total} reviews submitted`}</div>
+              </div>
+              <div style="height:6px;background:#f0f1f4;margin-top:9px;">
+                <div style={`height:100%;width:${review.pct}%;background:#4c5fd5;`}></div>
+              </div>
+              <div style="font-size:11.5px;margin-top:9px;">
+                <a href="/app/evaluation">Open evaluation →</a>
+              </div>
+            </div>
+
+            {myQueue ? (
+              <div style="background:#fff;border:1px solid #e2e3e8;padding:14px 16px;">
+                <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;margin-bottom:8px;`}>
+                  MY REVIEWS
+                </div>
+                <div style="display:flex;align-items:baseline;gap:8px;">
+                  <div style={`font-size:26px;font-weight:700;font-family:${MONO};`}>{myQueue.remaining}</div>
+                  <div style="font-size:11.5px;color:#686b74;">{`${myQueue.done} in · ${myQueue.remaining} to go`}</div>
+                </div>
+                <div style="font-size:11.5px;margin-top:9px;">
+                  <a href="/app/evaluation?tab=mine">Open my queue →</a>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
