@@ -57,12 +57,13 @@ export async function saveUpload(env: Bindings, input: SaveUploadInput): Promise
     .split(/[\s,]+/)
     .map((s) => s.trim().replace(/^\./, '').toLowerCase())
     .filter(Boolean);
+  const capMb = input.maxMb && input.maxMb > 0 ? input.maxMb : 100;
+  const limits = `${allowed.length ? allowed.join('/').toUpperCase() : 'ANY FILE'} · ≤${capMb} MB`;
   if (allowed.length && !allowed.includes(ext)) {
-    return { ok: false, error: `File type .${ext || '?'} not allowed (${allowed.join(', ')}).` };
+    return { ok: false, error: `File type .${ext || '?'} not allowed — ${limits}.` };
   }
-  const maxBytes = (input.maxMb && input.maxMb > 0 ? input.maxMb : 100) * 1024 * 1024;
-  if (input.file.size > maxBytes) {
-    return { ok: false, error: `File is too large (max ${input.maxMb ?? 100} MB).` };
+  if (input.file.size > capMb * 1024 * 1024) {
+    return { ok: false, error: `File is too large — ${limits}.` };
   }
 
   // Version chains per (kind, subject): re-upload replaces with history.

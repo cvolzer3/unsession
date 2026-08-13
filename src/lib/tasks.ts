@@ -176,6 +176,15 @@ export function capLabel(s: TaskSettings): string {
   return `${capMbOf(s)} MB`;
 }
 
+/** Concise constraint chip — "PDF/PPTX · ≤100 MB" — shown at the upload control. */
+export function fileLimits(s: TaskSettings): string {
+  const exts = (s.ext || '')
+    .split(/[\s,]+/)
+    .map((e) => e.replace(/^\./, ''))
+    .filter(Boolean);
+  return `${exts.length ? exts.join('/').toUpperCase() : 'ANY FILE'} · ≤${capMbOf(s)} MB`;
+}
+
 export function sampleNameOf(s: TaskSettings): string {
   return (s.sampleFileName || s.sampleFile || '') as string;
 }

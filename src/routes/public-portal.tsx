@@ -354,7 +354,6 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
   };font-size:13px;flex-shrink:0;padding:0;`;
   const nameStyle = `font-size:14px;font-weight:600;${done ? 'color:var(--muted);text-decoration:line-through;' : ''}`;
 
-  const cap = T.capMbOf(task.settings);
   // Done rows show no status line — the ticked box and strikethrough say it all.
   const dueLine = done
     ? null
@@ -364,7 +363,7 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
         ? 'Auto-completes when your profile is filled'
         : (task.overdue ? `Overdue — was due ${fmtDate(task.due)}` : task.due ? `Due ${fmtDate(task.due)}` : 'No due date') +
           (task.type === 'file'
-            ? ` · ${(task.settings.ext || 'any file').toUpperCase()} · ${cap} MB · versioned`
+            ? ` · ${T.fileLimits(task.settings)} · versioned`
             : task.type === 'form'
               ? ' · 2-minute mini-form'
               : '');
@@ -472,6 +471,9 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
             files ? (
               <form method="post" action={`/${slug}/portal/task/upload`} enctype="multipart/form-data" data-upload style="display:flex;gap:6px;align-items:center;">
                 <input type="hidden" name="taskId" value={task.id} />
+                <span style={`font-family:${MONO};font-size:10px;color:var(--muted);white-space:nowrap;`}>
+                  {T.fileLimits(task.settings)}
+                </span>
                 <label class="file-btn pt-btn" style={`${SMALL_BTN}display:inline-block;`}>
                   {task.files.length ? 'Replace' : 'Upload'}
                   <input
