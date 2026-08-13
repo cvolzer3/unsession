@@ -13,9 +13,11 @@
 -- Seeded sandbox users are plus-suffixed per sandbox and only ever belong to
 -- sandbox orgs; the user sweep keeps anyone who is a member of a real org.
 
--- The whole file runs as one batch; deferring FK checks to its end lets the
--- user sweep run before the membership rows that resolve it are dropped.
-PRAGMA defer_foreign_keys = true;
+-- Remote D1 runs each statement in its own transaction (deferred FK checks
+-- do not span statements), so every DELETE below strictly follows its
+-- children. Users go LAST: dropping the sandbox membership rows first turns
+-- every seeded user into a passwordless, plus-suffixed, member-of-nothing
+-- account, which is exactly what the final sweep matches.
 
 -- Event-scoped children first ------------------------------------------------
 
@@ -136,39 +138,6 @@ DELETE FROM api_tokens WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1
 
 DELETE FROM invites WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
 
--- Sandbox users. By this point in the script the speaker profiles are gone,
--- so sandbox users are resolved two ways: members of sandbox orgs who belong
--- to no real org (the seeded roster — see PEOPLE in seed-data.ts), plus the
--- member-less speaker persona, caught by her plus-suffixed seed address
--- (every sandbox suffixes sofia@syncable.app; no real signup can collide).
-
-DELETE FROM magic_tokens WHERE email IN (
-  SELECT u.email FROM users u
-   WHERE (EXISTS (SELECT 1 FROM org_members m JOIN orgs o ON o.id = m.org_id
-                   WHERE m.user_id = u.id AND o.is_sandbox = 1)
-          OR u.email LIKE 'sofia+%@syncable.app')
-     AND NOT EXISTS (SELECT 1 FROM org_members m2 JOIN orgs o2 ON o2.id = m2.org_id
-                      WHERE m2.user_id = u.id AND o2.is_sandbox = 0)
-);
-
-DELETE FROM auth_sessions WHERE user_id IN (
-  SELECT u.id FROM users u
-   WHERE (EXISTS (SELECT 1 FROM org_members m JOIN orgs o ON o.id = m.org_id
-                   WHERE m.user_id = u.id AND o.is_sandbox = 1)
-          OR u.email LIKE 'sofia+%@syncable.app')
-     AND NOT EXISTS (SELECT 1 FROM org_members m2 JOIN orgs o2 ON o2.id = m2.org_id
-                      WHERE m2.user_id = u.id AND o2.is_sandbox = 0)
-);
-
-DELETE FROM users WHERE id IN (
-  SELECT u.id FROM users u
-   WHERE (EXISTS (SELECT 1 FROM org_members m JOIN orgs o ON o.id = m.org_id
-                   WHERE m.user_id = u.id AND o.is_sandbox = 1)
-          OR u.email LIKE 'sofia+%@syncable.app')
-     AND NOT EXISTS (SELECT 1 FROM org_members m2 JOIN orgs o2 ON o2.id = m2.org_id
-                      WHERE m2.user_id = u.id AND o2.is_sandbox = 0)
-);
-
 -- Membership rows, then the events and orgs themselves ------------------------
 
 DELETE FROM org_members WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
@@ -177,10 +146,12 @@ DELETE FROM events WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
 
 DELETE FROM orgs WHERE is_sandbox = 1;
 
--- Belt and braces: remnants of sandboxes torn down by older flows, whose
--- membership rows are already gone. Seeded users are the only accounts that
--- are passwordless (the picker signs them in directly), plus-suffixed AND
--- member of no org — real accounts always carry a password hash.
+-- Sandbox users, last — every row referencing them is gone by now. With the
+-- sandbox membership rows dropped, seeded users (the roster in PEOPLE plus
+-- the member-less speaker persona) are exactly the accounts that are
+-- passwordless (the picker signs them in directly), plus-suffixed AND member
+-- of no org. Real accounts always carry a password hash, so none can match;
+-- this also sweeps remnants of sandboxes torn down by older flows.
 
 DELETE FROM magic_tokens WHERE email IN (
   SELECT email FROM users
