@@ -800,9 +800,20 @@ function boot(D) {
   }
 
   function dayToggle(active, attr) {
+    // Full labels ("Day 1 · Tue, Dec 1") only fit two-across in the 320px
+    // card; beyond that, compact to "Day N" (date stays in the tooltip) and
+    // wrap so any day count stays inside the card.
+    const compact = D.days.length > 2;
     return (
-      '<div style="display:flex;border:1px solid #e2e3e8;">' +
-      D.days.map((d) => `<button type="button" ${attr}="${d.index}" style="${tabBtn(active === d.index)}flex:1;">${esc(d.label)}</button>`).join('') +
+      '<div style="display:flex;flex-wrap:wrap;border:1px solid #e2e3e8;">' +
+      D.days
+        .map(
+          (d) =>
+            `<button type="button" ${attr}="${d.index}" title="${esc(d.label)}" style="${tabBtn(active === d.index)}flex:1 1 auto;min-width:0;">${esc(
+              compact ? `Day ${d.index + 1}` : d.label
+            )}</button>`
+        )
+        .join('') +
       '</div>'
     );
   }
@@ -832,13 +843,13 @@ function boot(D) {
         `<div style="font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;">MOVE</div>` +
         dayToggle(sel.day, 'data-sel-day') +
         '<div style="display:flex;gap:8px;">' +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
-        `<select data-sel-start style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
+        `<select data-sel-start style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
           sel.start,
           (m) => m <= DMAX - dur
         )}</select></label>` +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Room' +
-        `<select data-sel-room style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${D.rooms
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Room' +
+        `<select data-sel-room style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${D.rooms
           .map((r) => `<option value="${r.id}"${r.id === sel.roomId ? ' selected' : ''}>${esc(r.name)}</option>`)
           .join('')}</select></label></div></div>`;
 
@@ -876,13 +887,13 @@ function boot(D) {
         dayToggle(svc.day, 'data-svc-day') +
         '</div>' +
         '<div style="display:flex;gap:8px;">' +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
-        `<select data-svc-start style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
+        `<select data-svc-start style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
           svc.start,
           (m) => m < DMAX
         )}</select></label>` +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Ends' +
-        `<select data-svc-end style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Ends' +
+        `<select data-svc-end style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
           svc.end,
           (m) => m > svc.start
         )}</select></label></div>` +
@@ -905,13 +916,13 @@ function boot(D) {
         '<div style="display:grid;gap:4px;font-size:11px;color:#686b74;">Day' +
         dayToggle(S.schedDay, 'data-sched-day') +
         '</div><div style="display:flex;gap:8px;">' +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
-        `<select data-sched-start style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Starts' +
+        `<select data-sched-start style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${timeOpts(
           S.schedStart,
           (m) => m <= DMAX - sched.dur
         )}</select></label>` +
-        '<label style="flex:1;display:grid;gap:4px;font-size:11px;color:#686b74;">Room' +
-        `<select data-sched-room style="padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${D.rooms
+        '<label style="flex:1;min-width:0;display:grid;gap:4px;font-size:11px;color:#686b74;">Room' +
+        `<select data-sched-room style="width:100%;min-width:0;padding:6px;border:1px solid #d4d5db;font-size:12.5px;background:#fff;">${D.rooms
           .map((r) => `<option value="${r.id}"${r.id === S.schedRoom ? ' selected' : ''}>${esc(r.name)}</option>`)
           .join('')}</select></label></div>` +
         '<button type="button" data-sched-place style="padding:9px 0;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">Place on agenda</button>' +
