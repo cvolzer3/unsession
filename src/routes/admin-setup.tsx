@@ -735,7 +735,7 @@ app.post('/app/setup', guard, async (c) => {
   });
 
   return c.redirect(
-    '/app/setup?ok=' + encodeURIComponent('Saved — public surfaces revalidate on next request')
+    '/app/setup?ok=' + encodeURIComponent('Saved')
   );
 });
 
@@ -763,7 +763,7 @@ app.post('/app/setup/rooms', guard, async (c) => {
     action: 'Room added',
     detail: name,
   });
-  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” added — agenda grid gains a column`));
+  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” added`));
 });
 
 app.post('/app/setup/rooms/update', guard, async (c) => {
@@ -797,7 +797,7 @@ app.post('/app/setup/rooms/update', guard, async (c) => {
     action: 'Room updated',
     detail: name,
   });
-  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” updated — agenda grid follows`));
+  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${name}” updated`));
 });
 
 app.post('/app/setup/rooms/delete', guard, async (c) => {
@@ -813,7 +813,7 @@ app.post('/app/setup/rooms/delete', guard, async (c) => {
   if (!room) return c.redirect('/app/setup');
   await run(c.env.DB, `UPDATE sessions SET room_id = NULL WHERE room_id = ?`, roomId);
   await run(c.env.DB, `DELETE FROM rooms WHERE id = ? AND event_id = ?`, roomId, event.id);
-  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${room.name}” removed — agenda grid updates`));
+  return c.redirect('/app/setup?ok=' + encodeURIComponent(`“${room.name}” removed`));
 });
 
 app.post('/app/setup/taxonomies', guard, async (c) => {
@@ -837,7 +837,7 @@ app.post('/app/setup/taxonomies', guard, async (c) => {
     count?.n ?? 0
   );
   return c.redirect(
-    '/app/setup?ok=' + encodeURIComponent(`“${name}” created — available to forms, routing, filters`)
+    '/app/setup?ok=' + encodeURIComponent(`“${name}” created`)
   );
 });
 
@@ -896,7 +896,7 @@ app.post('/app/setup/options/update', guard, async (c) => {
     optionId
   );
   return c.redirect(
-    '/app/setup?ok=' + encodeURIComponent(`“${name}” updated — forms, routing, filters follow`)
+    '/app/setup?ok=' + encodeURIComponent(`“${name}” updated`)
   );
 });
 
@@ -918,7 +918,7 @@ app.post('/app/setup/options/delete', guard, async (c) => {
   await run(c.env.DB, `UPDATE sessions SET format_option_id = NULL WHERE format_option_id = ?`, optionId);
   await run(c.env.DB, `DELETE FROM taxonomy_options WHERE id = ?`, optionId);
   return c.redirect(
-    '/app/setup?ok=' + encodeURIComponent(`“${row.name}” removed from ${row.taxonomy} — tagged sessions are now untagged`)
+    '/app/setup?ok=' + encodeURIComponent(`“${row.name}” removed from ${row.taxonomy} — tagged sessions untagged`)
   );
 });
 

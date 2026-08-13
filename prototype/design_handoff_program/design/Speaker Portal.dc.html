@@ -154,7 +154,7 @@ class Component extends DCLogic {
       mainStatus: s[0], mainBadge: badge(s[0], s[1], s[2]),
       confirm: () => { this.setState({ phase: 'confirmed' }); this.flash('Confirmed! You’re on the agenda — 5 onboarding tasks generated below.'); },
       cantMake: () => this.setState({ withdrawModal: true }),
-      addCal: () => this.flash('.ics downloaded — works natively in Gmail, Outlook, Apple Calendar'),
+      addCal: () => this.flash('.ics downloaded'),
       taskFrac: `${done} OF ${st.tasks.length} DONE`,
       tasks: st.tasks.map((t, i) => ({
         name: t.name, due: t.due, action: t.done ? null : t.action || null,
@@ -165,7 +165,7 @@ class Component extends DCLogic {
         toggle: () => { if (t.auto) return; this.setState({ tasks: st.tasks.map((x, j) => j === i ? { ...x, done: !x.done } : x) }); },
         act: () => {
           if (t.action === 'Upload') this.flash(`Upload dialog for “${t.name}” — re-uploads replace with version history`);
-          else if (t.action === 'Open form') this.flash(`“${t.name}” mini-form opens — it reuses the same form engine as the CFP`);
+          else if (t.action === 'Open form') this.flash(`“${t.name}” mini-form opens`);
           else window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }
       })),

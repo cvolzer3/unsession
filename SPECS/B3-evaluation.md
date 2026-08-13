@@ -5,7 +5,7 @@ Read `SPECS/B-shared.md` first. Prototypes: `design/Evaluation.dc.html` (admin, 
 ## Model mechanics (`src/lib/evals.ts`)
 
 - `matchesRules(sub, rules)` exactly as prototype (track/form/format/level/status; status 'active' = submitted|in_review).
-- Plan membership: materialize into `eval_plan_subs`? No — compute dynamically from rules (simpler, always fresh); when a plan first includes a submitted submission, flip its status to `in_review` (activity: "Assigned to evaluation plan …" — do this in a `syncPlanMembership(env, planId)` called on plan save and on new submissions via a hook you export; wire the hook call into your own API paths and note in report that B1 submit path can call it later — Phase C wires it).
+- Plan membership: materialize into `eval_plan_subs`? No. Compute dynamically from rules (simpler, always fresh); when a plan first includes a submitted submission, flip its status to `in_review` (activity: "Assigned to evaluation plan …" — do this in a `syncPlanMembership(env, planId)` called on plan save and on new submissions via a hook you export; wire the hook call into your own API paths and note in report that B1 submit path can call it later — Phase C wires it).
 - Assignment: members (non-chair) round-robin per prototype `assignedFor` (seeded by submission id) honoring `reviews_per` cap. Chairs see everything, score nothing by default.
 - Aggregates: per-submission per-criterion averages, cumulative score (sum of criteria) averaged across reviewers, plan progress done/total.
 
@@ -21,7 +21,7 @@ Port `Evaluation.dc.html`:
 
 Port `Evaluator Workspace.dc.html` — **admin-neutral chrome as in the mock** (it uses admin styling with a minimal sidebar):
 1. Access: signed-in user who is a reviewer on ≥1 plan of this event (else friendly "no evaluation access" page). Queue = their assigned submissions across their plans (respect assignment + caps), minus already-scored/abstained.
-2. Card mode: submission (title, abstract, meta; SPEAKERS **hidden when plan.anonymized** — meta cell shows "Hidden — blind review"; only evaluator-visible fields shown: filter answers by `flags.evaluatorVisible`), criteria star rows from the PLAN's criteria (name/hint/scale), keyboard 1–5 fills next empty criterion, Enter submits, comment box, Submit (validates all criteria scored — toast otherwise), Skip (stays in queue, moves to back), Abstain (records abstained row, removed). Progress "N of M done" + segment dots. Queue-clear ✓ state.
+2. Card mode: submission (title, abstract, meta; SPEAKERS **hidden when plan.anonymized**: meta cell shows "Hidden — blind review"; only evaluator-visible fields shown: filter answers by `flags.evaluatorVisible`), criteria star rows from the PLAN's criteria (name/hint/scale), keyboard 1–5 fills next empty criterion, Enter submits, comment box, Submit (validates all criteria scored — toast otherwise), Skip (stays in queue, moves to back), Abstain (records abstained row, removed). Progress "N of M done" + segment dots. Queue-clear ✓ state.
 3. List mode ("Exit review"): searchable/filterable/paginated table of their queue + reviewed (score shown, "Review →" buttons); reviewed detail view (SCORE LOCKED — no editing; per prototype).
 4. Scores are final (unique constraint; no edit UI).
 5. If user reviews for 2+ plans, a small plan filter chip row above the queue.

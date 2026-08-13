@@ -1,7 +1,7 @@
 # Agent conventions
 
 Multiple AI agent sessions (Claude, Codex) may work in this repo at the same
-time, all directly on `main` — main is the single source of truth and must not
+time, all directly on `main`, which is the single source of truth and must not
 diverge. These rules keep concurrent work safe and commit history groupable.
 (Ported from the mmasim project's working conventions.)
 
@@ -10,7 +10,7 @@ diverge. These rules keep concurrent work safe and commit history groupable.
 - Default workflow is trunk-based: commit directly to `main`, push to `main`.
   Don't open a feature branch unless explicitly asked.
 - Commit ≠ push ≠ deploy. Pushing to main is the normal end of a finished
-  task; deploying is not — don't deploy unless asked.
+  task; deploying is not.
 
 ## Commit your own finished work
 

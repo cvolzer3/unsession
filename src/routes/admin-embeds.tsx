@@ -169,10 +169,10 @@ const CodeDialog: FC<{ row: EmbedRow; event: Event; origin: string }> = ({ row, 
         <div style={DIALOG_BODY}>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;">
             {row.format === 'styled'
-              ? 'Paste this one-line snippet into any page on your site. The widget pulls live data and updates whenever you re-publish — no need to touch the snippet again.'
+              ? 'Paste this one-line snippet into any page on your site. The widget pulls live data and updates whenever you re-publish.'
               : row.format === 'basic'
                 ? 'Fetch this URL from your site or CMS — it returns plain HTML you can drop into any template.'
-                : 'Point your integration at this feed URL — it always serves the currently published programme.'}
+                : 'Point your integration at this feed URL.'}
           </div>
           <div>
             <div style={`${MICRO}margin-bottom:6px;`}>{formatLabel(row.format).toUpperCase()}</div>
@@ -281,8 +281,7 @@ app.get('/app/embeds', async (c) => {
             <div style="padding:36px 16px;text-align:center;">
               <div style="font-size:14px;font-weight:600;">No embeds yet</div>
               <div style="font-size:12.5px;color:#686b74;margin-top:4px;">
-                Add one to get a copy-paste snippet for your website — sessions list, speakers, agenda grid, itinerary or
-                speaker gallery.
+                Add one to get a copy-paste snippet for your website.
               </div>
             </div>
           ) : null}

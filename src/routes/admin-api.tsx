@@ -91,16 +91,14 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
               </button>
             </div>
             <div style="font-size:12.5px;color:#686b74;margin-top:10px;">
-              This is the only time the secret is shown. Lose it and you revoke this token and mint a new one — there
-              is no recovery.
+              This is the only time the secret is shown. Lose it and you revoke this token and mint a new one.
             </div>
           </div>
         ) : null}
 
         {isSandbox ? (
           <div style="background:#fff4e6;border:1px solid #f0c078;padding:12px 16px;font-size:13px;color:#686b74;margin-bottom:16px;">
-            Sandbox workspaces can’t create API tokens — the personas here are shared and throwaway. Create your own
-            event to use the API.
+            Sandbox workspaces can’t create API tokens. Create your own event to use the API.
           </div>
         ) : null}
 
@@ -164,7 +162,7 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
           })}
           {tokens.length === 0 ? (
             <div style="padding:36px;text-align:center;font-size:13.5px;color:#686b74;">
-              No API tokens yet{isSandbox ? '.' : ' — create one to script the API or connect an agent over MCP.'}
+              No API tokens yet{isSandbox ? '.' : ' — create one to script the API or connect an agent.'}
             </div>
           ) : null}
         </div>
@@ -193,8 +191,8 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
             <div>
               <span style={MICRO}>MCP ENDPOINT&ensp;</span>
               <span style={`font-family:${MONO};font-size:12.5px;`}>{`${origin}/api/mcp`}</span>
-              &ensp;— the same tokens drive agents (Claude Code, Claude connectors, Cursor, VS Code) over stateless
-              Streamable HTTP; read-only tokens see only the read tools.{' '}
+              &ensp;The same tokens drive agents (Claude Code, Claude connectors, Cursor, VS Code) over stateless
+              Streamable HTTP. Read-only tokens see only the read tools.{' '}
               <a href="/docs/mcp" style="color:#4c5fd5;font-weight:600;">
                 Setup guide, tool reference and connection snippets →
               </a>

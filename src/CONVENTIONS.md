@@ -121,11 +121,13 @@ Server-side redirects flash through the `ok` query param, which
 `adminProps` picks up and `AdminLayout` renders as the prototype's dark toast:
 
 ```ts
-return c.redirect('/app/setup?ok=' + encodeURIComponent('Saved — public surfaces revalidate on next request'));
+return c.redirect('/app/setup?ok=' + encodeURIComponent('Saved'));
 ```
 
-Client-side, call `toast('…')`. Toast copy comes from the prototype's `flash()`
-strings wherever one exists — keep the em dashes and the curly quotes.
+Client-side, call `toast('…')`. A toast is the past-tense verb of what happened
+(`Saved`, `Published`, `“${name}” created`) — no trailing explainer clause
+restating the obvious. Add a tail only for a genuine warning or required next
+action. Keep the curly quotes.
 
 ## 7. Database
 

@@ -61,7 +61,7 @@ export async function queueTaskReminder(
     subjectId: input.taskId,
     actor: input.actorName,
     action: 'Reminder queued',
-    detail: `“${input.taskName}” — queued, nothing sent; goes out from Emails → Outbox`,
+    detail: `“${input.taskName}” queued in Emails → Outbox`,
   });
   return { replaced: !!prior };
 }

@@ -288,7 +288,7 @@ class Component extends DCLogic {
       close: () => this.setState({ editId: null, draft: null }),
       save: () => {
         const dd = this.state.draft, id = this.state.editId;
-        this.upd(id, { title: dd.title, abstract: dd.abstract, track: dd.track, level: dd.level, type: dd.type, format: dd.type, dur: +dd.dur, room: dd.room || null }, 'Saved — synced to agenda and public pages');
+        this.upd(id, { title: dd.title, abstract: dd.abstract, track: dd.track, level: dd.level, type: dd.type, format: dd.type, dur: +dd.dur, room: dd.room || null }, 'Saved');
         this.setState({ editId: null, draft: null });
       },
       toastOn: !!S.toast, toastMsg: S.toast || ''

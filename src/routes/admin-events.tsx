@@ -39,8 +39,8 @@ app.get('/app/events/new', async (c) => {
           </div>
           <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:4px;">Create your event</div>
           <div style="font-size:13px;color:#686b74;margin-bottom:26px;">
-            Tracks, formats, levels, a Main Stage and the standard email templates are copied in — you can change all
-            of them on Setup &amp; Theming.
+            Tracks, formats, levels, a Main Stage and the standard email templates are copied in. Change them anytime
+            on Setup &amp; Theming.
           </div>
           {err ? (
             <div style="border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:9px 11px;font-size:12.5px;margin-bottom:16px;">

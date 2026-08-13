@@ -2,7 +2,7 @@
 
 **Run your call for speakers without the bloat.**
 
-Unsession is open-source speaker & session management for conferences. It covers the whole speaker pipeline — call for speakers → evaluation → decisions → speaker onboarding → agenda → publish — and deliberately nothing else: no CRM, no marketing suite, no media library. It ships as a single Cloudflare Worker with server-rendered pages and no client build step, built on three bets: speed, focus, and instant self-serve — the [sandbox](https://unsession.dev) provisions a real, pre-filled event in seconds, no account needed.
+Unsession is open-source speaker & session management for conferences. It covers the whole speaker pipeline — call for speakers → evaluation → decisions → speaker onboarding → agenda → publish — and deliberately nothing else: no CRM, no marketing suite, no media library. It ships as a single Cloudflare Worker with server-rendered pages and no client build step, built on three bets: speed, focus, and instant self-serve. The [sandbox](https://unsession.dev) provisions a real, pre-filled event in seconds, no account needed.
 
 - **Hosted service:** https://unsession.dev — runs this repo unmodified (admin at `/app`)
 - **License:** [AGPL-3.0](LICENSE)
@@ -100,7 +100,7 @@ Then adjust `wrangler.jsonc` for your account:
 
 **Email sending** uses [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) through the `send_email` binding (`EMAIL`). Onboard your sending domain to Email Service, set `EMAIL_FROM` to an address on it, and set `EMAIL_ENABLED` to `"1"`. Until then, remove the `send_email` block and set `EMAIL_ENABLED` to `"0"` — every send is recorded as `simulated`, and flows that depend on a link (password reset, invites, confirmations) surface the link in the UI instead.
 
-**Sign-in** is email + password for everyone — no identity provider to configure, nothing extra to set up. Password-reset/first-time-setup, team-invite, participation-confirmation and draft-resume links go out by email; in simulated-email mode they appear on screen instead.
+**Sign-in** is email + password for everyone. Password-reset/first-time-setup, team-invite, participation-confirmation and draft-resume links go out by email; in simulated-email mode they appear on screen instead.
 
 ## Development
 

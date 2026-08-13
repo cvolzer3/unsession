@@ -233,7 +233,7 @@ Session fields: title, abstract, format, track/categories, speakers, room, slot,
 
 ### 4.11 Publishing: Public Page, Embeds, API
 
-- **Hosted agenda page:** `app.com/{event-slug}/agenda`. Fast, clean, mobile-first (attendees read agendas standing in hallways). Filters by day/track/room; session detail pages with speaker profiles; viewer-local timezone toggle. Statically generated + CDN-cached, revalidated on edit — this is where "no slow shit" is cheapest and most visible.
+- **Hosted agenda page:** `app.com/{event-slug}/agenda`. Fast, clean, mobile-first (attendees read agendas standing in hallways). Filters by day/track/room; session detail pages with speaker profiles; viewer-local timezone toggle. Statically generated + CDN-cached, revalidated on edit.
 - **Embed:** iframe with transparent-background option so the agenda sits visually inside the host site. Real-time (reflects published changes without re-embedding).
 - **Read-only JSON endpoint** of the published agenda for custom builds. (Plain-text schedule export for mailings/announcements: fast-follow.)
 - **Local favorites (fast-follow, not v1):** browser-local "my schedule" starring on the public page — most of the attendee-app value with zero accounts.
@@ -319,7 +319,7 @@ Evaluation plans (rubric + yes/no, assignment, caps, blind-review field flags, r
 ### Phase 3 — Recurring use & fast-follows
 Event duplication + form templates · JSON API · side-by-side **comparison evaluation** · local favorites on public agenda · plain-text schedule export · agenda versioning · optional public submissions list · saved table views polish · org-level template library.
 
-**Sequencing rationale:** Phase 1 alone replaces "Google Form + spreadsheet + dread." Phase 2 makes it a SessionBoard-Program replacement. Phase 3 makes year two effortless — which is when retention is won.
+**Sequencing rationale:** Phase 1 alone replaces "Google Form + spreadsheet + dread." Phase 2 makes it a SessionBoard-Program replacement. Phase 3 makes year two effortless.
 
 ---
 

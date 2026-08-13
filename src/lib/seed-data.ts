@@ -96,10 +96,10 @@ export const SUBMISSIONS: SeedSubmission[] = [
   S(144, 'CSS Grid Level 3: Masonry Is Finally Real', 'A tour of masonry layout in production browsers, with fallback strategies you can ship today.', [sp('Priya Raman', 'priya@webfoundry.co', 'Design engineer and CSSWG observer.')], 'web', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.1, 26),
   S(143, 'Fine-Tuning Is Dead, Long Live Fine-Tuning', 'When RAG fails, when adapters win, and the decision tree we use with every client.', [sp('Tomás Rivera', 'tomas@adapt.ml', 'ML lead at a 12-person applied-AI shop.')], 'ai', 'Deep Dive (45 min)', 'Advanced', 'in_review', 1, 3, 3.5, 25),
   S(142, 'Ship Your Design System Without a Design Team', 'How a 6-person startup maintains a coherent UI with tokens, lint rules, and zero designers.', [sp('Lena Fischer', 'lena@tinystack.app', 'Founding engineer. Accidental design lead.')], 'dx', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 3.9, 25),
-  S(141, 'Kubernetes the Hard Way, Five Years Later', 'Re-running the classic exercise on 2027 infrastructure — what got easier, what still hurts.', [sp('Dmitri Volkov', 'dmitri@baremetal.sh', 'Platform engineer, on-prem believer.')], 'infra', 'Workshop (90 min)', 'Advanced', 'in_review', 2, 3, 3.2, 24),
+  S(141, 'Kubernetes the Hard Way, Five Years Later', 'Re-running the classic exercise on 2027 infrastructure. What got easier, and what still hurts.', [sp('Dmitri Volkov', 'dmitri@baremetal.sh', 'Platform engineer, on-prem believer.')], 'infra', 'Workshop (90 min)', 'Advanced', 'in_review', 2, 3, 3.2, 24),
   S(140, 'Passkeys in Production: 18 Months In', 'Adoption curves, support tickets, and the account-recovery flows nobody warns you about.', [sp('Sarah Okafor', 'sarah@authlayer.com', 'Product engineer, identity.'), sp('Jon Marsh', 'jon@authlayer.com', 'Support lead turned engineer.')], 'sec', 'Talk (30 min)', 'Intermediate', 'accepted', 3, 3, 4.5, 24),
   S(139, 'A Love Letter to Boring Technology', 'Our stack is Django, Postgres, and cron. We serve 40M requests a day. Ask me anything.', [sp('Mei Chen', 'mei@steadyship.io', 'CTO. Professional resister of rewrites.')], 'infra', 'Talk (30 min)', 'Intro', 'accepted', 3, 3, 4.4, 23),
-  S(138, 'WebGPU Beyond Graphics: Compute in the Browser', 'Running real ML inference client-side — architecture, quantization, and when not to bother.', [sp('Felix Braun', 'felix@gpuweb.dev', 'Graphics programmer gone rogue.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.0, 23),
+  S(138, 'WebGPU Beyond Graphics: Compute in the Browser', 'Running real ML inference client-side. Covers architecture, quantization, and when not to bother.', [sp('Felix Braun', 'felix@gpuweb.dev', 'Graphics programmer gone rogue.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'in_review', 2, 3, 4.0, 23),
   S(137, 'The Accessibility Audit That Saved Our Contract', 'A true story of a failed procurement, a 6-week remediation, and the checklist we now run weekly.', [sp('Grace Adeyemi', 'grace@a11yworks.co', 'Accessibility consultant, WCAG nerd.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.6, 22),
   S(136, 'Building a Data Platform With Three Engineers', 'DuckDB, dbt, and ruthless scope-cutting: analytics for a 200-person company on a shoestring.', [sp('Oscar Lindqvist', 'oscar@leandata.se', 'Data engineer #1 of 3.')], 'infra', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 22),
   S(135, 'LLM Evals Are Your New Unit Tests', 'A practical workshop: build an eval suite for a real feature, wire it into CI, catch a regression live.', [sp('Hana Yoshida', 'hana@evalcraft.jp', 'ML engineer, testing evangelist.')], 'ai', 'Workshop (90 min)', 'Intermediate', 'accepted', 3, 3, 4.6, 21),
@@ -115,7 +115,7 @@ export const SUBMISSIONS: SeedSubmission[] = [
   S(125, 'Threat Modeling for Busy Teams', 'A 45-minute framework you can run in a sprint retro, with real worksheets.', [sp('Fatima Al-Rashid', 'fatima@shiftsec.io', 'AppSec engineer and facilitator.')], 'sec', 'Deep Dive (45 min)', 'Intermediate', 'in_review', 0, 3, null, 13),
   S(124, 'From Jupyter to Production in One Repo', 'Killing the notebook-to-service rewrite: our template for shipping models straight from research.', [sp('Emil Johansson', 'emil@mlship.se', 'MLOps engineer.')], 'ai', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 12),
   S(123, 'HTMX and the Return of the Server', 'We deleted 40k lines of React. A tour of what replaced it and where we drew the line.', [sp('Julia Novak', 'julia@hypermedia.dev', 'Full-stack engineer, simplicity zealot.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.7, 11),
-  S(122, 'Chaos Engineering on a Budget', 'You do not need a chaos platform — you need a Tuesday, a script, and management buy-in.', [sp('Kwame Mensah', 'kwame@faultline.dev', 'SRE, professional breaker of staging.')], 'infra', 'Lightning (10 min)', 'Intro', 'declined', 3, 3, 2.2, 10),
+  S(122, 'Chaos Engineering on a Budget', 'You do not need a chaos platform. You need a Tuesday, a script, and management buy-in.', [sp('Kwame Mensah', 'kwame@faultline.dev', 'SRE, professional breaker of staging.')], 'infra', 'Lightning (10 min)', 'Intro', 'declined', 3, 3, 2.2, 10),
   S(121, 'Local-First Apps: Sync Engines in Anger', 'CRDTs in production: conflict UX, storage costs, and the bug that ate a week of edits.', [sp('Sofia Rossi', 'sofia@syncable.app', 'Product engineer, local-first convert.'), sp('Tim Okada', 'tim@syncable.app', 'Distributed-systems engineer.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'accepted', 3, 3, 4.6, 9),
   S(120, 'Burnout-Proofing Your On-Call Rotation', 'Alert budgets, follow-the-sun handoffs, and the metric that predicted every resignation.', [sp('Aisha Khan', 'aisha@humanops.co', 'Engineering manager, SRE background.')], 'infra', 'Talk (30 min)', 'Intro', 'withdrawn', 2, 3, 4.0, 8),
   {
@@ -127,7 +127,7 @@ export const SUBMISSIONS: SeedSubmission[] = [
   },
   {
     id: 'SUB-S01', form: 'sponsor', title: 'Observability on Autopilot',
-    abstract: 'Zero-code instrumentation of a polyglot stack with the new Datastack agent — live install included.',
+    abstract: 'Zero-code instrumentation of a polyglot stack with the new Datastack agent. Includes a live install.',
     speakers: [sp('Marco Silva', 'marco@datastack.io', 'Solutions engineer, Datastack (Gold sponsor).')],
     track: 'infra', format: 'Talk (30 min)', level: 'Intermediate', status: 'in_review',
     evalDone: 1, evalTotal: 1, avg: 3.1, submitted: '2026-07-30',
@@ -173,7 +173,7 @@ export const SUBMISSION_PAPERS: SeedPaper[] = [
     filename: 'how-we-got-pwned-incident-review.pdf',
     summary: [
       'A minute-by-minute reconstruction of a supply-chain compromise: the build-time dependency that changed hands, the eleven days before anyone noticed, and the Slack thread where we worked out how bad it was.',
-      'The write-up includes the parts companies normally redact — what the response cost, which controls we already had and why they did not fire, and the two changes that would have caught it on day one.',
+      'The write-up includes the parts companies normally redact: what the response cost, which controls we already had and why they did not fire, and the two changes that would have caught it on day one.',
     ],
     takeaways: [
       'The full timeline, blast radius and invoice, published rather than paraphrased.',
@@ -187,7 +187,7 @@ export const SUBMISSION_PAPERS: SeedPaper[] = [
     filename: 'threat-modeling-busy-teams.pdf',
     summary: [
       'A threat-modeling framework sized for a sprint retro: four questions, one whiteboard, forty-five minutes, no specialist in the room.',
-      'The session is built around two worked examples — a payments webhook and an internal admin tool — with the worksheets handed out so attendees leave with the artifacts, not just the theory.',
+      'The session is built around two worked examples: a payments webhook and an internal admin tool. Worksheets are handed out so attendees leave with the artifacts.',
     ],
     takeaways: [
       'The four-question script, and how to keep a room of engineers inside the time box.',
@@ -201,7 +201,7 @@ export const SUBMISSION_PAPERS: SeedPaper[] = [
     filename: 'local-first-sync-engines-in-anger.pdf',
     summary: [
       'Two years of running a CRDT-backed sync engine in production: what conflict resolution looks like to a user who does not know what a CRDT is, what the storage bill did, and the bug that quietly ate a week of one customer’s edits.',
-      'The deep dive covers the parts the papers skip — compaction, schema migrations on documents already in the field, and the debugging tools we had to build before we could trust any of it.',
+      'The deep dive covers the parts the papers skip: compaction, schema migrations on documents already in the field, and the debugging tools we had to build before we could trust any of it.',
     ],
     takeaways: [
       'Conflict UX patterns that survive contact with real users, and the ones that do not.',
@@ -295,7 +295,7 @@ export const EVAL_PLANS = [
     id: 'main', name: 'Main CFP Review', opensAt: '2026-07-06', deadline: '2026-08-24', anonymized: true, reminders: true, reviewsPer: 3,
     rules: { track: 'all', form: 'cfp', format: 'all', level: 'all', status: 'active' },
     instructions:
-      'Score every criterion on the 1–5 scale. Reserve 5s for talks you would put on the main stage. Judge the proposal, not the speaker — identities are hidden. If you recognize the submitter anyway, abstain instead of scoring.',
+      'Score every criterion on the 1–5 scale. Reserve 5s for talks you would put on the main stage. Judge the proposal, not the speaker. Identities are hidden. If you recognize the submitter anyway, abstain instead of scoring.',
     criteria: [
       { name: 'Relevance', hint: 'Fits this audience?', scale: 5 },
       { name: 'Depth', hint: 'Substance over hype?', scale: 5 },
@@ -311,7 +311,7 @@ export const EVAL_PLANS = [
     id: 'ai', name: 'AI Track Second Opinion', opensAt: '2026-07-20', deadline: '2026-08-28', anonymized: false, reminders: true, reviewsPer: 2,
     rules: { track: 'ai', form: 'all', format: 'all', level: 'all', status: 'active' },
     instructions:
-      'Expert pass on AI & ML proposals. Program fit is already covered by the main review — judge technical substance only.',
+      'Expert pass on AI & ML proposals. Program fit is already covered by the main review. Judge technical substance only.',
     criteria: [
       { name: 'Novelty', hint: 'New ground, not a rehash?', scale: 5 },
       { name: 'Rigor', hint: 'Would an expert nod along?', scale: 5 },
@@ -475,7 +475,7 @@ export const TASK_TEMPLATES: SeedTaskTemplate[] = [
     id: 't6', name: 'Travel details', type: 'form',
     settings: { formSpec: 'Travel details (mini-form)' },
     clauses: [{ field: 'Form answer', value: 'Travel support = Yes' }],
-    description: 'Flights and hotel — assigned because you requested travel support.',
+    description: 'Flights and hotel.',
   }),
 ];
 

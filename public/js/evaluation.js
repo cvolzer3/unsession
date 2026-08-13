@@ -335,7 +335,7 @@ function planEditor() {
       draft.reviewers.length === 1 ? '' : 's'
     } · ${matched.length} submissions · ${rp} review${rp === 1 ? '' : 's'} each`;
 
-    $('pv-anon').textContent = anon.checked ? 'ANONYMIZED — SPEAKERS HIDDEN' : 'OPEN REVIEW — SPEAKERS VISIBLE';
+    $('pv-anon').textContent = anon.checked ? 'ANONYMIZED' : 'OPEN REVIEW';
     $('pv-instructions').textContent =
       instructions.value.trim() || 'Your instructions appear here, above every scoring form.';
 

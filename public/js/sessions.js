@@ -187,7 +187,7 @@ if (dataEl) {
     if (!box) return;
     if (!versions || !versions.length) {
       box.innerHTML =
-        '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet — saved changes to the title or abstract appear here with who made them and when.</div>';
+        '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet.</div>';
       return;
     }
     box.innerHTML = versions
@@ -231,7 +231,7 @@ if (dataEl) {
       document.getElementById('d-title').value = res.session.title;
       document.getElementById('d-abstract').value = res.session.abstract || '';
       renderHistory(res.versions);
-      toast('Version restored — title and abstract reverted');
+      toast('Version restored');
     } catch (err) {
       btn.disabled = false;
       toast(err.message, false);
@@ -349,7 +349,7 @@ if (dataEl) {
         allRooms: room === 'ALL',
       };
       if (cur && cur.type === 'sponsor') patch.sponsorBadge = document.getElementById('d-badge').checked;
-      const saved = await save(editing, patch, 'Saved — synced to agenda and public pages');
+      const saved = await save(editing, patch, 'Saved');
       if (saved) closeDrawer();
     });
   }
@@ -436,8 +436,8 @@ export function wireNewSession() {
       const res = await api('/app/api/sessions/create', body);
       closeDialog('#new-session');
       const msg = isSponsor
-        ? `Sponsor session created — “${res.session.title}” is in the unscheduled bin`
-        : `“${res.session.title}” created — drag it onto the grid`;
+        ? `“${res.session.title}” created · unscheduled bin`
+        : `“${res.session.title}” created`;
       const url = new URL(location.href);
       url.searchParams.set('ok', msg);
       location.href = url.toString();

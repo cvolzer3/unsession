@@ -252,7 +252,7 @@
             <select value="{{ edForm }}" onChange="{{ edFormCh }}" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
               <option>AV requirements (mini-form)</option><option>Travel details (mini-form)</option><option>Session details confirmation (mini-form)</option><option>＋ New mini-form…</option>
             </select>
-            <div style="font-size:11px;color:#9a9da6;margin-top:4px;">Reuses the form engine — fields, validation, conditional logic.</div>
+            <div style="font-size:11px;color:#9a9da6;margin-top:4px;">Fields, validation, conditional logic.</div>
           </div>
         </sc-if>
         <sc-if value="{{ edIsProfile }}" hint-placeholder-val="{{ false }}">
@@ -332,7 +332,7 @@
           <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;">DEADLINE REMINDERS</div>
           <div onClick="{{ edRemT }}" style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;">
             <span style="{{ edRemBox }}">{{ edRemGlyph }}</span>
-            <div><div style="font-size:13px;font-weight:600;">Email speakers before the due date</div><div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">Sends only while the task is open — reminders stop the moment it&rsquo;s completed. Every send lands in the email log.</div></div>
+            <div><div style="font-size:13px;font-weight:600;">Email speakers before the due date</div><div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">Sends only while the task is open. Every send lands in the email log.</div></div>
           </div>
           <sc-if value="{{ edRemOn }}" hint-placeholder-val="{{ true }}">
             <div style="margin-top:12px;margin-left:30px;display:grid;gap:14px;">
@@ -528,7 +528,7 @@ class Component extends DCLogic {
   renderVals() {
     const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
     const base = {
-      zipSlides: () => this.flash('ZIP queued: 6 decks, organized by day/room — straight to the AV booth'),
+      zipSlides: () => this.flash('ZIP queued: 6 decks, organized by day/room'),
       zipHeads: () => this.flash('ZIP queued: 9 headshots at original resolution'),
       toast: st.toast, rows: [], filters: [], taskHeads: [], templates: [], summary: '', tplSummary: '…',
       gridHead: '', gridRow: '', newTpl: () => {}, bulkOpenBtn: () => {},

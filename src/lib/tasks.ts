@@ -274,7 +274,7 @@ export function dueDesc(t: TaskTemplateRow): string {
 
 /** Ported verbatim from `Speakers.dc.html` `ruleDesc`. */
 export function ruleDesc(t: TaskTemplateRow): string {
-  if (t.archived) return 'archived — no new assignments';
+  if (t.archived) return 'archived';
   if (t.trigger === 'manual') return 'manual assignment only';
   const clauses = parseClauses(t);
   return (

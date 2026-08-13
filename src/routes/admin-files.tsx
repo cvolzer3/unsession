@@ -374,7 +374,7 @@ app.get('/app/files', async (c) => {
           {shown.length === 0 ? (
             <div style="padding:32px 16px;text-align:center;font-size:13px;color:#9a9da6;">
               {chains.length === 0
-                ? 'No files yet — deliverables speakers upload from their portal land here, with versions and comments.'
+                ? 'No files yet — deliverables speakers upload from their portal land here.'
                 : 'No files match this filter.'}
             </div>
           ) : null}
@@ -427,7 +427,7 @@ app.post('/app/files/comment', requireOrgRole('admin'), async (c) => {
     detail: `${file.filename} — ${text.length > 80 ? `${text.slice(0, 80)}…` : text}`,
   });
   const message =
-    file.subject_type === 'task' ? 'Comment added — the speaker sees it in their portal' : 'Comment added';
+    file.subject_type === 'task' ? 'Comment added · visible to the speaker' : 'Comment added';
   if (wantsJson) {
     return c.json({
       ok: true,

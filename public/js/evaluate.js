@@ -94,7 +94,7 @@ function card(current) {
         scores,
         note: note.value,
       });
-      go(DATA.back, 'Score submitted — next one loaded');
+      go(DATA.back, 'Score submitted');
     } catch (err) {
       toast(err.message, false);
       submitBtn.disabled = false;
@@ -104,7 +104,7 @@ function card(current) {
   submitBtn.addEventListener('click', submit);
 
   document.getElementById('skip').addEventListener('click', () => {
-    go(DATA.skipUrl, 'Skipped — it stays in your queue');
+    go(DATA.skipUrl, 'Skipped');
   });
 
   document.getElementById('abstain').addEventListener('click', async (e) => {
@@ -117,7 +117,7 @@ function card(current) {
         submissionId: current.submissionId,
         note: note.value,
       });
-      go(DATA.back, 'Abstained — removed from your queue');
+      go(DATA.back, 'Abstained');
     } catch (err) {
       toast(err.message, false);
       btn.disabled = false;

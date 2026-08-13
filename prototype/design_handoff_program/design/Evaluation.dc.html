@@ -521,7 +521,7 @@
                   <div style="padding:20px 24px;display:grid;gap:10px;">
                     <div style="display:flex;align-items:baseline;gap:10px;">
                       <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;">04 · SUBMISSIONS</div>
-                      <div style="font-size:11.5px;color:#9a9da6;">Filters work as rules — everything matching all of them is in the plan.</div>
+                      <div style="font-size:11.5px;color:#9a9da6;">Submissions matching all filters join the plan.</div>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                       <select value="{{ pTrack }}" onChange="{{ onPTrack }}" style="padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;">
@@ -915,7 +915,7 @@ class Component extends DCLogic {
     const full = ['Relevance', 'Depth', 'Delivery'].every(c => this.state.scores[c]);
     if (!full) { this.flash('Score all three criteria first (keys 1–5)'); return; }
     this.setState({ idx: this.state.idx + 1, done: this.state.done + 1, scores: {}, note: '' });
-    this.flash('Score submitted — next one loaded');
+    this.flash('Score submitted');
   }
   toISODate(s) { const t = Date.parse(s); if (isNaN(t)) return ''; const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   fromISODate(iso) { if (!iso) return ''; const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
@@ -1415,8 +1415,8 @@ class Component extends DCLogic {
       submitStyle: `padding:10px 20px;background:${full ? '#4c5fd5' : '#c0c5e8'};color:#fff;border:none;font-size:13.5px;font-weight:600;cursor:${full ? 'pointer' : 'not-allowed'};`,
       submitLabel: 'Submit score →',
       submitScore: () => this.submit(),
-      skip: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Skipped — it stays in your queue'); },
-      abstain: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Abstained — removed from your queue'); },
+      skip: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Skipped'); },
+      abstain: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Abstained'); },
       queueDots: Array.from({ length: total }, (_, i) => ({
         title: i < done ? 'Reviewed' : i === done ? 'Current' : 'Pending',
         style: `width:22px;height:8px;background:${i < done ? '#4c5fd5' : i === done ? '#9aa4e8' : '#e2e3e8'};`

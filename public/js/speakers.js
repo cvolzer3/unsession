@@ -232,7 +232,7 @@ function drawerHtml(d, animate = true) {
   const remindableUnqueued = d.tasks.filter((t) => t.remindable && !t.reminderQueued);
   const remindAllBtn =
     remindableUnqueued.length > 1
-      ? `<button id="remind-all" title="Queues a reminder for each open task — they go out batched, as one email to ${esc(first)}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind all · 1 email</button>`
+      ? `<button id="remind-all" title="Queues a reminder for each open task." style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind all · 1 email</button>`
       : '';
 
   const taskRows = d.tasks
@@ -282,7 +282,7 @@ function drawerHtml(d, animate = true) {
         <div style="margin-left:auto;font-size:11px;color:#9a9da6;">Internal — not shown to the speaker</div>
       </div>
       <textarea id="travel-notes" rows="3" placeholder="Arrival and departure, seating preferences, dietary needs…" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;">${esc(s.travel || '')}</textarea>
-      <div style="font-size:11px;color:#9a9da6;margin-top:4px;line-height:1.45;">What the speaker submits themselves — e.g. a “Travel details” mini-form task — shows under its task below.</div>
+      <div style="font-size:11px;color:#9a9da6;margin-top:4px;line-height:1.45;">Speaker-submitted answers appear under their task below.</div>
       <button id="travel-save" style="margin-top:6px;padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Save notes</button>
     </div>`;
 
@@ -331,7 +331,7 @@ function drawerHtml(d, animate = true) {
         </div>`
               )
               .join('')
-          : '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet — profile changes appear here with who made them and when.</div>'
+          : '<div style="font-size:12.5px;color:#9a9da6;line-height:1.5;">No edits recorded yet.</div>'
       }
     </div>`;
 
@@ -441,7 +441,7 @@ document.addEventListener('click', async (e) => {
         travel: $('#travel-notes').value,
       });
       current.speaker.travel = res.travel;
-      toast('Saved — travel & logistics notes are on the profile');
+      toast('Saved');
     } catch (err) {
       toast(err.message, false);
     }
@@ -950,7 +950,7 @@ $('#editor').addEventListener('change', async (e) => {
       ed.settings.sampleFileId = res.fileId;
       ed.settings.sampleFileName = res.filename;
       renderEditor();
-      toast('Sample attached — speakers see it next to the uploader');
+      toast('Sample attached');
     } catch (err) {
       toast(err.message, false);
     }
@@ -1044,7 +1044,7 @@ $('#ed-save').addEventListener('click', async () => {
   }
   const open = ed.id ? openCount(ed.id) : 0;
   if (ed.id && open > 0) {
-    $('#apply-copy').textContent = `“${ed.name}” has ${open} open instances. Speakers may have already acted on the old wording — nothing updates silently.`;
+    $('#apply-copy').textContent = `“${ed.name}” has ${open} open instances. Speakers may have already acted on the old wording.`;
     $('#apply-future-sub').textContent = `New instances get the new definition; the ${open} open ones keep what speakers saw.`;
     $('#apply-open-label').textContent = `Also update ${open} open instances`;
     pickApply('future');
@@ -1126,7 +1126,7 @@ $('#eml-save').addEventListener('click', () => {
   ed.reminders.body = $('#eml-body').value;
   closeDialog('#dlg-eml');
   renderEditor();
-  toast('Reminder email updated — takes effect when you save the template');
+  toast('Reminder email updated. Save the template to apply.');
 });
 $('#eml-test').addEventListener('click', async () => {
   try {
@@ -1545,7 +1545,7 @@ function renderImportPreview() {
   const emailCol = mapping.indexOf('email');
   if (emailCol === -1) {
     preview.innerHTML =
-      '<span style="color:#b08800;">Map one column to <strong>Email</strong> — speakers are matched by email address.</span>';
+      '<span style="color:#b08800;">Map one column to <strong>Email</strong>.</span>';
     preview.hidden = false;
     importRunStyle(false);
     return;
@@ -1638,6 +1638,26 @@ if (importModal) {
       toast(err.message, false);
       importRunStyle(true);
     }
+  });
+}
+
+/* ------------------------------------------------- add from directory */
+
+// The picker is a plain form. This only filters the rendered rows; ticked
+// contacts stay ticked while you type.
+const dirQ = $('#dir-q');
+if (dirQ) {
+  const dirRows = $$('[data-dir-row]');
+  const dirEmpty = $('#dir-empty');
+  dirQ.addEventListener('input', () => {
+    const q = dirQ.value.trim().toLowerCase();
+    let shown = 0;
+    dirRows.forEach((row) => {
+      const hit = !q || row.dataset.search.includes(q);
+      row.hidden = !hit;
+      if (hit) shown++;
+    });
+    dirEmpty.hidden = shown > 0;
   });
 }
 

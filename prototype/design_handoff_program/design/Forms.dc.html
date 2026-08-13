@@ -86,7 +86,7 @@
         <div style="width:100%;max-width:640px;">
           <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;">NEW FORM · STEP 1 OF 2 · SETTINGS</div>
           <div style="font-weight:700;font-size:22px;letter-spacing:-0.01em;margin-bottom:4px;">Set up your form</div>
-          <div style="font-size:13px;color:#686b74;margin-bottom:26px;">Core fields are already copied in — you’ll arrange fields in the next step.</div>
+          <div style="font-size:13px;color:#686b74;margin-bottom:26px;">Core fields are already copied in.</div>
           <div style="display:grid;gap:20px;">
             <div>
               <div style="font-size:12px;color:#686b74;margin-bottom:5px;">Form name</div>
@@ -662,7 +662,7 @@ class Component extends DCLogic {
         this.setState({ forms: [...st.forms, nf], activeId: nf.id, selId: null, answers: {}, pickerOpen: false, mode: 'setup', prevId: st.activeId });
       },
       cancelSetup: () => this.setState({ forms: this.state.forms.filter(f => f.id !== this.state.activeId), activeId: this.state.prevId, mode: 'build' }),
-      finishSetup: () => { this.setState({ mode: 'build' }); this.flash('Form created — core fields copied in. Drag field types to add more'); },
+      finishSetup: () => { this.setState({ mode: 'build' }); this.flash('Form created'); },
       modeBuild: () => this.setState({ mode: 'build' }), modePreview: () => this.setState({ mode: 'preview', welcomeDone: false }),
       buildBtnStyle: tabBtn(st.mode === 'build'), previewBtnStyle: tabBtn(st.mode === 'preview'),
       isBuild: st.mode === 'build', isPreview: st.mode === 'preview', isSetup: st.mode === 'setup', notSetup: st.mode !== 'setup',

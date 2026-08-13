@@ -243,7 +243,7 @@ class Component extends DCLogic {
     const full = ['Relevance', 'Depth', 'Delivery'].every(c => this.state.scores[c]);
     if (!full) { this.flash('Score all three criteria first (keys 1–5)'); return; }
     this.setState({ idx: this.state.idx + 1, done: this.state.done + 1, scores: {}, note: '' });
-    this.flash('Score submitted — next one loaded');
+    this.flash('Score submitted');
   }
   renderVals() {
     const d = this.state.data, st = this.state, mono = "'IBM Plex Mono',monospace";
@@ -370,8 +370,8 @@ class Component extends DCLogic {
       submitStyle: `padding:10px 20px;background:${full ? '#4c5fd5' : '#c0c5e8'};color:#fff;border:none;font-size:13.5px;font-weight:600;cursor:${full ? 'pointer' : 'not-allowed'};`,
       submitLabel: 'Submit score →',
       submitScore: () => this.submit(),
-      skip: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Skipped — it stays in your queue'); },
-      abstain: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Abstained — removed from your queue'); },
+      skip: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Skipped'); },
+      abstain: () => { this.setState({ idx: st.idx + 1, scores: {}, note: '' }); this.flash('Abstained'); },
       queueDots: Array.from({ length: total }, (_, i) => ({
         title: i < done ? 'Reviewed' : i === done ? 'Current' : 'Pending',
         style: `width:22px;height:8px;background:${i < done ? '#4c5fd5' : i === done ? '#9aa4e8' : '#e2e3e8'};`

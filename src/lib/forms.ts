@@ -679,7 +679,7 @@ export function coreFields(coSpeakerCap: number, formatTaxonomyId?: string | nul
       type: 'TXT',
       label: 'Session title',
       required: true,
-      placeholder: 'Make it concrete — attendees choose by title',
+      placeholder: 'Make it concrete',
       validation: { minChars: 8, maxChars: 90 },
       flags: { public: true, speakerEditable: false, evaluatorVisible: true },
       cond: null,
@@ -779,7 +779,7 @@ export function cfpFields(coSpeakerCap: number, formatTaxonomyId?: string | null
     headerField(
       'h_session',
       'Your session',
-      'Title, abstract and format. The abstract is what evaluators read first — say what the audience walks away with.'
+      'Title, abstract and format. Say what the audience walks away with.'
     ),
     ...core.filter((f) => f.role !== 'speakers'),
     headerField('h_speakers', 'Speakers', 'Who’s on stage. Add co-speakers if you’re presenting together.'),
@@ -854,7 +854,7 @@ export function sessionIntakeFields(coSpeakerCap: number, formatTaxonomyId?: str
     headerField(
       'h_session',
       'Your session',
-      'This lands on the agenda as your sponsor session — no evaluation round, the program team follows up on scheduling.'
+      'Lands on the agenda as your sponsor session. No evaluation round.'
     ),
     company,
     ...core.filter((f) => f.role !== 'speakers'),

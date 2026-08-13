@@ -29,7 +29,7 @@ Event
 - **Template vs. instance.** Organizers author **task templates**; the system stamps out **task instances** when a rule fires or an organizer assigns manually. Editing a template updates future instances only; existing instances can be bulk-updated explicitly (never silently — speakers may have already acted on the old wording).
 - **Two targets, settled per template:**
   - **Speaker tasks** attach to a person's per-event speaker profile. One instance per speaker. ("Confirm participation," "Complete profile," "Travel details.")
-  - **Session tasks** attach to a session. One instance per session; it appears in the portal of **every co-speaker**, any of whom can complete it, and it completes once for the session. ("Upload slides," "AV requirements.") This matches reality — there is one deck per talk, not one per co-speaker — and kills the co-speaker duplication problem SessionBoard solves with session-type tasks.
+  - **Session tasks** attach to a session. One instance per session; it appears in the portal of **every co-speaker**, any of whom can complete it, and it completes once for the session. ("Upload slides," "AV requirements.") There is one deck per talk, not one per co-speaker, which kills the co-speaker duplication problem SessionBoard solves with session-type tasks.
 - A speaker's portal checklist is the merge of their speaker tasks and their sessions' tasks, grouped by session where applicable.
 
 ## 4.8.2 Task types (unchanged four, one addition to Checkbox)

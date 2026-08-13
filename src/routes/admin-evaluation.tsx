@@ -998,7 +998,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
           <div style="padding:20px 24px;display:grid;gap:10px;">
             <div style="display:flex;align-items:baseline;gap:10px;">
               <div style={MICRO_WIDE}>04 · SUBMISSIONS</div>
-              <div style="font-size:11.5px;color:#9a9da6;">Filters work as rules — everything matching all of them is in the plan.</div>
+              <div style="font-size:11.5px;color:#9a9da6;">Submissions matching all filters join the plan.</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;" id="rule-row"></div>
             <div style="background:#eef0fb;border:1px solid #d5daf3;padding:10px 14px;">
@@ -1627,7 +1627,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
             </button>
             <div style="font-size:11.5px;color:#9a9da6;">
               {r.scope === 'plan'
-                ? 'Saved on this plan. The scheduler runs in a later phase — the schedule below is what it will use.'
+                ? 'Saved on this plan. The scheduler runs in a later phase.'
                 : 'Saved on every plan of this event. The scheduler runs in a later phase.'}
             </div>
           </div>

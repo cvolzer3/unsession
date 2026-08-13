@@ -405,13 +405,13 @@ const FEATURES: Feature[] = [
     num: '01',
     kicker: 'COLLECT',
     title: 'A call for speakers people actually finish',
-    lede: 'Every abandoned draft is a talk you never got to consider. Unsession’s forms are easy to start, hard to lose, and painless on a phone — so more of your would-be speakers make it to Submit.',
+    lede: 'Every abandoned draft is a talk you never got to consider. Unsession’s forms are easy to start, hard to lose, and painless on a phone.',
     ticks: [
-      { b: 'Drafts survive anything', rest: ' — autosaved from the first keystroke, resumable on any device by link.' },
-      { b: 'Ask only what’s relevant', rest: ' — a workshop pitch and a lightning talk each see their own questions.' },
+      { b: 'Drafts survive anything', rest: '. Autosaved from the first keystroke, resumable on any device by link.' },
+      { b: 'Ask only what’s relevant', rest: '. A workshop pitch and a lightning talk each see their own questions.' },
       {
         b: 'Your brand, your questions',
-        rest: ' — co-speakers, files, word limits, live and taking proposals in fifteen minutes.',
+        rest: '. Co-speakers, files, word limits, live and taking proposals in fifteen minutes.',
       },
     ],
     visTag: 'FORM BUILDER',
@@ -421,17 +421,17 @@ const FEATURES: Feature[] = [
     num: '02',
     kicker: 'DECIDE',
     title: 'Fair decisions, made in an evening',
-    lede: 'Give every proposal the same fair read, see the results ranked, and send every decision — accept, waitlist, or decline — knowing exactly what each speaker will receive.',
+    lede: 'Give every proposal the same fair read, see the results ranked, and send accept, waitlist, or decline decisions knowing exactly what each speaker will receive.',
     ticks: [
       {
         b: 'Talks win on merit',
-        rest: ' — blind review hides names and bios in one toggle, so the work gets judged, not the byline.',
+        rest: '. Blind review hides names and bios in one toggle, so the work gets judged, not the byline.',
       },
       {
         b: 'Your committee flies through the queue',
-        rest: ' — score with the number keys; a hundred reviews is an evening, not a weekend.',
+        rest: '. Score with the number keys; a hundred reviews is an evening, not a weekend.',
       },
-      { b: 'No decision leaves unchecked', rest: ' — every email is previewed and confirmed before it goes out.' },
+      { b: 'No decision leaves unchecked', rest: '. Every email is previewed and confirmed before it goes out.' },
     ],
     visTag: 'KEYBOARD SCORING',
     vis: ScoringVis,
@@ -443,12 +443,12 @@ const FEATURES: Feature[] = [
     title: 'Speakers arrive ready — without the chasing',
     lede: 'The weeks between “accepted” and stage day are where events go sideways. Give each speaker one link and a clear checklist, and get out of the reminder-email business.',
     ticks: [
-      { b: 'One link, zero passwords', rest: ' — speakers see exactly what’s needed and when, and do it themselves.' },
+      { b: 'One link, zero passwords', rest: '. Speakers see exactly what’s needed and when, and do it themselves.' },
       {
         b: 'Slides, headshots, A/V needs',
-        rest: ' — collected with due dates, landing in your files instead of your inbox.',
+        rest: '. Collected with due dates, landing in your files instead of your inbox.',
       },
-      { b: 'Schedule changes that stick', rest: ' — calendar invites update themselves when you move a session.' },
+      { b: 'Schedule changes that stick', rest: '. Calendar invites update themselves when you move a session.' },
     ],
     visTag: 'SPEAKER PORTAL',
     vis: PortalVis,
@@ -459,12 +459,12 @@ const FEATURES: Feature[] = [
     title: 'An agenda you can stand behind on stage day',
     lede: 'Build the schedule by dragging sessions into place — and catch double-booked rooms and speakers before your attendees do. Publish once, and it’s current everywhere.',
     ticks: [
-      { b: 'Conflicts surface instantly', rest: ' — no more cross-checking rooms and speakers by hand.' },
+      { b: 'Conflicts surface instantly', rest: '. No more cross-checking rooms and speakers by hand.' },
       {
         b: 'Looks like your event',
-        rest: ' — one brand color becomes a polished, accessible public agenda and speaker directory.',
+        rest: '. One brand color becomes a polished, accessible public agenda and speaker directory.',
       },
-      { b: 'Everywhere at once', rest: ' — your site, embeds, speaker pages, and your team’s tools all stay in sync.' },
+      { b: 'Everywhere at once', rest: '. Your site, embeds, speaker pages, and your team’s tools all stay in sync.' },
     ],
     visTag: 'AGENDA BUILDER',
     vis: AgendaVis,
@@ -533,7 +533,7 @@ app.get('/', (c) => {
         <title>Unsession — from open call to opening keynote</title>
         <meta
           name="description"
-          content="Unsession runs the whole speaker side of your event — proposals in, fair reviews, confident decisions, speakers who show up ready, and an agenda you can publish and trust. Open source, free to try in the sandbox."
+          content="Unsession runs the whole speaker side of your event. Proposals in, fair reviews, confident decisions, speakers who show up ready, and an agenda you can publish and trust. Open source, free to try in the sandbox."
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
@@ -567,7 +567,7 @@ app.get('/', (c) => {
               From open call to <em>opening keynote</em>
             </h1>
             <p>
-              Unsession runs the whole speaker side of your event — proposals in, fair reviews, confident
+              Unsession runs the whole speaker side of your event. Proposals in, fair reviews, confident
               decisions, speakers who show up ready, and an agenda you can publish and trust.
             </p>
             <div class="hero-ctas">
@@ -920,8 +920,7 @@ app.get('/events', async (c) => {
           </div>
           <h1 style="margin:12px 0 6px;font-size:30px;letter-spacing:-0.025em;">Events on Unsession</h1>
           <p style="margin:0 0 28px;font-size:14.5px;line-height:1.6;color:var(--ink2);">
-            Every published event site — agenda, sessions, speaker directory and gallery — is open to everyone, no
-            account needed.
+            Every published event site is open to everyone, no account needed.
           </p>
           {upcoming.length ? (
             <div style="margin-bottom:28px;">

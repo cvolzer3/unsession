@@ -146,11 +146,11 @@ function boot(D) {
           fields = res.fields;
           renderList();
           renderRail();
-          flash('A condition was cleared — its source now sits later in the form');
+          flash('A condition was cleared: its source now sits later in the form');
         }
         if (res.bumped) {
           version = res.version;
-          flash(`Version v${version} created — previous versions keep their submissions’ answers`);
+          flash(`Version v${version} created`);
         }
       }
       savedRev = at;
@@ -324,7 +324,7 @@ function boot(D) {
       renderList();
       renderRail();
       markDirty();
-      flash(`“${nf.label}” added — configure it on the right`);
+      flash(`“${nf.label}” added`);
     }
   }
 
@@ -405,7 +405,7 @@ function boot(D) {
       renderList();
       renderRail();
       markDirty();
-      flash(`“${nf.label}” added — configure it on the right`);
+      flash(`“${nf.label}” added`);
     });
   }
 
@@ -435,7 +435,7 @@ function boot(D) {
   const VNOTES = {
     EML: 'Email format checked automatically · email keyboard on mobile',
     URL: 'URL format checked · auto-prepends https:// on blur',
-    TEL: 'Phone-format check: length and allowed characters, any country — strict per-country rules reject real numbers',
+    TEL: 'Phone-format check: length and allowed characters, any country.',
   };
   const FILE_PRESETS = {
     doc: 'pdf, doc, docx',
@@ -751,7 +751,7 @@ function boot(D) {
       renderList();
       renderRail();
       markDirty();
-      flash(`“${f.label}” archived — visible on old submissions, hidden from new ones`);
+      flash(`“${f.label}” archived`);
     }
   });
 
