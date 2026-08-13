@@ -415,9 +415,15 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
             files ? (
               <form method="post" action={`/${slug}/portal/task/upload`} enctype="multipart/form-data" data-upload style="display:flex;gap:6px;align-items:center;">
                 <input type="hidden" name="taskId" value={task.id} />
-                <label style={`${SMALL_BTN}display:inline-block;`}>
+                <label class="file-btn" style={`${SMALL_BTN}display:inline-block;`}>
                   {task.files.length ? 'Replace' : 'Upload'}
-                  <input type="file" name="file" hidden accept={(task.settings.ext || '').split(/[,\s]+/).filter(Boolean).map((e) => `.${e}`).join(',') || undefined} />
+                  <input
+                    type="file"
+                    name="file"
+                    class="vh-file"
+                    aria-label={`${task.files.length ? 'Replace' : 'Upload'} file — ${task.name}`}
+                    accept={(task.settings.ext || '').split(/[,\s]+/).filter(Boolean).map((e) => `.${e}`).join(',') || undefined}
+                  />
                 </label>
                 <noscript>
                   <button type="submit" style={SMALL_BTN}>
@@ -771,13 +777,21 @@ app.get('/:event/portal', async (c) => {
               {files ? (
                 <label
                   id="headshot-preview"
+                  class="file-btn"
                   title={data.profile?.headshot_file_id ? 'Replace headshot' : 'Upload headshot'}
                   style={`width:96px;height:96px;border:2px dashed var(--border-strong);background:${
                     data.profile?.headshot_file_id ? `url(/files/${data.profile.headshot_file_id}) center/cover` : 'var(--bg)'
                   };box-sizing:border-box;padding:14px;display:grid;place-items:center;text-align:center;font-family:${MONO};font-size:10px;line-height:1.5;color:var(--muted);flex:none;cursor:pointer;`}
                 >
                   {data.profile?.headshot_file_id ? '' : <span data-headshot-hint>Upload headshot</span>}
-                  <input type="file" name="headshot" accept="image/*" hidden data-headshot />
+                  <input
+                    type="file"
+                    name="headshot"
+                    accept="image/*"
+                    class="vh-file"
+                    aria-label={data.profile?.headshot_file_id ? 'Replace headshot' : 'Upload headshot'}
+                    data-headshot
+                  />
                 </label>
               ) : (
                 <div

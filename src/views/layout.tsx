@@ -438,6 +438,12 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
   a{color:var(--primary);text-decoration:none;} a:hover{color:var(--primary-hover);text-decoration:underline;}
   *{box-sizing:border-box;} input,textarea,select,button{font-family:inherit;}
   [hidden]{display:none !important;}
+  /* File inputs stay focusable inside their styled labels: visually hidden
+     (not display:none, which drops them from the accessibility tree) so
+     keyboard and screen-reader users can reach and activate the picker. */
+  .vh-file{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;clip:rect(0 0 0 0);overflow:hidden;white-space:nowrap;}
+  .file-btn{position:relative;}
+  .file-btn:focus-within{outline:2px solid var(--primary);outline-offset:2px;}
   @keyframes toastin{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
   @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
   @keyframes us-spin{to{transform:rotate(360deg)}}
