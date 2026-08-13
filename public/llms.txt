@@ -1,0 +1,23 @@
+# Unsession
+
+> Unsession is a conference session management platform for organizers and program teams. It runs the speaker side of an event: call for proposals, reviews, decisions, speaker onboarding, and a published agenda.
+
+Unsession is open source and runs on Cloudflare Workers. It has a REST API and an MCP server, so AI agents can read and manage event data directly.
+
+## Docs
+
+- [API and MCP documentation](https://unsession.dev/docs/mcp): How to connect an agent through MCP with OAuth, and how to call the REST API with a token.
+
+## API
+
+- [REST API](https://unsession.dev/api/v1): Base URL for the v1 API. Resources: events, forms, submissions, sessions, speakers, agenda, and tasks.
+- [MCP server](https://unsession.dev/api/mcp): Streamable HTTP MCP endpoint. Authenticate with OAuth or an API token.
+
+## Public pages
+
+- [Event directory](https://unsession.dev/events): List of published events on this instance.
+- Each event has public pages at `https://unsession.dev/<event>/agenda` (HTML) and `https://unsession.dev/<event>/agenda.json` (JSON).
+
+## Source
+
+- [GitHub repository](https://github.com/cvolzer3/unsession): Source code, issues, and license.
