@@ -683,9 +683,12 @@ function renderPage(opts: {
   toast?: string | null;
   /** Organizer preview — same page, minus the parts that would write anything. */
   preview?: boolean;
+  /** Editing an already-submitted proposal: same form, saves in place. */
+  editing?: { seq: number } | null;
 }) {
   const { event, form, settings, schema, state, filesOn, late } = opts;
   const preview = !!opts.preview;
+  const editing = opts.editing ?? null;
   const self = `/${event.slug}/${form.slug}${preview ? '?preview=1' : ''}`;
   // The welcome block is always in the DOM when the form has one, just hidden —
   // that's what lets "Start →" / "← BACK TO INTRO" toggle without a round trip.
@@ -702,7 +705,7 @@ function renderPage(opts: {
   const saveIndicator = (
     <span style="display:flex;align-items:center;gap:6px;">
       <span id="pf-dot" style="display:inline-block;width:7px;height:7px;background:#2b8a3e;"></span>
-      <span id="pf-save">{state.draftId ? 'DRAFT SAVED' : 'NOT SAVED YET'}</span>
+      <span id="pf-save">{editing ? `EDITING SUB-${editing.seq}` : state.draftId ? 'DRAFT SAVED' : 'NOT SAVED YET'}</span>
     </span>
   ) as unknown as string;
 
@@ -733,6 +736,7 @@ function renderPage(opts: {
           filesEnabled: filesOn,
           needEmail: !opts.user && !state.draftId,
           preview,
+          editing: !!editing,
         }).replace(/</g, '\\u003c')}</script>`
       )}
       {/* The sandbox role chip belongs to the surrounding app, not the form —
@@ -783,6 +787,13 @@ function renderPage(opts: {
         ) : null}
 
         <div id="pf-body" hidden={opts.showWelcome}>
+          {editing ? (
+            <div
+              style={`border:1px solid var(--border-strong);background:var(--card);padding:11px 14px;margin-bottom:20px;font-size:12.5px;font-family:${MONO_VAR};letter-spacing:0.05em;`}
+            >
+              {`EDITING SUB-${editing.seq} · SAVED CHANGES REPLACE WHAT THE PROGRAM TEAM SEES`}
+            </div>
+          ) : null}
           {hasWelcome ? (
             <a
               href={preview ? '?preview=1&welcome=1' : '?welcome=1'}
@@ -859,14 +870,82 @@ function renderPage(opts: {
               id="pf-submit"
               style="padding:15px 0;background:var(--primary);color:var(--on-primary);border:none;font-size:15.5px;font-weight:700;cursor:pointer;letter-spacing:0.01em;"
             >
-              Submit session →
+              {editing ? 'Save changes →' : 'Submit session →'}
             </button>
-            {settings.allowDrafts ? (
+            {editing || settings.allowDrafts ? (
               <div style="font-size:12px;color:var(--muted);text-align:center;">
                 You can edit until the call closes.
               </div>
             ) : null}
           </form>
+        </div>
+      </div>
+    </PublicLayout>
+  );
+}
+
+/**
+ * The locked view of a submitted proposal: everything the speaker sent, no
+ * inputs. Rendered when they open a submission that can't be edited any more
+ * (call closed, withdrawn) — the message says which.
+ */
+function renderReadOnly(opts: {
+  event: Event;
+  theme: Theme;
+  publicName: string;
+  sub: SubmissionRow;
+  schema: FormSchema;
+  speakers: SpeakerInput[];
+  answers: Answers;
+  message: string;
+}) {
+  const { event, sub, schema, speakers, answers } = opts;
+  const items = layoutItems(schema.fields);
+  const vis = visibleIds(schema.fields, answers);
+  const fmt = (f: FormField): string => {
+    const v = answers[f.id];
+    if (v === undefined || v === null || v === '') return '';
+    if (Array.isArray(v)) return f.type === 'FILE' ? `${v.length} file${v.length === 1 ? '' : 's'} attached` : v.join(', ');
+    if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+    return String(v);
+  };
+  return (
+    <PublicLayout title={opts.publicName} event={event} theme={opts.theme} maxWidth={620} kicker="READ-ONLY">
+      <div style="max-width:620px;margin:0 auto;padding:28px 20px 80px;">
+        <div style={`font-family:${MONO_VAR};font-size:10.5px;letter-spacing:0.14em;color:var(--primary);margin-bottom:8px;`}>
+          {`${opts.publicName.toUpperCase()} · SUB-${sub.seq}`}
+        </div>
+        <h1 style="margin:0 0 14px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">{sub.title || 'Your submission'}</h1>
+        <div style="border:1px solid #f0c36d;background:#fdf5dc;color:#b08800;padding:11px 14px;margin-bottom:26px;font-size:13px;line-height:1.5;">
+          {`${opts.message} Here’s a read-only copy of what you sent.`}
+        </div>
+        <div style="display:grid;gap:18px;">
+          {items.map((it) =>
+            it.kind === 'section' ? (
+              <div style={SECTION}>{it.label}</div>
+            ) : vis.has(it.field.id) && fmt(it.field) ? (
+              <div>
+                <div style={LABEL}>{it.field.label}</div>
+                <div style="font-size:14.5px;line-height:1.6;white-space:pre-wrap;">{fmt(it.field)}</div>
+              </div>
+            ) : null
+          )}
+          {speakers.length ? (
+            <div>
+              <div style={LABEL}>Speakers</div>
+              {speakers.map((s) => (
+                <div style="font-size:14px;color:var(--text-secondary);margin-top:4px;">
+                  {s.name}
+                  {s.email ? ` · ${s.email}` : ''}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div style="margin-top:30px;">
+          <a href={`/${event.slug}/portal`} style="font-size:13px;color:var(--text-secondary);">
+            ← Back to your speaker portal
+          </a>
         </div>
       </div>
     </PublicLayout>
@@ -897,6 +976,29 @@ async function speakersOf(db: D1Database, submissionId: string): Promise<Speaker
 function canAccess(sub: SubmissionRow, user: User | null, cookieIds: string[]): boolean {
   if (user && sub.owner_user_id === user.id) return true;
   return cookieIds.includes(sub.id);
+}
+
+/** Statuses a speaker may still edit while the call is open. Withdrawn stays
+ * frozen; a decision doesn't lock editing — only the close date does. */
+const EDITABLE_STATUSES = new Set(['in_review', 'accepted', 'waitlisted']);
+
+/** canAccess widened for submitted proposals: a signed-in co-speaker listed on
+ * the submission gets the same edit rights the portal already gives them. */
+async function canEditSubmission(
+  db: D1Database,
+  sub: SubmissionRow,
+  user: User | null,
+  cookieIds: string[]
+): Promise<boolean> {
+  if (canAccess(sub, user, cookieIds)) return true;
+  if (!user?.email) return false;
+  const row = await one<{ id: string }>(
+    db,
+    `SELECT id FROM submission_speakers WHERE submission_id = ? AND lower(email) = lower(?)`,
+    sub.id,
+    user.email
+  );
+  return !!row;
 }
 
 /* ------------------------------------------------------------------ JSON API (autosave + upload) */
@@ -1158,6 +1260,69 @@ app.get('/:event/:form', async (c) => {
 
   /* ------------------------------------------------------------ open window */
   const state = openState(loaded.form, settings, found.event.timezone, c.req.query('key'));
+
+  /* ------------------------------------------------------------ edit a submitted proposal */
+  // The same form, pre-filled, saving in place — but only while the call is
+  // open. Once it closes (or the speaker withdrew) the submission opens as a
+  // read-only copy with the reason spelled out.
+  const editId = preview ? null : c.req.query('edit');
+  if (editId) {
+    const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, editId);
+    if (
+      sub &&
+      sub.form_id === loaded.form.id &&
+      sub.status !== 'draft' &&
+      (await canEditSubmission(c.env.DB, sub, user, cookies))
+    ) {
+      const subAnswers = jsonParse<Answers>(sub.answers_json, {});
+      const subSpeakers = await speakersOf(c.env.DB, sub.id);
+      if (!state.open || !EDITABLE_STATUSES.has(sub.status)) {
+        const message = !state.open
+          ? 'The call for proposals has closed, so this submission can no longer be edited.'
+          : sub.status === 'withdrawn'
+            ? 'You withdrew this submission, so it can no longer be edited.'
+            : 'This submission can no longer be edited.';
+        return c.html(
+          renderReadOnly({
+            event: found.event,
+            theme: found.theme,
+            publicName,
+            sub,
+            schema,
+            speakers: subSpeakers,
+            answers: subAnswers,
+            message,
+          })
+        );
+      }
+      return c.html(
+        renderPage({
+          event: found.event,
+          theme: found.theme,
+          form: loaded.form,
+          settings,
+          schema,
+          filesOn: filesEnabled(c.env),
+          late: state.late,
+          showWelcome: false,
+          user,
+          toast: c.req.query('ok') ?? null,
+          editing: { seq: sub.seq },
+          state: {
+            answers: subAnswers,
+            speakers: subSpeakers,
+            agentMode: !!sub.agent_mode,
+            errors: {},
+            errorList: [],
+            tried: false,
+            draftId: sub.id,
+            email: '',
+          },
+        })
+      );
+    }
+  }
+
   if (!state.open && !preview) {
     return c.html(
       <PublicLayout title={publicName} event={found.event} theme={found.theme} maxWidth={620}>
@@ -1376,8 +1541,15 @@ app.post('/:event/:form', async (c) => {
   const draftId = vals(body, 'submission_id')[0];
   if (draftId) {
     const sub = await one<SubmissionRow>(c.env.DB, `SELECT * FROM submissions WHERE id = ?`, draftId);
-    if (sub && sub.form_id === loaded.form.id && canAccess(sub, user, cookies)) draft = sub;
+    if (sub && sub.form_id === loaded.form.id) {
+      const ok =
+        sub.status === 'draft' ? canAccess(sub, user, cookies) : await canEditSubmission(c.env.DB, sub, user, cookies);
+      if (ok) draft = sub;
+    }
   }
+  // A submitted proposal saves in place; anything else (draft, withdrawn, no id)
+  // goes through the submit path below.
+  const isEdit = !!draft && EDITABLE_STATUSES.has(draft.status);
 
   if (errorList.length) {
     return c.html(
@@ -1391,6 +1563,7 @@ app.post('/:event/:form', async (c) => {
         late: state.late,
         showWelcome: false,
         user,
+        editing: isEdit && draft ? { seq: draft.seq } : null,
         state: {
           answers,
           speakers,
@@ -1419,7 +1592,24 @@ app.post('/:event/:form', async (c) => {
 
   let submissionId: string;
   let seq: number;
-  if (draft && draft.status === 'draft') {
+  if (isEdit && draft) {
+    // Saving an edit rewrites the proposal in place: same SUB number, same
+    // status — a decision already made stays made, and no confirmation emails
+    // go out again. Only the close date locks editing (checked above).
+    submissionId = draft.id;
+    seq = draft.seq;
+    await run(
+      c.env.DB,
+      `UPDATE submissions SET title = ?, abstract = ?, answers_json = ?, agent_mode = ?, form_version_id = ?, updated_at = ? WHERE id = ?`,
+      title,
+      abstract,
+      JSON.stringify(cleaned),
+      agentMode ? 1 : 0,
+      loaded.version.id,
+      stamp,
+      submissionId
+    );
+  } else if (draft && draft.status === 'draft') {
     submissionId = draft.id;
     seq = await nextSeq(c.env.DB, found.event.id, 'submission');
     await run(
@@ -1473,9 +1663,18 @@ app.post('/:event/:form', async (c) => {
     subjectType: 'submission',
     subjectId: submissionId,
     actor: owner.name || owner.email,
-    action: 'Submitted',
+    action: isEdit ? 'Updated' : 'Submitted',
     detail: `SUB-${seq} · ${loaded.form.name}`,
   });
+
+  if (isEdit) {
+    // Everything below is first-submission ceremony (auto-accept, confirmation
+    // and notify emails, portal onboarding) — an edit just lands back on the
+    // form with the saved values.
+    return c.redirect(
+      `/${found.event.slug}/${loaded.form.slug}?edit=${submissionId}&ok=${encodeURIComponent('Changes saved')}`
+    );
+  }
 
   if (settings.submitsAs === 'session') {
     // B5 (DECISIONS R7): session-intake forms skip the pipeline. The submission

@@ -238,6 +238,10 @@ function init() {
   // Organizer preview (the builder's Preview tab frames this page): everything
   // renders and validates for real, nothing is written.
   const preview = !!D.preview;
+  // Editing a submitted proposal: autosave stays off — the /p/api/draft
+  // endpoint only takes drafts, and half-typed edits shouldn't go live anyway.
+  // Changes only land on an explicit "Save changes".
+  const editing = !!D.editing;
 
   function setSaveState(text, colour) {
     if (saveLabel) saveLabel.textContent = text;
@@ -436,7 +440,7 @@ function init() {
   /* ---------------------------------------------------------- autosave */
 
   async function save(opts) {
-    if (preview) return;
+    if (preview || editing) return;
     if (!D.allowDrafts) return;
     if (saving) return;
     const email = emailInput ? emailInput.value.trim() : '';
@@ -488,7 +492,7 @@ function init() {
   }
 
   function queueSave() {
-    if (preview) return;
+    if (preview || editing) return;
     dirty = true;
     setSaveState('SAVING…', '#e6a817');
     clearTimeout(saveTimer);
@@ -636,7 +640,8 @@ function init() {
   applyConditions();
   updateCounters();
   renumberSpeakers();
-  setSaveState(submissionId ? 'DRAFT SAVED' : D.allowDrafts ? 'NOT SAVED YET' : 'DRAFTS OFF', submissionId ? '#2b8a3e' : '#c9cbd3');
+  if (editing) setSaveState('EDITING — SAVE TO KEEP CHANGES', '#e6a817');
+  else setSaveState(submissionId ? 'DRAFT SAVED' : D.allowDrafts ? 'NOT SAVED YET' : 'DRAFTS OFF', submissionId ? '#2b8a3e' : '#c9cbd3');
 }
 
 init();

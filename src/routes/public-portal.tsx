@@ -598,6 +598,12 @@ app.get('/:event/portal', async (c) => {
               <span style={`font-family:${MONO};font-size:10.5px;color:var(--muted);`}>
                 {`SUB-${s.seq}`}
               </span>
+              <a
+                href={`/${event.slug}/${s.formSlug}?edit=${s.id}`}
+                style="margin-left:auto;font-size:12.5px;font-weight:600;"
+              >
+                View / edit submission →
+              </a>
             </div>
             <div style="font-size:16.5px;font-weight:700;letter-spacing:-0.01em;">{s.title}</div>
             {s.participants.length ? (
