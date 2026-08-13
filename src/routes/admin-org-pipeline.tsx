@@ -13,6 +13,7 @@
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { raw } from 'hono/html';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO, initials, initialsGradient } from '../views/layout';
@@ -61,6 +62,62 @@ const DIALOG_CARD = 'background:#fff;width:440px;max-width:calc(100vw - 48px);bo
 const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
 const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:12px;';
 const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex;gap:8px;align-items:center;justify-content:flex-end;';
+
+/**
+ * Page CSS (SPECS/M-mobile.md). The desktop half of every rule below is
+ * byte-for-byte what used to sit inline; the `@media (max-width:768px)` half is
+ * the phone shape. Inline styles beat media queries, so anything that has to
+ * change width leaves the `style` attribute.
+ *
+ * The board is the real decision. On desktop it is six 210px lanes inside a
+ * 1300px sideways-scrolling strip, moved by dragging. On a phone that shape
+ * fails twice: less than two lanes fit at 390px, so a drag from Researching to
+ * Confirmed would have to pan the strip mid-gesture — and HTML5 drag events do
+ * not fire on a touch screen at all. So below 768px the lanes **stack**: one
+ * full-width stage after another, scrolled the way a phone already scrolls, and
+ * every card grows its own controls — a stage dropdown that submits on change,
+ * plus ↑/↓ to order the card inside its stage. Both are ordinary form posts, so
+ * they work with no JavaScript as well. Desktop keeps the drag untouched.
+ */
+const PAGE_CSS = `
+  .pl-page{padding:24px 28px;}
+  .pl-board{overflow-x:auto;padding-bottom:8px;}
+  .pl-lanes{display:grid;grid-template-columns:repeat(6,minmax(210px,1fr));gap:12px;min-width:1300px;align-items:start;}
+  .pl-drop{padding:10px;display:grid;gap:8px;align-content:start;min-height:150px;flex:1;}
+  .pl-move{display:none;}
+  .pl-empty-tap{display:none;}
+  .pl-x{padding:0;}
+  .pl-cardmail{font-size:11px;}
+  .pl-cardpage{padding:24px 28px;max-width:1160px;display:grid;gap:16px;}
+  .pl-stageform{margin:0;margin-left:auto;display:flex;align-items:center;gap:8px;}
+  .pl-stagesel{width:170px;}
+  .pl-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;}
+  .pl-hist{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:12px 16px;}
+  .pl-histdate{font-family:${MONO};font-size:10px;color:#9a9da6;text-align:right;white-space:nowrap;}
+  @media (max-width:768px){
+    .pl-page{padding:14px 14px 28px;}
+    .pl-board{overflow-x:visible;padding-bottom:0;}
+    .pl-lanes{grid-template-columns:minmax(0,1fr);min-width:0;gap:10px;}
+    .pl-drop{min-height:0;}
+    /* The address is body copy on a stacked card — 12.5px floor. */
+    .pl-cardmail{font-size:12.5px;}
+    .pl-move{display:flex;gap:6px;align-items:center;margin-top:2px;}
+    .pl-move-stage{flex:1 1 auto;min-width:0;padding:8px 8px;border:1px solid #e2e3e8;background:#fff;color:#16171d;}
+    .pl-move button{flex:none;padding:12px 13px;background:#fff;border:1px solid #e2e3e8;font-size:14px;line-height:1;color:#16171d;cursor:pointer;}
+    .pl-empty-drag{display:none;}
+    .pl-empty-tap{display:inline;}
+    /* A bare ✕ is a 14px target — pad it out without moving the header. */
+    .pl-x{padding:10px;margin:-10px -10px -10px auto;}
+    .pl-cardpage{padding:14px 14px 28px;gap:12px;}
+    .pl-stageform{margin-left:0;flex:1 0 100%;}
+    .pl-stagesel{width:auto;flex:1 1 auto;min-width:0;}
+    .pl-cols{grid-template-columns:minmax(0,1fr);gap:12px;}
+    .pl-hist{grid-template-columns:minmax(0,1fr);gap:3px 0;}
+    /* Stacked, the date is what separates one transition from the next. */
+    .pl-histdate{text-align:left;white-space:normal;padding-bottom:9px;margin-bottom:6px;border-bottom:1px solid #f2f3f5;}
+    .pl-hist > .pl-histdate:last-child{padding-bottom:0;margin-bottom:0;border-bottom:none;}
+  }
+`;
 
 /* -------------------------------------------------------------------- data */
 
@@ -130,6 +187,36 @@ async function moveCard(db: D1Database, orgId: string, card: CardRow, stage: Sta
   ]);
 }
 
+/**
+ * Swap a card with its neighbour inside its own stage — what the board's ↑/↓
+ * buttons do, and the touch equivalent of dragging a card up a lane. Returns
+ * false when the card is already at that end of the column.
+ */
+async function nudgeCard(
+  db: D1Database,
+  orgId: string,
+  card: CardRow,
+  dir: 'up' | 'down'
+): Promise<boolean> {
+  const column = await all<{ id: string }>(
+    db,
+    `SELECT id FROM pipeline_cards WHERE org_id = ? AND stage = ? ORDER BY sort_order, updated_at DESC`,
+    orgId,
+    card.stage
+  );
+  const ids = column.map((r) => r.id);
+  const at = ids.indexOf(card.id);
+  const to = dir === 'up' ? at - 1 : at + 1;
+  if (at < 0 || to < 0 || to >= ids.length) return false;
+  [ids[at], ids[to]] = [ids[to], ids[at]];
+  // Rewriting the whole column keeps positions dense; columns are small.
+  await batch(
+    db,
+    ids.map((id, i) => [`UPDATE pipeline_cards SET sort_order = ? WHERE id = ?`, [i, id]] as [string, unknown[]])
+  );
+  return true;
+}
+
 const cardPath = (id: string) => `/app/org/pipeline/${id}`;
 
 function backToCard(id: string, message: string) {
@@ -178,7 +265,7 @@ const BoardCard: FC<{ card: CardRow }> = ({ card }) => (
         >
           {card.name}
         </a>
-        <div style="font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        <div class="pl-cardmail" style="color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           {card.email}
         </div>
       </div>
@@ -195,6 +282,38 @@ const BoardCard: FC<{ card: CardRow }> = ({ card }) => (
         <span style="font-size:11.5px;color:#9a9da6;">Open card →</span>
       ) : null}
     </a>
+    {/* Phone-only (`.pl-move` is display:none above 768px): the touch path for
+        what desktop does by dragging. Plain form posts, so no-JS works too. */}
+    <form method="post" action={`/app/org/pipeline/${card.id}/move`} class="pl-move">
+      <input type="hidden" name="back" value="board" />
+      <select
+        name="stage"
+        class="pl-move-stage"
+        onchange="this.form.submit()"
+        aria-label={`Stage for ${card.name}`}
+      >
+        {STAGES.map((s) => (
+          <option value={s} selected={s === card.stage}>
+            {STAGE_LABEL[s]}
+          </option>
+        ))}
+      </select>
+      <noscript>
+        <button type="submit">Move</button>
+      </noscript>
+      <button type="submit" name="nudge" value="up" title="Move up in this stage" aria-label={`Move ${card.name} up in this stage`}>
+        ↑
+      </button>
+      <button
+        type="submit"
+        name="nudge"
+        value="down"
+        title="Move down in this stage"
+        aria-label={`Move ${card.name} down in this stage`}
+      >
+        ↓
+      </button>
+    </form>
   </article>
 );
 
@@ -209,12 +328,14 @@ const Column: FC<{ stage: Stage; cards: CardRow[] }> = ({ stage, cards }) => {
           {cards.length}
         </span>
       </div>
-      <div data-drop={stage} style="padding:10px;display:grid;gap:8px;align-content:start;min-height:150px;flex:1;">
+      <div data-drop={stage} class="pl-drop">
         {cards.map((card) => (
           <BoardCard card={card} />
         ))}
         <div data-empty hidden={cards.length > 0} style="font-size:11.5px;color:#c2c4cb;text-align:center;padding:10px 0;">
-          Drop here
+          {/* Nothing is dropped on a phone — the cards carry a stage dropdown. */}
+          <span class="pl-empty-drag">Drop here</span>
+          <span class="pl-empty-tap">Nobody here yet</span>
         </div>
       </div>
     </section>
@@ -230,7 +351,7 @@ const EnrollDialog: FC<{ candidates: ContactOption[]; preselect: string | null }
           <button
             type="button"
             data-dialog-close="#enroll-dialog"
-            style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+            class="pl-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
           >
             ×
           </button>
@@ -333,10 +454,11 @@ app.get('/app/org/pipeline', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/org-pipeline.js']}>
-      <div style="padding:24px 28px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="pl-page">
         {cards.length ? (
-          <div id="pipeline-board" style="overflow-x:auto;padding-bottom:8px;">
-            <div style="display:grid;grid-template-columns:repeat(6,minmax(210px,1fr));gap:12px;min-width:1300px;align-items:start;">
+          <div id="pipeline-board" class="pl-board">
+            <div class="pl-lanes">
               {STAGES.map((stage) => (
                 <Column stage={stage} cards={cards.filter((k) => k.stage === stage)} />
               ))}
@@ -495,7 +617,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
   ]);
 
   const headerActions = (
-    <div style="display:flex;align-items:center;gap:8px;">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
       <a href="/app/org/pipeline" style={`${PLAIN_BTN}text-decoration:none;color:#16171d;`}>
         ← Board
       </a>
@@ -514,7 +636,8 @@ app.get('/app/org/pipeline/:id', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions}>
-      <div style="padding:24px 28px;max-width:1160px;display:grid;gap:16px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="pl-cardpage">
         {/* ------------------------------------------------------- summary */}
         <div style={`${CARD}padding:18px 20px;display:grid;gap:14px;`}>
           <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
@@ -544,17 +667,18 @@ app.get('/app/org/pipeline/:id', async (c) => {
               {card.company ? <div style="font-size:12.5px;color:#686b74;margin-top:2px;">{card.company}</div> : null}
             </div>
             {/* The stage lives here as a dropdown — picking a stage moves the card. */}
-            <form
-              method="post"
-              action={`/app/org/pipeline/${card.id}/move`}
-              style="margin:0;margin-left:auto;display:flex;align-items:center;gap:8px;"
-            >
+            <form method="post" action={`/app/org/pipeline/${card.id}/move`} class="pl-stageform">
               {dot ? <span style={`width:8px;height:8px;border-radius:50%;flex:none;background:${dot};`}></span> : null}
+              {/* INPUT minus its width: the width lives in .pl-stagesel so the
+                  phone can let the dropdown fill the row. */}
               <select
                 name="stage"
                 onchange="this.form.submit()"
                 title="Move to a different stage"
-                style={`${INPUT}width:170px;font-weight:700;color:${dot ?? '#16171d'};`}
+                class="pl-stagesel"
+                style={`padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;background:#fff;font-weight:700;color:${
+                  dot ?? '#16171d'
+                };`}
               >
                 {STAGES.map((s) => (
                   <option value={s} selected={s === stage}>
@@ -597,7 +721,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start;">
+        <div class="pl-cols">
           {/* --------------------------------------------------------- notes */}
           <Section label="NOTES">
             <form method="post" action={`/app/org/pipeline/${card.id}/note`} style="margin:0;padding:14px 16px;border-bottom:1px solid #f2f3f5;display:grid;gap:8px;">
@@ -624,7 +748,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
 
           {/* ------------------------------------------------------- history */}
           <Section label="STAGE HISTORY">
-            <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:12px 16px;">
+            <div class="pl-hist">
               {history.map((h) => (
                 <>
                   <div style="font-size:12.5px;color:#33343c;">
@@ -635,9 +759,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
                       : `Added → ${STAGE_LABEL[h.to_stage as Stage] ?? h.to_stage}`}
                     <div style="font-size:11.5px;color:#686b74;">{h.actor}</div>
                   </div>
-                  <div style={`font-family:${MONO};font-size:10px;color:#9a9da6;text-align:right;white-space:nowrap;`}>
-                    {fmtDateTime(h.created_at)}
-                  </div>
+                  <div class="pl-histdate">{fmtDateTime(h.created_at)}</div>
                 </>
               ))}
             </div>
@@ -654,7 +776,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
               <button
                 type="button"
                 data-dialog-close="#score-dialog"
-                style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+                class="pl-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
               >
                 ×
               </button>
@@ -691,7 +813,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
               <button
                 type="button"
                 data-dialog-close="#assign-dialog"
-                style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+                class="pl-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
               >
                 ×
               </button>
@@ -732,7 +854,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#remove-dialog"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+                  class="pl-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ×
                 </button>
@@ -770,12 +892,26 @@ app.post('/app/org/pipeline/:id/move', guard, async (c) => {
   if (!card) return c.notFound();
 
   const body = await c.req.parseBody();
+  // The board's phone controls post back=board so the organizer stays on the
+  // list they were reading; the card page posts nothing and stays on the card.
+  const toBoard = String(body.back ?? '') === 'board';
+  const done = (message: string) =>
+    c.redirect(toBoard ? `/app/org/pipeline?ok=${encodeURIComponent(message)}` : backToCard(card.id, message));
+
+  // ↑/↓ reorder inside the stage the card is already in.
+  const nudge = String(body.nudge ?? '');
+  if (nudge === 'up' || nudge === 'down') {
+    const moved = await nudgeCard(c.env.DB, orgId, card, nudge);
+    if (!moved) return done(nudge === 'up' ? 'Already first in this stage' : 'Already last in this stage');
+    return done(`${card.name} moved ${nudge}`);
+  }
+
   const stage = String(body.stage ?? '');
-  if (!isStage(stage)) return c.redirect(backToCard(card.id, 'Unknown stage'));
-  if (stage === card.stage) return c.redirect(cardPath(card.id));
+  if (!isStage(stage)) return done('Unknown stage');
+  if (stage === card.stage) return c.redirect(toBoard ? '/app/org/pipeline' : cardPath(card.id));
 
   await moveCard(c.env.DB, orgId, card, stage, actorOf(c));
-  return c.redirect(backToCard(card.id, `Moved to ${STAGE_LABEL[stage]}`));
+  return done(`Moved to ${STAGE_LABEL[stage]}`);
 });
 
 app.post('/app/org/pipeline/:id/note', guard, async (c) => {

@@ -11,6 +11,7 @@
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, Event } from '../types';
 import { AdminLayout, MONO, StatusChip, initials, initialsGradient } from '../views/layout';
@@ -31,13 +32,142 @@ const INPUT = 'width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13
 const SELECT = 'padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;';
 const BTN = 'padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
-const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
+/**
+ * `grid-template-columns:minmax(0,1fr)` is load-bearing: with an implicit auto
+ * track the column sizes to the panel's own `width:560px`, so the panel's
+ * `max-width:100%` resolves against 560px and never shrinks — on a phone the
+ * modal ran off the right edge with its buttons unreachable. A single 1fr
+ * column is the viewport, so `max-width:100%` means what it says.
+ */
+const DIALOG =
+  'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;grid-template-columns:minmax(0,1fr);padding:20px;';
 const PANEL = 'background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;';
 const TEXTAREA =
   'width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;';
 const GRID = 'grid-template-columns:34px 34px minmax(150px,1.3fr) minmax(160px,1.2fr) 150px 140px 130px 36px;';
 const PG_ON = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#33343c;cursor:pointer;text-decoration:none;';
 const PG_OFF = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;';
+
+/**
+ * Page CSS (SPECS/M-mobile.md). Every rule's desktop half is byte-for-byte what
+ * used to sit inline; the `@media (max-width:768px)` half is the phone shape.
+ * An inline style beats a media query, so a property that has to change width
+ * cannot stay in the `style` attribute.
+ *
+ * The contacts table is the decision that matters. Eight columns need 1000px,
+ * and the row's live parts — the select checkbox, the name link, the edit
+ * pencil — sit at opposite ends of that width, so scrolling sideways would mean
+ * ticking a row you cannot read. Below 768px a row becomes a card instead:
+ * line 1 checkbox · avatar · name · edit, line 2 the address, line 3 company ·
+ * job title, line 4 the tags. Select, read and open all stay in one view, and
+ * the column head collapses to a single "SELECT ALL" control. The Segments and
+ * Overview tables reflow the same way.
+ */
+const PAGE_CSS = `
+  .dir-page{padding:24px 28px;}
+  .dir-searchform{display:flex;gap:8px;margin:0;}
+  .dir-search{width:280px;}
+  .dir-filterpanel{width:340px;}
+  .dir-bulkbar{display:flex;align-items:center;gap:8px;background:#16171d;color:#fff;padding:10px 14px;}
+  .dir-bulkdiv{width:1px;height:18px;background:#3a3b44;margin:0 4px;}
+  .dir-scroll{overflow-x:auto;}
+  .dir-head{display:grid;${GRID}gap:10px;padding:10px 14px;align-items:center;min-width:1000px;}
+  .dir-row{display:grid;${GRID}gap:10px;padding:9px 14px;align-items:center;min-width:1000px;}
+  .dir-selectall{display:none;}
+  .dir-c-edit{justify-self:end;}
+  .dir-c-email,.dir-c-company,.dir-c-title,.ov-c-to{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .dir-c-email,.ov-c-to{font-size:11.5px;}
+  .dir-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  /* segments tab */
+  .sg-head{display:grid;grid-template-columns:minmax(180px,1fr) 110px 120px 130px 90px;gap:12px;padding:10px 14px;}
+  .sg-row{display:grid;grid-template-columns:minmax(180px,1fr) 110px 120px 130px 90px;gap:12px;padding:11px 14px;align-items:center;}
+  .sg-c-del{justify-self:end;margin:0;}
+  /* overview tab */
+  .ov-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;}
+  .ov-widgets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px;}
+  .ov-mailrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 100px 150px;gap:12px;padding:10px 16px;align-items:center;}
+  /* CSV import, step 2 */
+  .imp-page{padding:24px 28px;max-width:860px;}
+  .imp-maprow{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:12px;align-items:center;}
+  .imp-flagrow{display:grid;grid-template-columns:64px minmax(0,1fr) 220px;gap:10px;padding:7px 12px;align-items:center;}
+  /* segment builder */
+  .sb-page{padding:24px 28px;max-width:860px;}
+  .sb-qrow{display:flex;align-items:center;gap:12px;}
+  .sb-q{max-width:320px;}
+  .sb-dyngrid{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+  .sb-row{display:grid;grid-template-columns:18px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:8px 12px;cursor:pointer;}
+  @media (max-width:768px){
+    .dir-page{padding:14px 14px 28px;}
+    /* Full width, so the Filter button below always starts at the left edge and
+       its 340px panel drops inside the screen. */
+    .dir-searchform{flex:1 0 100%;}
+    .dir-search{flex:1 1 auto;width:auto;min-width:0;}
+    .dir-filterpanel{width:min(340px,calc(100vw - 28px));}
+    /* Selection actions stay reachable while the list scrolls under them. */
+    .dir-bulkbar{flex-wrap:wrap;gap:6px;position:sticky;top:0;z-index:6;}
+    .dir-bulkbar button{padding:9px 12px;}
+    .dir-bulkdiv{flex:1 0 100%;width:auto;height:0;margin:0;background:none;}
+    .dir-scroll{overflow-x:visible;}
+    .dir-head{display:flex;align-items:center;gap:9px;min-width:0;padding:11px 14px;}
+    .dir-head > div:empty,.dir-h-label{display:none;}
+    .dir-h-check{display:flex;align-items:center;gap:10px;}
+    .dir-selectall{display:inline;}
+    .dir-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 9px;min-width:0;padding:12px 14px;}
+    .dir-c-check{order:1;flex:none;}
+    .dir-c-avatar{order:2;flex:none;}
+    .dir-c-name{order:3;flex:1 1 auto;min-width:0;}
+    .dir-c-edit{order:4;flex:none;margin-left:auto;padding:9px 12px;}
+    .dir-c-email{order:5;flex:1 0 100%;white-space:normal;overflow:visible;overflow-wrap:anywhere;}
+    /* The address is body copy on a card, not a column label — 12.5px floor. */
+    .dir-c-email,.ov-c-to{font-size:12.5px;}
+    .dir-c-company{order:6;}
+    .dir-c-title{order:7;}
+    .dir-c-company,.dir-c-title{min-width:0;white-space:normal;overflow:visible;}
+    .dir-c-tags{order:8;flex:1 0 100%;}
+    /* Without column heads the meta line needs its own separator. */
+    .dir-c-title::before{content:'·';color:#c9cbd2;margin-right:7px;}
+    .dir-check{width:22px;height:22px;}
+    /* A bare ✕ is a 14px target — pad it out without moving the header. */
+    .dir-x{padding:10px;margin:-10px -10px -10px auto;}
+    .dir-pair{grid-template-columns:minmax(0,1fr);}
+    .sg-head{display:none;}
+    .sg-row{
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:'name type' 'members created' 'del del';
+      gap:6px 10px;padding:13px 14px;
+    }
+    .sg-c-name{grid-area:name;}
+    .sg-c-type{grid-area:type;justify-self:end;}
+    .sg-c-members{grid-area:members;}
+    .sg-c-created{grid-area:created;justify-self:end;}
+    .sg-c-del{grid-area:del;justify-self:start;margin-top:4px;}
+    .ov-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .ov-widgets{grid-template-columns:minmax(0,1fr);}
+    .ov-mailrow{
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:'subject status' 'to date';
+      gap:5px 10px;padding:12px 14px;
+    }
+    .ov-c-subject{grid-area:subject;}
+    .ov-c-to{grid-area:to;white-space:normal;overflow:visible;overflow-wrap:anywhere;}
+    .ov-c-status{grid-area:status;justify-self:end;}
+    .ov-c-date{grid-area:date;justify-self:end;}
+    .imp-page{padding:14px 14px 28px;}
+    .imp-maprow{grid-template-columns:minmax(0,1fr);gap:6px;}
+    .imp-flagrow{grid-template-columns:auto minmax(0,1fr);grid-template-areas:'line who' 'note note';gap:4px 10px;padding:10px 12px;}
+    .imp-c-line{grid-area:line;}
+    .imp-c-who{grid-area:who;}
+    .imp-c-note{grid-area:note;}
+    .sb-page{padding:14px 14px 28px;}
+    .sb-qrow{flex-wrap:wrap;gap:8px;}
+    .sb-q{max-width:none;}
+    .sb-dyngrid{grid-template-columns:minmax(0,1fr);}
+    .sb-row{grid-template-columns:20px minmax(0,1fr);grid-template-areas:'check who' '. company';gap:4px 10px;padding:11px 12px;}
+    .sb-c-check{grid-area:check;width:20px;height:20px;}
+    .sb-c-who{grid-area:who;}
+    .sb-c-company{grid-area:company;}
+  }
+`;
 
 /** Underlined page-level tab, matching `/app/emails`. */
 const subTab = (on: boolean) =>
@@ -286,7 +416,8 @@ app.get('/app/org/contacts', async (c) => {
 
     return c.html(
       <AdminLayout {...props}>
-        <div style="padding:24px 28px;">
+        {raw(`<style>${PAGE_CSS}</style>`)}
+        <div class="dir-page">
           {tabs}
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
             <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Segments</h1>
@@ -303,9 +434,7 @@ app.get('/app/org/contacts', async (c) => {
             ) : null}
           </div>
           <div style="background:#fff;border:1px solid #e2e3e8;">
-            <div
-              style={`display:grid;grid-template-columns:minmax(180px,1fr) 110px 120px 130px 90px;gap:12px;padding:10px 14px;border-bottom:1px solid #e2e3e8;${MICRO}`}
-            >
+            <div class="sg-head" style={`border-bottom:1px solid #e2e3e8;${MICRO}`}>
               <div>SEGMENT</div>
               <div>TYPE</div>
               <div>MEMBERS</div>
@@ -314,14 +443,15 @@ app.get('/app/org/contacts', async (c) => {
             </div>
             {segments.length ? (
               segments.map((s) => (
-                <div style="display:grid;grid-template-columns:minmax(180px,1fr) 110px 120px 130px 90px;gap:12px;padding:11px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                <div class="sg-row" style="border-bottom:1px solid #f2f3f5;">
                   <a
                     href={`/app/org/contacts?segment=${s.id}`}
+                    class="sg-c-name"
                     style="font-size:13.5px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                   >
                     {s.name}
                   </a>
-                  <div>
+                  <div class="sg-c-type">
                     <span
                       style={`font-family:${MONO};font-size:9px;letter-spacing:0.08em;padding:2px 6px;font-weight:600;text-transform:uppercase;color:${
                         s.kind === 'dynamic' ? '#1c7ed6' : '#087f5b'
@@ -330,12 +460,14 @@ app.get('/app/org/contacts', async (c) => {
                       {s.kind}
                     </span>
                   </div>
-                  <div style={`font-family:${MONO};font-size:12px;color:#33343c;`}>
+                  <div class="sg-c-members" style={`font-family:${MONO};font-size:12px;color:#33343c;`}>
                     {`${counts.get(s.id) ?? 0} contacts`}
                   </div>
-                  <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{s.created_at.slice(0, 10)}</div>
+                  <div class="sg-c-created" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                    {s.created_at.slice(0, 10)}
+                  </div>
                   {canWrite ? (
-                    <form method="post" action={`/app/org/segments/${s.id}/delete`} style="justify-self:end;margin:0;">
+                    <form method="post" action={`/app/org/segments/${s.id}/delete`} class="sg-c-del">
                       <button
                         type="submit"
                         data-confirm={`Delete the segment “${s.name}”? Contacts are not touched.`}
@@ -416,9 +548,10 @@ app.get('/app/org/contacts', async (c) => {
 
     return c.html(
       <AdminLayout {...props}>
-        <div style="padding:24px 28px;">
+        {raw(`<style>${PAGE_CSS}</style>`)}
+        <div class="dir-page">
           {tabs}
-          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
+          <div class="ov-kpis">
             {kpis.map((k) => (
               <div style="background:#fff;border:1px solid #e2e3e8;padding:16px 18px;">
                 <div style={`${MICRO}margin-bottom:8px;`}>{k.label}</div>
@@ -429,7 +562,7 @@ app.get('/app/org/contacts', async (c) => {
             ))}
           </div>
 
-          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px;">
+          <div class="ov-widgets">
             <div style="background:#fff;border:1px solid #e2e3e8;padding:16px 18px;">
               <div style={`${MICRO}margin-bottom:8px;`}>TOP COMPANIES</div>
               {companies.length ? (
@@ -469,17 +602,20 @@ app.get('/app/org/contacts', async (c) => {
             <div style={`padding:12px 16px;border-bottom:1px solid #e2e3e8;${MICRO}`}>RECENT EMAILS</div>
             {recent.length ? (
               recent.map((r) => (
-                <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 100px 150px;gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                  <div style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                <div class="ov-mailrow" style="border-bottom:1px solid #f2f3f5;">
+                  <div class="ov-c-subject" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {r.subject}
                   </div>
-                  <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                  <div
+                    class="ov-c-to"
+                    style={`font-family:${MONO};color:#686b74;`}
+                  >
                     {r.to_email}
                   </div>
-                  <div>
+                  <div class="ov-c-status">
                     <StatusChip status={r.status} />
                   </div>
-                  <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                  <div class="ov-c-date" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
                     {(r.sent_at ?? r.created_at).slice(0, 16).replace('T', ' ')}
                   </div>
                 </div>
@@ -588,7 +724,8 @@ app.get('/app/org/contacts', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="dir-page">
         {tabs}
 
         {segment ? (
@@ -627,7 +764,7 @@ app.get('/app/org/contacts', async (c) => {
 
         {/* search + filter panel — plain GET, no island needed */}
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-          <form id="contacts-search" method="get" action="/app/org/contacts" style="display:flex;gap:8px;margin:0;">
+          <form id="contacts-search" method="get" action="/app/org/contacts" class="dir-searchform">
             {filters.company ? <input type="hidden" name="company" value={filters.company} /> : null}
             {filters.job_title ? <input type="hidden" name="job_title" value={filters.job_title} /> : null}
             {filters.tag ? <input type="hidden" name="tag" value={filters.tag} /> : null}
@@ -635,7 +772,8 @@ app.get('/app/org/contacts', async (c) => {
               name="q"
               value={filters.q}
               placeholder="Search name, email or company…"
-              style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;width:280px;outline-color:#4c5fd5;"
+              class="dir-search"
+              style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
             />
             <button type="submit" style={BTN}>
               Search
@@ -651,7 +789,8 @@ app.get('/app/org/contacts', async (c) => {
             <div
               id="filter-panel"
               hidden
-              style="position:absolute;top:calc(100% + 8px);left:0;width:340px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;padding:16px;"
+              class="dir-filterpanel"
+              style="position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);z-index:50;padding:16px;"
             >
               <form method="get" action="/app/org/contacts" style="display:grid;gap:12px;margin:0;">
                 <input type="hidden" name="q" value={filters.q} />
@@ -745,15 +884,11 @@ app.get('/app/org/contacts', async (c) => {
         ) : null}
 
         {/* bulk bar — shown by the island once rows are checked */}
-        <div
-          id="bulk-bar"
-          hidden
-          style="display:flex;align-items:center;gap:8px;background:#16171d;color:#fff;padding:10px 14px;"
-        >
+        <div id="bulk-bar" hidden class="dir-bulkbar">
           <span id="bulk-count" style={`font-family:${MONO};font-size:12px;`}>
             0 selected
           </span>
-          <div style="width:1px;height:18px;background:#3a3b44;margin:0 4px;"></div>
+          <div class="dir-bulkdiv"></div>
           <button
             type="button"
             data-bulk-open="#communicate-modal"
@@ -787,54 +922,63 @@ app.get('/app/org/contacts', async (c) => {
         </div>
 
         <div style="background:#fff;border:1px solid #e2e3e8;">
-          <div style="overflow-x:auto;">
-          <div
-            style={`display:grid;${GRID}gap:10px;padding:10px 14px;border-bottom:1px solid #e2e3e8;align-items:center;min-width:1000px;${MICRO}`}
-          >
-            <div>
-              <input type="checkbox" id="select-all" title="Select every row shown" />
+          <div class="dir-scroll">
+          <div class="dir-head" style={`border-bottom:1px solid #e2e3e8;${MICRO}`}>
+            <div class="dir-h-check">
+              <input type="checkbox" id="select-all" class="dir-check" title="Select every row shown" />
+              {/* Phone-only: with the column heads gone, the tick box has to say
+                  what it does. */}
+              <span class="dir-selectall">SELECT ALL ON THIS PAGE</span>
             </div>
             <div></div>
-            <div>NAME</div>
-            <div>EMAIL</div>
-            <div>COMPANY</div>
-            <div>JOB TITLE</div>
-            <div>TAGS</div>
+            <div class="dir-h-label">NAME</div>
+            <div class="dir-h-label">EMAIL</div>
+            <div class="dir-h-label">COMPANY</div>
+            <div class="dir-h-label">JOB TITLE</div>
+            <div class="dir-h-label">TAGS</div>
             <div></div>
           </div>
           {rows.length ? (
             rows.map((r) => {
               const tags = jsonParse<string[]>(r.tags_json, []);
               return (
-                <div
-                  style={`display:grid;${GRID}gap:10px;padding:9px 14px;border-bottom:1px solid #f2f3f5;align-items:center;min-width:1000px;`}
-                >
-                  <div>
+                <div class="dir-row" style="border-bottom:1px solid #f2f3f5;">
+                  <div class="dir-c-check">
                     <input
                       type="checkbox"
                       data-row-check
+                      class="dir-check"
                       value={r.id}
                       data-name={r.name || r.email}
                       data-email={r.email}
                     />
                   </div>
-                  <Avatar row={r} />
+                  <div class="dir-c-avatar">
+                    <Avatar row={r} />
+                  </div>
                   <a
                     href={`/app/org/contact/${r.id}`}
+                    class="dir-c-name"
                     style="font-size:13.5px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                   >
                     {r.name || r.email}
                   </a>
-                  <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                  <div
+                    class="dir-c-email"
+                    style={`font-family:${MONO};color:#686b74;`}
+                  >
                     {r.email}
                   </div>
-                  <div style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  <div class="dir-c-company" style="font-size:12.5px;">
                     {r.company || '—'}
                   </div>
-                  <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  <div
+                    class="dir-c-title"
+                    style="font-size:12.5px;color:#686b74;"
+                  >
                     {r.job_title || '—'}
                   </div>
-                  <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                  <div class="dir-c-tags" style="display:flex;gap:4px;flex-wrap:wrap;">
                     {tags.length ? (
                       tags.slice(0, 3).map((t) => (
                         <span style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.06em;padding:2px 6px;background:#f1f3f5;color:#686b74;text-transform:uppercase;`}>
@@ -848,7 +992,8 @@ app.get('/app/org/contacts', async (c) => {
                   <a
                     href={`/app/org/contact/${r.id}`}
                     title="Edit contact"
-                    style="justify-self:end;font-size:13px;color:#9a9da6;text-decoration:none;"
+                    class="dir-c-edit"
+                    style="font-size:13px;color:#9a9da6;text-decoration:none;"
                   >
                     ✎
                   </a>
@@ -901,13 +1046,13 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#new-contact-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
               </div>
               <div style="padding:20px 24px;display:grid;gap:14px;overflow-y:auto;">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="dir-pair">
                   <div>
                     <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
                     <input name="name" required style={INPUT} />
@@ -917,7 +1062,7 @@ app.get('/app/org/contacts', async (c) => {
                     <input name="email" type="email" required style={INPUT} />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="dir-pair">
                   <div>
                     <div style={`${MICRO}margin-bottom:6px;`}>COMPANY</div>
                     <input name="company" style={INPUT} />
@@ -958,7 +1103,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#import-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
@@ -997,7 +1142,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#communicate-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
@@ -1062,7 +1207,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#add-event-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
@@ -1110,7 +1255,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#bulk-segment-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
@@ -1149,7 +1294,7 @@ app.get('/app/org/contacts', async (c) => {
                 <button
                   type="button"
                   data-dialog-close="#segment-modal"
-                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                  class="dir-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
                 >
                   ✕
                 </button>
@@ -1376,7 +1521,8 @@ app.post('/app/org/contacts/import', requireOrgRole('admin'), async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:860px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="imp-page">
         <a href="/app/org/contacts" style="font-size:12.5px;">
           ← Back to the directory
         </a>
@@ -1394,7 +1540,7 @@ app.post('/app/org/contacts/import', requireOrgRole('admin'), async (c) => {
 
             <div style="padding:18px 20px;border-bottom:1px solid #e2e3e8;display:grid;gap:8px;">
               {table.headers.map((h, i) => (
-                <div style="display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:12px;align-items:center;">
+                <div class="imp-maprow">
                   <div style="min-width:0;">
                     <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                       {h || `(column ${i + 1})`}
@@ -1431,12 +1577,12 @@ app.post('/app/org/contacts/import', requireOrgRole('admin'), async (c) => {
               {report.flagged.length ? (
                 <div style="border:1px solid #e2e3e8;max-height:260px;overflow-y:auto;">
                   {report.flagged.slice(0, 100).map((r) => (
-                    <div style="display:grid;grid-template-columns:64px minmax(0,1fr) 220px;gap:10px;padding:7px 12px;border-bottom:1px solid #f2f3f5;align-items:center;">
-                      <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`LINE ${r.line}`}</div>
-                      <div style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    <div class="imp-flagrow" style="border-bottom:1px solid #f2f3f5;">
+                      <div class="imp-c-line" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`LINE ${r.line}`}</div>
+                      <div class="imp-c-who" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {r.email || r.name || '—'}
                       </div>
-                      <div style={`font-size:11.5px;color:${r.skip ? '#c92a2a' : '#b08800'};`}>{r.note}</div>
+                      <div class="imp-c-note" style={`font-size:11.5px;color:${r.skip ? '#c92a2a' : '#b08800'};`}>{r.note}</div>
                     </div>
                   ))}
                 </div>
@@ -1694,7 +1840,8 @@ async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: strin
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:860px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="sb-page">
         <a href="/app/org/contacts?tab=segments" style="font-size:12.5px;">
           ← Back to segments
         </a>
@@ -1737,12 +1884,13 @@ async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: strin
 
               {contacts.length ? (
                 <div style="margin-top:12px;display:grid;gap:10px;">
-                  <div style="display:flex;align-items:center;gap:12px;">
+                  <div class="sb-qrow">
                     <input
                       id="seg-q"
                       type="search"
+                      class="sb-q"
                       placeholder="Filter by name, email or company…"
-                      style={`${INPUT}max-width:320px;`}
+                      style={INPUT}
                     />
                     <div id="seg-count" style={`font-family:${MONO};font-size:11.5px;color:#686b74;`}>
                       {`${checked.size} selected`}
@@ -1753,17 +1901,19 @@ async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: strin
                       <label
                         data-seg-row
                         data-search={`${r.name} ${r.email} ${r.company}`.toLowerCase()}
-                        style="display:grid;grid-template-columns:18px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f3f5;cursor:pointer;"
+                        class="sb-row"
+                        style="border-bottom:1px solid #f2f3f5;"
                       >
                         <input
                           type="checkbox"
                           data-seg-check
+                          class="sb-c-check"
                           name="ids"
                           value={r.id}
                           checked={checked.has(r.id)}
                           style="cursor:pointer;"
                         />
-                        <div style="min-width:0;">
+                        <div class="sb-c-who" style="min-width:0;">
                           <div style="font-size:13px;color:#16171d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                             {r.name || r.email}
                           </div>
@@ -1771,7 +1921,7 @@ async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: strin
                             {r.email}
                           </div>
                         </div>
-                        <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        <div class="sb-c-company" style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                           {r.company || '—'}
                         </div>
                       </label>
@@ -1810,7 +1960,7 @@ async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: strin
                   </span>
                 </span>
               </label>
-              <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+              <div class="sb-dyngrid">
                 <div>
                   <div style={`${MICRO}margin-bottom:5px;`}>COMPANY</div>
                   <select name="company" style={`${SELECT}width:100%;`}>

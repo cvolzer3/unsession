@@ -1,5 +1,6 @@
 /** `/app/team` — members + pending invites in one paginated, filterable table (spec §5.7). */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx, Role } from '../types';
 import { AdminLayout, MONO, StatusChip, fmtDate, initials, initialsGradient } from '../views/layout';
 import { adminProps } from '../views/chrome';
@@ -22,12 +23,55 @@ const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex
 const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:4px;';
 const CANCEL_BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const PRIMARY_BTN = 'padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
-const DANGER_BTN = 'background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;';
 const PG_ON = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#33343c;cursor:pointer;text-decoration:none;';
 const PG_OFF = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;';
 const COLS = 'minmax(170px,1fr) minmax(210px,1fr) 130px 90px 130px 60px';
 const ROLES: Role[] = ['owner', 'admin', 'collaborator'];
 const PAGE_SIZE = 20;
+
+/**
+ * Page CSS (SPECS/M-mobile.md). The desktop half of every rule is byte-for-byte
+ * what used to sit inline; the `@media (max-width:768px)` half is the phone
+ * shape. Inline styles beat media queries, so anything that changes width has
+ * to leave the `style` attribute.
+ *
+ * The table is the one real decision: six columns need ~890px, and each row
+ * carries two live controls (the role select and Remove/Revoke), so scrolling
+ * sideways would hide the action that makes the row worth reading. Below 768px
+ * a row reflows into a card — name + status, then the address, then the role
+ * control and its action, then the date — and the column head disappears
+ * because every value carries its own shape.
+ */
+const PAGE_CSS = `
+  .tm-page{padding:24px 28px;}
+  .tm-filters{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+  .tm-search{width:250px;}
+  .tm-head{display:grid;grid-template-columns:${COLS};gap:12px;padding:9px 16px;align-items:center;}
+  .tm-row{display:grid;grid-template-columns:${COLS};gap:12px;padding:6px 16px;align-items:center;}
+  .tm-c-email{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .tm-c-actions{text-align:right;}
+  .tm-danger{background:none;border:none;padding:0;font-size:12px;color:#c92a2a;cursor:pointer;}
+  @media (max-width:768px){
+    .tm-page{padding:14px 14px 28px;}
+    .tm-search{width:auto;flex:1 0 100%;}
+    /* Every cell reads as itself on a card, so the labels have no job left. */
+    .tm-head{display:none;}
+    .tm-row{
+      grid-template-columns:minmax(0,1fr) auto;
+      grid-template-areas:'name status' 'email email' 'role action' 'date date';
+      gap:7px 10px;padding:13px 14px;
+    }
+    .tm-c-name{grid-area:name;}
+    /* The address is body copy on a card, not a column label — 12.5px floor. */
+    .tm-c-email{grid-area:email;font-size:12.5px;white-space:normal;overflow:visible;overflow-wrap:anywhere;}
+    .tm-c-role{grid-area:role;}
+    .tm-c-status{grid-area:status;justify-self:end;}
+    .tm-c-date{grid-area:date;}
+    .tm-c-actions{grid-area:action;justify-self:end;text-align:right;}
+    /* A bare text button is not a tap target — pad it out to ~40px. */
+    .tm-danger{padding:12px 3px 12px 14px;font-size:13px;}
+  }
+`;
 
 type TeamRow = {
   kind: 'member' | 'invite';
@@ -101,7 +145,8 @@ app.get('/app/team', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions}>
-      <div style="padding:24px 28px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="tm-page">
         {inviteLink ? (
           <div style="border:1px solid #b08800;background:#fdf5dc;padding:12px 14px;margin-bottom:16px;">
             <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#b08800;margin-bottom:6px;`}>
@@ -116,8 +161,8 @@ app.get('/app/team', async (c) => {
           </div>
         ) : null}
 
-        <form method="get" action="/app/team" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
-          <input name="q" value={q} placeholder="Search name or email…" style={`width:250px;${FILTER_INPUT}`} />
+        <form method="get" action="/app/team" class="tm-filters">
+          <input name="q" value={q} placeholder="Search name or email…" class="tm-search" style={FILTER_INPUT} />
           <select name="role" onchange="this.form.submit()" style={FILTER_SELECT}>
             <option value="all" selected={roleFilter === 'all'}>
               All roles
@@ -146,7 +191,8 @@ app.get('/app/team', async (c) => {
             {`TEAM · ${members.length} MEMBER${members.length === 1 ? '' : 'S'} · ${invites.length} PENDING`}
           </div>
           <div
-            style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;`}
+            class="tm-head"
+            style={`border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;`}
           >
             <div>NAME</div>
             <div>EMAIL</div>
@@ -156,8 +202,8 @@ app.get('/app/team', async (c) => {
             <div></div>
           </div>
           {pageRows.map((r) => (
-            <div style={`display:grid;grid-template-columns:${COLS};gap:12px;padding:6px 16px;border-bottom:1px solid #f2f3f5;align-items:center;`}>
-              <div style="display:flex;align-items:center;gap:9px;min-width:0;">
+            <div class="tm-row" style="border-bottom:1px solid #f2f3f5;">
+              <div class="tm-c-name" style="display:flex;align-items:center;gap:9px;min-width:0;">
                 <div
                   style={`width:24px;height:24px;border-radius:50%;${
                     // Pending invites stay muted — the gradient marks a real member.
@@ -172,12 +218,12 @@ app.get('/app/team', async (c) => {
                   {r.name || '—'}
                 </div>
               </div>
-              <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+              <div class="tm-c-email" style={`font-family:${MONO};color:#686b74;`}>
                 {r.email}
               </div>
               {/* form margin:0 — the UA sheet's margin-block-end would both pad
                   the row out and push the select off centre. */}
-              <div>
+              <div class="tm-c-role">
                 {r.kind === 'member' && canManage && r.id !== c.var.user?.id ? (
                   <form method="post" action="/app/team/role" style="margin:0;display:flex;align-items:center;">
                     <input type="hidden" name="user_id" value={r.id} />
@@ -197,13 +243,17 @@ app.get('/app/team', async (c) => {
                   <StatusChip status="pending" label={r.role} />
                 )}
               </div>
-              <div>{r.kind === 'member' ? <StatusChip status="open" label="active" /> : <StatusChip status="pending" />}</div>
-              <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{fmtDate(r.date, true)}</div>
-              <div style="text-align:right;">
+              <div class="tm-c-status">
+                {r.kind === 'member' ? <StatusChip status="open" label="active" /> : <StatusChip status="pending" />}
+              </div>
+              <div class="tm-c-date" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                {fmtDate(r.date, true)}
+              </div>
+              <div class="tm-c-actions">
                 {r.kind === 'invite' && canManage ? (
                   <form method="post" action="/app/team/revoke" style="margin:0;">
                     <input type="hidden" name="invite_id" value={r.id} />
-                    <button type="submit" style={DANGER_BTN}>
+                    <button type="submit" class="tm-danger">
                       Revoke
                     </button>
                   </form>
@@ -212,7 +262,7 @@ app.get('/app/team', async (c) => {
                     <input type="hidden" name="user_id" value={r.id} />
                     <button
                       type="submit"
-                      style={DANGER_BTN}
+                      class="tm-danger"
                       data-confirm={`Remove ${r.name || r.email} from the team? They lose access to this workspace and drop off every evaluation plan. Reviews they already submitted are kept.`}
                     >
                       Remove

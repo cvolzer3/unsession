@@ -11,6 +11,7 @@
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO, StatusChip, fmtDate, fmtDateRange, initials, initialsGradient } from '../views/layout';
@@ -33,9 +34,73 @@ const ACTION_BTN =
   'display:inline-flex;align-items:center;gap:7px;padding:8px 13px;background:#fff;border:1px solid #cfd3dc;' +
   'font-size:13px;font-weight:600;color:#16171d;cursor:pointer;box-shadow:0 1px 2px rgba(22,23,29,0.06);';
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
-const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
+/**
+ * Padding lives in `.oc-dialog` — a media query cannot beat an inline style.
+ *
+ * `grid-template-columns:minmax(0,1fr)` is load-bearing: with an implicit auto
+ * track the column sizes to the panel's own `width:560px`, so the panel's
+ * `max-width:100%` resolves against 560px and never shrinks — on a phone the
+ * dialog ran off the right edge with its buttons unreachable. A single 1fr
+ * column is the viewport, so `max-width:100%` means what it says.
+ */
+const DIALOG =
+  'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;grid-template-columns:minmax(0,1fr);';
 const CARD = 'background:#fff;border:1px solid #e2e3e8;padding:18px 20px;';
 const CHIP = `font-family:${MONO};font-size:9px;letter-spacing:0.08em;padding:2px 6px;font-weight:600;color:#686b74;background:#f1f3f5;text-transform:uppercase;`;
+
+/**
+ * Page CSS (SPECS/M-mobile.md). Every rule's desktop half is byte-for-byte what
+ * used to sit inline; the `@media (max-width:768px)` half is the phone shape.
+ * An inline style beats a media query, so anything that has to change width
+ * leaves the `style` attribute.
+ *
+ * The record is a two-column reading layout — the story on the left, the
+ * connections and the activity feed on the right. On a phone the right column
+ * becomes the tail of the page: read the person, then what they did. Every
+ * other change here is the same move applied to a smaller grid (the four meta
+ * facts go two-up, the custom fields and the edit form go one-up), plus the
+ * action row, which drops below the back link instead of sitting beside it.
+ */
+const PAGE_CSS = `
+  .oc-page{padding:24px 28px;max-width:1160px;display:grid;gap:18px;}
+  .oc-actionbar{display:flex;align-items:center;gap:12px;}
+  .oc-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .oc-dup{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#8a6d1a;}
+  .oc-dup-link{margin-left:auto;}
+  .oc-cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;}
+  .oc-identity{display:flex;gap:16px;align-items:flex-start;}
+  .oc-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid #eceded;}
+  .oc-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  .oc-dialog{padding:20px;}
+  .oc-editgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .oc-x{padding:0;}
+  .oc-email{font-size:11.5px;}
+  .oc-mergehint{padding:12px 14px 0;font-size:12px;color:#686b74;}
+  .oc-mergefield{width:120px;}
+  .oc-tagx{padding:0 3px;}
+  @media (max-width:768px){
+    .oc-page{padding:14px 14px 28px;gap:14px;}
+    .oc-actionbar{flex-wrap:wrap;gap:10px;}
+    .oc-actions{margin-left:0;flex:1 0 100%;flex-wrap:wrap;}
+    .oc-dup{flex-wrap:wrap;gap:4px 10px;}
+    .oc-dup-link{margin-left:0;}
+    .oc-cols{grid-template-columns:minmax(0,1fr);gap:14px;}
+    .oc-identity{gap:12px;flex-wrap:wrap;}
+    /* The address is body copy on a phone, not a column label — 12.5px floor. */
+    .oc-email{font-size:12.5px;overflow-wrap:anywhere;}
+    .oc-meta{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+    .oc-fields{grid-template-columns:minmax(0,1fr);}
+    /* Bare ✕ glyphs are ~14px targets — pad them out in place. */
+    .oc-x{padding:10px;margin:-10px -10px -10px auto;}
+    .oc-tagx{padding:9px 8px;margin:-9px -5px;}
+    .oc-dialog{padding:10px;}
+    /* Only #dlg-edit caps its own height; the rest can outgrow a phone screen. */
+    .oc-dialog > div{max-height:calc(100vh - 20px);overflow-y:auto;}
+    .oc-editgrid{grid-template-columns:minmax(0,1fr);gap:12px;}
+    .oc-mergebox table{min-width:460px;}
+    .oc-mergefield{width:90px;}
+  }
+`;
 
 /* ----------------------------------------------------------- page data */
 
@@ -306,12 +371,13 @@ app.get('/app/org/contact/:id', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:1160px;display:grid;gap:18px;">
-        <div style="display:flex;align-items:center;gap:12px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="oc-page">
+        <div class="oc-actionbar">
           <a href="/app/org/contacts" style="font-size:12.5px;color:#4c5fd5;">
             ← Speaker Directory
           </a>
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+          <div class="oc-actions">
             <button type="button" data-dialog-open="#dlg-event" title="Create a speaker profile on one of your events" style={ACTION_BTN}>
               <IconPlus />
               Add to event
@@ -349,14 +415,15 @@ app.get('/app/org/contact/:id', async (c) => {
         {dups.length ? (
           <div style="border:1px solid #e8d79a;background:#fdf5dc;padding:11px 13px;display:grid;gap:6px;">
             {dups.map((d) => (
-              <div style="display:flex;align-items:center;gap:10px;font-size:12.5px;color:#8a6d1a;">
+              <div class="oc-dup">
                 <span>
                   {`Possible duplicate: ${d.name} `}
                   <span style={`font-family:${MONO};`}>{d.email}</span>
                 </span>
                 <a
                   href={`/app/org/contact/${contact.id}/merge?with=${encodeURIComponent(d.id)}`}
-                  style="margin-left:auto;font-size:12.5px;color:#4c5fd5;"
+                  class="oc-dup-link"
+                  style="font-size:12.5px;color:#4c5fd5;"
                 >
                   Review &amp; merge →
                 </a>
@@ -365,11 +432,11 @@ app.get('/app/org/contact/:id', async (c) => {
           </div>
         ) : null}
 
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;">
+        <div class="oc-cols">
           <div style="display:grid;gap:18px;min-width:0;">
             {/* ---------------------------------------------------- identity */}
             <div style={CARD}>
-              <div style="display:flex;gap:16px;align-items:flex-start;">
+              <div class="oc-identity">
                 <Avatar contact={contact} size={72} />
                 <div style="min-width:0;flex:1;">
                   <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
@@ -379,14 +446,16 @@ app.get('/app/org/contact/:id', async (c) => {
                   {contact.tagline ? (
                     <div style="font-size:13px;color:#686b74;margin-top:4px;">{contact.tagline}</div>
                   ) : null}
-                  <div style={`font-family:${MONO};font-size:11.5px;color:#9a9da6;margin-top:6px;`}>{contact.email}</div>
+                  <div class="oc-email" style={`font-family:${MONO};color:#9a9da6;margin-top:6px;`}>
+                    {contact.email}
+                  </div>
                 </div>
                 <button type="button" data-dialog-open="#dlg-edit" style={BTN}>
                   Edit
                 </button>
               </div>
 
-              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid #eceded;">
+              <div class="oc-meta">
                 <Meta label="COMPANY" value={contact.company} />
                 <Meta label="JOB TITLE" value={contact.job_title} />
                 <Meta label="PRONOUNS" value={contact.pronouns ?? ''} />
@@ -424,7 +493,8 @@ app.get('/app/org/contact/:id', async (c) => {
                       <button
                         type="submit"
                         title={`Remove ${tag}`}
-                        style="background:none;border:none;color:#9a9da6;font-size:13px;line-height:1;cursor:pointer;padding:0 3px;"
+                        class="oc-tagx"
+                        style="background:none;border:none;color:#9a9da6;font-size:13px;line-height:1;cursor:pointer;"
                       >
                         ×
                       </button>
@@ -453,7 +523,7 @@ app.get('/app/org/contact/:id', async (c) => {
                 </div>
               ) : (
                 <form method="post" action={`/app/org/contact/${contact.id}/fields`} style="display:grid;gap:12px;">
-                  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+                  <div class="oc-fields">
                     {fields.map((f) => (
                       <div>
                         <div style={`${LABEL}margin-bottom:5px;`}>{f.name.toUpperCase()}</div>
@@ -568,21 +638,21 @@ app.get('/app/org/contact/:id', async (c) => {
 
       {/* ------------------------------------------------------- dialogs */}
 
-      <div id="dlg-edit" data-dialog hidden style={DIALOG}>
+      <div id="dlg-edit" data-dialog hidden class="oc-dialog" style={DIALOG}>
         <div style="background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;">
           <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
             <div style="font-size:16px;font-weight:700;">Edit contact</div>
             <button
               type="button"
               data-dialog-close="#dlg-edit"
-              style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+              class="oc-x" style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
             >
               ×
             </button>
           </div>
           <form method="post" action={`/app/org/contact/${contact.id}/edit`} style="display:contents;">
             <div style="padding:20px 24px;display:grid;gap:14px;overflow-y:auto;">
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+              <div class="oc-editgrid">
                 <div>
                   <div style={`${LABEL}margin-bottom:5px;`}>NAME</div>
                   <input name="name" value={contact.name} required style={INPUT} />
@@ -627,7 +697,7 @@ app.get('/app/org/contact/:id', async (c) => {
         </div>
       </div>
 
-      <div id="dlg-field" data-dialog hidden style={DIALOG}>
+      <div id="dlg-field" data-dialog hidden class="oc-dialog" style={DIALOG}>
         <div style="background:#fff;width:460px;max-width:100%;padding:24px;">
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Add a custom field</div>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;margin-bottom:16px;">
@@ -674,7 +744,7 @@ app.get('/app/org/contact/:id', async (c) => {
         </div>
       </div>
 
-      <div id="dlg-event" data-dialog hidden style={DIALOG}>
+      <div id="dlg-event" data-dialog hidden class="oc-dialog" style={DIALOG}>
         <div style="background:#fff;width:440px;max-width:100%;padding:24px;">
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Add to event</div>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;margin-bottom:16px;">
@@ -701,7 +771,7 @@ app.get('/app/org/contact/:id', async (c) => {
       </div>
 
       {!card ? (
-        <div id="dlg-pipeline" data-dialog hidden style={DIALOG}>
+        <div id="dlg-pipeline" data-dialog hidden class="oc-dialog" style={DIALOG}>
           <div style="background:#fff;width:440px;max-width:100%;padding:24px;">
             <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Add contact to pipeline</div>
             <div style="font-size:12.5px;color:#686b74;line-height:1.55;margin-bottom:16px;">
@@ -741,7 +811,7 @@ app.get('/app/org/contact/:id', async (c) => {
         </div>
       ) : null}
 
-      <div id="dlg-delete" data-dialog hidden style={DIALOG}>
+      <div id="dlg-delete" data-dialog hidden class="oc-dialog" style={DIALOG}>
         <div style="background:#fff;width:440px;max-width:100%;padding:24px;">
           <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Delete this contact?</div>
           <div style="font-size:12.5px;color:#686b74;line-height:1.55;margin-bottom:16px;">
@@ -1024,16 +1094,22 @@ app.get('/app/org/contact/:id/merge', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:900px;display:grid;gap:18px;">
+      {raw(`<style>${PAGE_CSS}</style>`)}
+      <div class="oc-page" style="max-width:900px;">
         <a href={`/app/org/contact/${a.id}`} style="font-size:12.5px;color:#4c5fd5;">
           ← Back to {a.name}
         </a>
         <form method="post" action={`/app/org/contact/${a.id}/merge`} style={`${CARD}display:grid;gap:16px;padding:0;`}>
           <input type="hidden" name="with" value={b.id} />
+          {/* Three columns of radio buttons never fit a phone, and the whole
+              point is seeing both records side by side — so the comparison
+              scrolls in its own box instead of stacking or squashing. */}
+          <div class="us-mobile-only oc-mergehint">Swipe the table sideways to see both records.</div>
+          <div class="us-scroll-x oc-mergebox">
           <table style="width:100%;border-collapse:collapse;">
             <thead>
               <tr>
-                <th style={`text-align:left;padding:12px 14px;border-bottom:1px solid #e2e3e8;width:120px;${LABEL}`}>
+                <th class="oc-mergefield" style={`text-align:left;padding:12px 14px;border-bottom:1px solid #e2e3e8;${LABEL}`}>
                   FIELD
                 </th>
                 {head(a, 'a')}
@@ -1061,7 +1137,8 @@ app.get('/app/org/contact/:id/merge', async (c) => {
               </tr>
             </tbody>
           </table>
-          <div style="padding:0 14px 16px;display:flex;gap:10px;align-items:center;">
+          </div>
+          <div style="padding:0 14px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <div style="font-size:12.5px;color:#c92a2a;">Merging cannot be undone.</div>
             <a href={`/app/org/contact/${a.id}`} style={`${BTN}margin-left:auto;text-decoration:none;color:#16171d;`}>
               Cancel

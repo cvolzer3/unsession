@@ -10,6 +10,13 @@
  *
  * The board itself is server-rendered. Without JavaScript, cards still link to
  * their page and the stage changes from the `Move to` form there.
+ *
+ * Dragging is desktop-only by nature — `dragstart` and friends never fire on a
+ * touch screen. Below 768px the board stacks its lanes and each card shows its
+ * own stage dropdown and ↑/↓ buttons (`.pl-move` in admin-org-pipeline.tsx),
+ * which are ordinary form posts and need nothing from this file. All this file
+ * has to do for them is keep its "click the card to open it" shortcut off the
+ * controls.
  */
 import { toast, api } from './ui.js';
 
@@ -58,9 +65,10 @@ function boot(board) {
     z.dataset.base = z.getAttribute('style') || '';
   });
 
-  // A click anywhere on the card that is not a link opens the card page.
+  // A click anywhere on the card that is not a link or one of the phone-only
+  // move controls opens the card page.
   board.addEventListener('click', (e) => {
-    if (e.target.closest('a')) return;
+    if (e.target.closest('a, form, select, button, input, label')) return;
     const card = e.target.closest('[data-card-id]');
     if (card) location.href = card.dataset.href;
   });
