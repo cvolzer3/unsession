@@ -17,6 +17,8 @@ import { AdminLayout, MONO, STATUS_COLORS } from '../views/layout';
 import { adminProps } from '../views/chrome';
 import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { all, now, one, run } from '../lib/db';
+import { csvHeaders, toCsv, type CsvRow } from '../lib/csv';
+import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 import { newId } from '../lib/ids';
 import { requireOrgRole, requestPasswordReset } from '../lib/auth';
 import { logActivity } from '../lib/activity';
@@ -370,6 +372,17 @@ function ScoresTab(opts: { ctx: PageCtx; openSub: string; reminders: RemindersDa
   );
 }
 
+/** Download URL for the scores export, carrying the list's current filters. */
+function exportHref(filters: Filters, format: 'csv' | 'xlsx'): string {
+  const p = new URLSearchParams();
+  if (filters.q.trim()) p.set('q', filters.q.trim());
+  if (filters.track !== 'all') p.set('track', filters.track);
+  if (filters.plan !== 'all') p.set('plan', filters.plan);
+  if (filters.unreviewed) p.set('filter', 'unreviewed');
+  const qs = p.toString();
+  return `/app/api/evaluation/export.${format}${qs ? `?${qs}` : ''}`;
+}
+
 function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof submissionScore>>; filters: Filters }) {
   const { ctx, scores, filters } = opts;
   const q = filters.q.trim().toLowerCase();
@@ -446,6 +459,14 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
             Clear ×
           </a>
         ) : null}
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <a href={exportHref(filters, 'csv')} style={`${GHOST_BTN}color:#33343c;text-decoration:none;`}>
+            Export CSV
+          </a>
+          <a href={exportHref(filters, 'xlsx')} style={`${GHOST_BTN}color:#33343c;text-decoration:none;`}>
+            Export XLSX
+          </a>
+        </div>
       </form>
       <div style={CARD}>
         <div
@@ -2011,6 +2032,154 @@ app.post('/app/api/evaluation/automation', requireOrgRole('admin'), async (c) =>
     detail: `${plans.length} plan${plans.length === 1 ? '' : 's'} · min ${automation.minLeft} left · cooldown ${automation.cooldown}d`,
   });
   return c.json({ ok: true, plans: plans.length });
+});
+
+/* ------------------------------------------------------------------ export */
+
+/**
+ * Shared row builder for the scores CSV and XLSX exports — one row per
+ * submission in evaluation scope, same filters and sort order as the
+ * All Evaluations table, with per-criterion aggregates per plan.
+ */
+async function exportTable(
+  db: D1Database,
+  eventId: string,
+  q: Record<string, string | undefined>
+): Promise<{ rows: CsvRow[]; columns: string[] }> {
+  const ctx = await loadEvalContext(db, eventId);
+  const people = await all<{ id: string; name: string | null; email: string }>(
+    db,
+    `SELECT DISTINCT u.id, u.name, u.email FROM users u
+      WHERE u.id IN (SELECT r.user_id FROM eval_plan_reviewers r JOIN eval_plans p ON p.id = r.plan_id WHERE p.event_id = ?)
+         OR u.id IN (SELECT e.reviewer_id FROM evaluations e JOIN eval_plans p2 ON p2.id = e.plan_id WHERE p2.event_id = ?)`,
+    eventId,
+    eventId
+  );
+  const nameById = new Map(people.map((p) => [p.id, p.name || p.email.split('@')[0]]));
+  const who = (id: string) => nameById.get(id) ?? 'Unknown reviewer';
+
+  const scoped = new Set<string>();
+  ctx.plans.forEach((p) => planSubmissions(p, ctx.submissions, ctx.evaluations).forEach((s) => scoped.add(s.id)));
+  let rows = ctx.submissions.filter((s) => scoped.has(s.id));
+
+  const fPlan = q.plan || 'all';
+  if (fPlan !== 'all') {
+    const plan = ctx.plans.find((p) => p.id === fPlan);
+    if (plan) {
+      const ids = new Set(planSubmissions(plan, ctx.submissions, ctx.evaluations).map((s) => s.id));
+      rows = rows.filter((s) => ids.has(s.id));
+    }
+  }
+  if (q.track && q.track !== 'all') rows = rows.filter((s) => s.trackOptionId === q.track);
+  if (q.filter === 'unreviewed') {
+    const reviewed = new Set(ctx.evaluations.map((e) => e.submissionId));
+    rows = rows.filter((s) => !reviewed.has(s.id));
+  }
+  const needle = (q.q ?? '').trim().toLowerCase();
+  if (needle) {
+    rows = rows.filter((s) =>
+      `${s.title} ${s.displayId} ${s.trackName} ${s.speakers.map((p) => p.name).join(' ')}`.toLowerCase().includes(needle)
+    );
+  }
+
+  const scores = new Map(rows.map((s) => [s.id, submissionScore(s, ctx.plans, ctx.submissions, ctx.evaluations)]));
+  rows = rows.slice().sort((a, b) => {
+    const sa = scores.get(a.id)!;
+    const sb = scores.get(b.id)!;
+    return (sb.avg ?? -1) - (sa.avg ?? -1) || sa.remaining - sb.remaining;
+  });
+
+  // One column per criterion, per plan — prefixed by plan name only when more
+  // than one plan is exported, so the common single-plan file stays clean.
+  const exportPlans = fPlan !== 'all' ? ctx.plans.filter((p) => p.id === fPlan) : ctx.plans;
+  const critCol = (p: EvalPlan, name: string) => (exportPlans.length > 1 ? `${p.name}: ${name}` : name);
+  const critColumns: string[] = [];
+  exportPlans.forEach((p) => p.criteria.forEach((c) => critColumns.push(critCol(p, c.name))));
+
+  const base = [
+    'id',
+    'title',
+    'status',
+    'track',
+    'format',
+    'level',
+    'speakers',
+    'score',
+    'evalDone',
+    'evalTotal',
+    'scores_by_evaluator',
+  ];
+
+  const out: CsvRow[] = rows.map((s) => {
+    const sc = scores.get(s.id)!;
+    const byEvaluator: string[] = [];
+    const notes: string[] = [];
+    const row: CsvRow = {
+      id: s.displayId,
+      title: s.title,
+      status: statusLabel(s.status),
+      track: s.trackName,
+      format: s.format,
+      level: s.level,
+      speakers: s.speakers.map((p) => `${p.name} <${p.email}> (${p.role})`).join(' ; '),
+      score: sc.avg === null ? '' : sc.avg.toFixed(2),
+      evalDone: sc.n,
+      evalTotal: sc.expected,
+    };
+    exportPlans.forEach((p) => {
+      const inPlan = planSubmissions(p, ctx.submissions, ctx.evaluations).some((x) => x.id === s.id);
+      const evals = inPlan
+        ? ctx.evaluations.filter((e) => e.planId === p.id && e.submissionId === s.id && !e.abstained)
+        : [];
+      p.criteria.forEach((crit) => {
+        let val = '';
+        if (crit.type === 'scale') {
+          const vals = evals.map((e) => Number(e.scores[crit.name])).filter((v) => Number.isFinite(v) && v > 0);
+          if (vals.length) val = (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+        } else {
+          val = evals
+            .map((e) => String(e.scores[crit.name] ?? '').trim())
+            .filter(Boolean)
+            .join(' ; ');
+        }
+        row[critCol(p, crit.name)] = val;
+      });
+      if (!inPlan) return;
+      ctx.evaluations
+        .filter((e) => e.planId === p.id && e.submissionId === s.id)
+        .forEach((e) => {
+          byEvaluator.push(e.abstained ? `${who(e.reviewerId)}: abstained` : `${who(e.reviewerId)}: ${num1(starAvgOf(p, e))}`);
+          if (e.note.trim()) notes.push(`${who(e.reviewerId)}: ${e.note.trim()}`);
+        });
+      assignedFor(p, s).forEach((r) => {
+        if (ctx.evaluations.some((e) => e.planId === p.id && e.submissionId === s.id && e.reviewerId === r.userId)) return;
+        byEvaluator.push(`${r.name}: pending`);
+      });
+    });
+    row.scores_by_evaluator = byEvaluator.join(' ; ');
+    row.notes = notes.join(' ; ');
+    return row;
+  });
+
+  return { rows: out, columns: [...base, ...critColumns, 'notes'] };
+}
+
+app.get('/app/api/evaluation/export.csv', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.text('No event', 400);
+  const { rows, columns } = await exportTable(c.env.DB, event.id, c.req.query());
+  const stamp = new Date().toISOString().slice(0, 10);
+  return new Response(toCsv(rows, columns), { headers: csvHeaders(`evaluations-${event.slug}-${stamp}.csv`) });
+});
+
+app.get('/app/api/evaluation/export.xlsx', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.text('No event', 400);
+  const { rows, columns } = await exportTable(c.env.DB, event.id, c.req.query());
+  const stamp = new Date().toISOString().slice(0, 10);
+  return new Response(toXlsx(rows, columns, 'Evaluations'), {
+    headers: xlsxHeaders(`evaluations-${event.slug}-${stamp}.xlsx`),
+  });
 });
 
 export default app;
