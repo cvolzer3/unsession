@@ -348,6 +348,7 @@ function drawerHtml(d, animate = true) {
     <div style="flex:1;overflow-y:auto;padding:20px var(--band-x);display:flex;flex-direction:column;gap:18px;">
       <div>
         <div style="font-size:19px;font-weight:700;letter-spacing:-0.01em;">${esc(s.name)}</div>
+        ${s.affiliation ? `<div style="font-size:13px;color:#686b74;margin-top:2px;">${esc(s.affiliation)}</div>` : ''}
         <div style="font-family:${MONO};font-size:11.5px;color:#4c5fd5;margin-top:2px;">${esc(s.email)}</div>
         <div style="margin-top:7px;"><a href="/${esc(d.eventSlug)}/speakers/${esc(s.slug)}" target="_blank" rel="noreferrer" style="font-size:12px;">View public profile ↗</a></div>
         <div style="font-size:13px;color:#686b74;margin-top:6px;line-height:1.5;">${esc(s.bio)}</div>
@@ -1489,6 +1490,8 @@ const IMPORT_TARGETS = [
   ['ignore', 'Ignore'],
   ['name', 'Name'],
   ['email', 'Email'],
+  ['job_title', 'Job title'],
+  ['company', 'Company'],
   ['tagline', 'Tagline'],
   ['bio', 'Bio'],
   ['pronouns', 'Pronouns'],
@@ -1510,11 +1513,13 @@ function guessTarget(header) {
   if (!h) return 'ignore';
   if (h.includes('email') || h.includes('e-mail')) return 'email';
   if (h.includes('pronoun')) return 'pronouns';
-  if (h.includes('tagline') || h.includes('job title') || h.includes('headline') || h === 'title') return 'tagline';
+  if (h.includes('tagline') || h.includes('headline')) return 'tagline';
+  if (h.includes('job title') || h.includes('job_title') || h.includes('role') || h === 'title' || h.includes('position')) return 'job_title';
   if (h.includes('bio') || h.includes('about')) return 'bio';
   if (h.includes('linkedin')) return 'link:linkedin';
   if (h === 'x' || h.includes('twitter') || h.includes('x.com') || h.includes('x handle')) return 'link:x';
   if (h.includes('website') || h.includes('site') || h.includes('url') || h.includes('homepage')) return 'link:website';
+  if (h.includes('company') || h.includes('employer') || h.includes('organisation') || h.includes('organization')) return 'company';
   if (h.includes('link')) return 'link:other';
   if (h.includes('name') || h === 'speaker') return 'name';
   return 'ignore';

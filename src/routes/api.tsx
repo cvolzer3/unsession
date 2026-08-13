@@ -180,7 +180,15 @@ type SubRow = {
   updated_at: string;
 };
 
-type SubSpeakerRow = { submission_id: string; position: number; name: string; email: string; bio: string };
+type SubSpeakerRow = {
+  submission_id: string;
+  position: number;
+  name: string;
+  email: string;
+  bio: string;
+  job_title: string;
+  company: string;
+};
 
 function shapeSubmission(
   sub: SubRow,
@@ -202,7 +210,7 @@ function shapeSubmission(
     track: meta.track?.name ?? null,
     format: meta.format?.name ?? null,
     level: meta.level?.name ?? null,
-    speakers: speakers.map((s) => ({ name: s.name, email: s.email, bio: s.bio })),
+    speakers: speakers.map((s) => ({ name: s.name, email: s.email, bio: s.bio, jobTitle: s.job_title, company: s.company })),
     answers: shapeAnswers(answers, fields),
     submittedAt: sub.submitted_at,
     createdAt: sub.created_at,
@@ -388,7 +396,7 @@ export async function listSubmissions(env: Bindings, auth: ApiAuth, ref: string,
     page.length
       ? all<SubSpeakerRow>(
           env.DB,
-          `SELECT submission_id, position, name, email, bio FROM submission_speakers
+          `SELECT submission_id, position, name, email, bio, job_title, company FROM submission_speakers
             WHERE submission_id IN (${page.map(() => '?').join(',')}) ORDER BY position`,
           ...page.map((r) => r.id)
         )
@@ -429,7 +437,7 @@ export async function getSubmission(env: Bindings, auth: ApiAuth, id: string) {
     one<{ name: string }>(env.DB, `SELECT name FROM forms WHERE id = ?`, sub.form_id),
     all<SubSpeakerRow>(
       env.DB,
-      `SELECT submission_id, position, name, email, bio FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
+      `SELECT submission_id, position, name, email, bio, job_title, company FROM submission_speakers WHERE submission_id = ? ORDER BY position`,
       sub.id
     ),
     all<{ scores_json: string; abstained: number }>(
@@ -484,7 +492,7 @@ export type CreateSubmissionInput = {
   formId?: string;
   title?: string;
   abstract?: string;
-  speakers?: { name?: string; email?: string; bio?: string }[];
+  speakers?: { name?: string; email?: string; bio?: string; jobTitle?: string; company?: string }[];
   answers?: Record<string, unknown>;
   status?: string;
 };
@@ -523,6 +531,8 @@ export async function createSubmission(env: Bindings, auth: ApiAuth, ref: string
     name: String(s?.name ?? '').trim(),
     email: String(s?.email ?? '').trim(),
     bio: String(s?.bio ?? '').trim(),
+    jobTitle: String(s?.jobTitle ?? '').trim(),
+    company: String(s?.company ?? '').trim(),
   }));
   if (speakers.some((s) => !s.name && !s.email)) throw bad('Each speaker needs a name or an email');
 
@@ -558,9 +568,9 @@ export async function createSubmission(env: Bindings, auth: ApiAuth, ref: string
   ];
   speakers.forEach((s, i) => {
     stmts.push([
-      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, headshot_file_id, user_id)
-       VALUES (?,?,?,?,?,?,NULL,NULL)`,
-      [newId('ssp'), id, i, s.name || s.email, s.email, s.bio],
+      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, job_title, company, headshot_file_id, user_id)
+       VALUES (?,?,?,?,?,?,?,?,NULL,NULL)`,
+      [newId('ssp'), id, i, s.name || s.email, s.email, s.bio, s.jobTitle, s.company],
     ]);
   });
   stmts.push([
@@ -860,6 +870,8 @@ export async function createSession(env: Bindings, auth: ApiAuth, ref: string, i
         name: input.speaker.name.trim(),
         email: input.speaker.email.trim(),
         bio: (input.speaker.bio ?? '').trim(),
+        job_title: '',
+        company: '',
         tagline: '',
         links_json: null,
         headshot_file_id: null,
@@ -1053,6 +1065,8 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  job_title: string | null;
+  company: string | null;
   tagline: string | null;
   slug: string;
   headshot_file_id: string | null;
@@ -1067,6 +1081,8 @@ function shapeSpeaker(env: Bindings, event: Event, p: ProfileRow) {
     name: p.name,
     email: p.email,
     bio: p.bio,
+    jobTitle: p.job_title,
+    company: p.company,
     pronouns: p.pronouns,
     links: jsonParse<Record<string, string>>(p.links_json, {}),
     headshotUrl: p.headshot_file_id ? `${env.APP_ORIGIN}/files/${p.headshot_file_id}` : null,
@@ -1134,6 +1150,8 @@ const LINK_KEYS = ['linkedin', 'x', 'website', 'other'];
 export type UpdateSpeakerInput = {
   name?: string;
   bio?: string;
+  jobTitle?: string | null;
+  company?: string | null;
   pronouns?: string | null;
   /** Merged: string values are normalized URLs, null/'' removes the key. */
   links?: Record<string, string | null>;
@@ -1158,6 +1176,8 @@ export async function updateSpeaker(env: Bindings, auth: ApiAuth, id: string, in
     push('name', name);
   }
   if (input.bio !== undefined) push('bio', String(input.bio).trim());
+  if (input.jobTitle !== undefined) push('job_title', String(input.jobTitle ?? '').trim() || null);
+  if (input.company !== undefined) push('company', String(input.company ?? '').trim() || null);
   if (input.pronouns !== undefined) push('pronouns', String(input.pronouns ?? '').trim() || null);
   if (input.links !== undefined) {
     if (typeof input.links !== 'object' || input.links === null || Array.isArray(input.links)) {

@@ -202,6 +202,10 @@ export function speakerCardHtml(i, s, opts) {
           `<option value="${value}"${(s.role || defaultRole(i)) === value ? ' selected' : ''}>Role — ${label}</option>`
       ).join('')}
     </select>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <input name="sp_job_title[]" maxlength="80" value="${escapeHtml(s.jobTitle || '')}" placeholder="Job title — e.g. CTO" style="${INPUT(false)}">
+      <input name="sp_company[]" maxlength="80" value="${escapeHtml(s.company || '')}" placeholder="Company — e.g. Acme" style="${INPUT(false)}">
+    </div>
     <textarea name="sp_bio[]" rows="2" placeholder="Short bio (shown on the public agenda)" style="width:100%;padding:10px 12px;border:1px solid var(--border-strong);font-size:13.5px;resize:vertical;font-family:inherit;background:var(--card);">${escapeHtml(s.bio || '')}</textarea>
     <input type="hidden" name="sp_headshot[]" value="${escapeHtml(s.headshotFileId || '')}">
     ${slot}
@@ -281,6 +285,8 @@ function init() {
       email: (card.querySelector('[name="sp_email[]"]') || {}).value || '',
       bio: (card.querySelector('[name="sp_bio[]"]') || {}).value || '',
       role: (card.querySelector('[name="sp_role[]"]') || {}).value || '',
+      jobTitle: (card.querySelector('[name="sp_job_title[]"]') || {}).value || '',
+      company: (card.querySelector('[name="sp_company[]"]') || {}).value || '',
       headshotFileId: (card.querySelector('[name="sp_headshot[]"]') || {}).value || null,
     }));
   }

@@ -107,6 +107,8 @@ type SpeakerRow = {
   name: string;
   email: string;
   bio: string;
+  job_title: string;
+  company: string;
   tagline: string;
   role: string;
   links_json: string | null;
@@ -510,13 +512,22 @@ function SpeakerCard({
           </option>
         ))}
       </select>
-      <input
-        name="sp_tagline[]"
-        value={s.tagline ?? ''}
-        maxlength={120}
-        placeholder="Tagline — role & company, e.g. “CTO at Acme”"
-        style={inputStyle(false)}
-      />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <input
+          name="sp_job_title[]"
+          value={s.jobTitle ?? ''}
+          maxlength={80}
+          placeholder="Job title — e.g. CTO"
+          style={inputStyle(false)}
+        />
+        <input
+          name="sp_company[]"
+          value={s.company ?? ''}
+          maxlength={80}
+          placeholder="Company — e.g. Acme"
+          style={inputStyle(false)}
+        />
+      </div>
       <textarea
         name="sp_bio[]"
         rows={2}
@@ -874,6 +885,8 @@ async function speakersOf(db: D1Database, submissionId: string): Promise<Speaker
     name: r.name,
     email: r.email,
     bio: r.bio,
+    jobTitle: r.job_title ?? '',
+    company: r.company ?? '',
     tagline: r.tagline ?? '',
     role: r.role ?? '',
     links: jsonParse<SpeakerLinks>(r.links_json, {}),
@@ -913,6 +926,8 @@ app.post('/p/api/draft', async (c) => {
     name: String(s.name ?? ''),
     email: String(s.email ?? ''),
     bio: String(s.bio ?? ''),
+    jobTitle: String(s.jobTitle ?? ''),
+    company: String(s.company ?? ''),
     tagline: String(s.tagline ?? ''),
     role: normalizeRole(s.role),
     links: sanitizeLinks(s.links),
@@ -998,17 +1013,29 @@ async function writeSpeakers(db: D1Database, submissionId: string, speakers: Spe
   for (let i = 0; i < speakers.length; i++) {
     const s = speakers[i];
     const links = linksJson(s.links);
-    if (!s.name?.trim() && !s.email?.trim() && !s.bio?.trim() && !s.tagline?.trim() && !links && !s.headshotFileId) continue;
+    if (
+      !s.name?.trim() &&
+      !s.email?.trim() &&
+      !s.bio?.trim() &&
+      !s.jobTitle?.trim() &&
+      !s.company?.trim() &&
+      !s.tagline?.trim() &&
+      !links &&
+      !s.headshotFileId
+    )
+      continue;
     await run(
       db,
-      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, tagline, role, links_json, headshot_file_id, user_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,NULL)`,
+      `INSERT INTO submission_speakers (id, submission_id, position, name, email, bio, job_title, company, tagline, role, links_json, headshot_file_id, user_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
       newId('ssp'),
       submissionId,
       i,
       (s.name ?? '').trim(),
       (s.email ?? '').trim(),
       (s.bio ?? '').trim(),
+      (s.jobTitle ?? '').trim(),
+      (s.company ?? '').trim(),
       (s.tagline ?? '').trim(),
       normalizeRole(s.role),
       links,
@@ -1265,6 +1292,8 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
   const names = vals(body, 'sp_name');
   const emails = vals(body, 'sp_email');
   const bios = vals(body, 'sp_bio');
+  const jobTitles = vals(body, 'sp_job_title');
+  const companies = vals(body, 'sp_company');
   const taglines = vals(body, 'sp_tagline');
   const roles = vals(body, 'sp_role');
   const heads = vals(body, 'sp_headshot');
@@ -1281,6 +1310,8 @@ function speakersFromBody(body: Record<string, unknown>): SpeakerInput[] {
       name: (names[i] ?? '').trim(),
       email: (emails[i] ?? '').trim(),
       bio: (bios[i] ?? '').trim(),
+      jobTitle: (jobTitles[i] ?? '').trim(),
+      company: (companies[i] ?? '').trim(),
       tagline: (taglines[i] ?? '').trim(),
       role: normalizeRole(roles[i]),
       links: sanitizeLinks({

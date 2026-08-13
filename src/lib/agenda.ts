@@ -121,10 +121,20 @@ export type SpeakerLite = {
   slug: string;
   email: string;
   bio: string;
-  /** Role & company line ("CTO at Acme") — the public card's title/company field. */
+  job_title: string | null;
+  company: string | null;
+  /** Legacy free-text "CTO at Acme" line — display fallback when job_title/company are unset. */
   tagline: string | null;
   headshot_file_id: string | null;
 };
+
+/** "Job title · Company" line for a speaker, falling back to the legacy free-text tagline. */
+export function speakerAffiliation(p: { job_title?: string | null; company?: string | null; tagline?: string | null }): string {
+  const title = (p.job_title ?? '').trim();
+  const company = (p.company ?? '').trim();
+  if (title || company) return [title, company].filter(Boolean).join(' · ');
+  return (p.tagline ?? '').trim();
+}
 
 export type AgendaBundle = {
   rooms: RoomRow[];
@@ -158,7 +168,7 @@ export async function loadAgenda(db: D1Database, eventId: string): Promise<Agend
     ),
     all<SpeakerLite & { session_id: string; position: number }>(
       db,
-      `SELECT ss.session_id, ss.position, sp.id, sp.name, sp.slug, sp.email, sp.bio, sp.tagline, sp.headshot_file_id
+      `SELECT ss.session_id, ss.position, sp.id, sp.name, sp.slug, sp.email, sp.bio, sp.job_title, sp.company, sp.tagline, sp.headshot_file_id
          FROM session_speakers ss
          JOIN speaker_profiles sp ON sp.id = ss.speaker_profile_id
          JOIN sessions s ON s.id = ss.session_id
@@ -175,6 +185,8 @@ export async function loadAgenda(db: D1Database, eventId: string): Promise<Agend
       slug: l.slug,
       email: l.email,
       bio: l.bio,
+      job_title: l.job_title,
+      company: l.company,
       tagline: l.tagline,
       headshot_file_id: l.headshot_file_id,
     });

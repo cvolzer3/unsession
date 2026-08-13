@@ -13,7 +13,7 @@ import type { Ctx, Event } from '../types';
 import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
-import { eventDays, fmtSpan, loadAgenda, roomNamer, type SessionRow } from '../lib/agenda';
+import { eventDays, fmtSpan, loadAgenda, roomNamer, speakerAffiliation, type SessionRow } from '../lib/agenda';
 
 const app = new Hono<Ctx>();
 
@@ -23,6 +23,8 @@ type ProfileRow = {
   name: string;
   email: string;
   bio: string;
+  job_title: string | null;
+  company: string | null;
   tagline: string | null;
   pronouns: string | null;
   links_json: string | null;
@@ -158,8 +160,8 @@ app.get('/:event/speakers/:slug', async (c) => {
               {`SPEAKER · ${event.name.toUpperCase()}`}
             </div>
             <h1 style="margin:8px 0 0;font-size:34px;letter-spacing:-0.02em;line-height:1.1;">{profile.name}</h1>
-            {profile.tagline ? (
-              <div style="font-size:14.5px;color:var(--text-secondary);margin-top:6px;">{profile.tagline}</div>
+            {speakerAffiliation(profile) ? (
+              <div style="font-size:14.5px;color:var(--text-secondary);margin-top:6px;">{speakerAffiliation(profile)}</div>
             ) : null}
             {profile.pronouns ? (
               <div style="font-size:13px;color:var(--muted);margin-top:6px;">{profile.pronouns}</div>

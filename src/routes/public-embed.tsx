@@ -32,6 +32,7 @@ import {
   loadAgenda,
   publishedRev,
   roomNamer,
+  speakerAffiliation,
   type SessionRow,
 } from '../lib/agenda';
 import { publicSessions, withCache } from './public-agenda';
@@ -272,7 +273,12 @@ app.get('/:event/embed/agenda', async (c) => {
         const svc = !!s.all_rooms;
         const end = s.end_min ?? s.start_min! + s.duration_min;
         const tr = s.track_option_id ? trackById.get(s.track_option_id) : null;
-        const names = (bundle.speakers.get(s.id) ?? []).map((p) => p.name).join(', ');
+        const names = (bundle.speakers.get(s.id) ?? [])
+          .map((p) => {
+            const aff = speakerAffiliation(p);
+            return aff ? `${p.name} (${aff})` : p.name;
+          })
+          .join(', ');
         const rowStyle = `display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--border);align-items:flex-start;text-decoration:none;color:var(--text);${
           svc ? 'background:var(--bg);' : ''
         }`;
