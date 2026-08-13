@@ -10,6 +10,7 @@
  * bar and small modal conveniences.
  */
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import type { FC } from 'hono/jsx';
 import type { Ctx, Event } from '../types';
 import { AdminLayout, MONO, StatusChip, initials, initialsGradient } from '../views/layout';
@@ -35,6 +36,8 @@ const PANEL = 'background:#fff;width:560px;max-width:100%;max-height:88vh;displa
 const TEXTAREA =
   'width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;';
 const GRID = 'grid-template-columns:34px 34px minmax(150px,1.3fr) minmax(160px,1.2fr) 150px 140px 130px 36px;';
+const PG_ON = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#33343c;cursor:pointer;text-decoration:none;';
+const PG_OFF = 'padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;';
 
 /** Underlined page-level tab, matching `/app/emails`. */
 const subTab = (on: boolean) =>
@@ -68,8 +71,11 @@ type SegmentRow = {
 
 const EMPTY: Filters = { q: '', company: '', job_title: '', tag: '' };
 
-/** Rows rendered in one page of the table. Bulk actions act on what is shown. */
-const LIST_LIMIT = 300;
+/**
+ * Rows per page of the contacts table. Bulk actions act on the checked rows of
+ * the page you are looking at, so this stays well under `SEND_MAX`.
+ */
+const PAGE_SIZE = 50;
 /** Rows accepted per CSV import — keeps one request inside its subrequest budget. */
 const IMPORT_MAX_ROWS = 200;
 /** Recipients per Communicate send, for the same reason. */
@@ -143,10 +149,14 @@ function buildWhere(orgId: string, f: Filters, memberIds: string[] | null): { sq
   return { sql: where.join(' AND '), params };
 }
 
-/** Ids posted from a bulk bar, as a comma-separated list. */
+/**
+ * Ids posted from a bulk bar (one comma-separated field) or from a checkbox
+ * list (the same field repeated — read with `parseBody({ all: true })`).
+ */
 function idList(value: unknown): string[] {
-  return String(value ?? '')
-    .split(',')
+  const parts = Array.isArray(value) ? value.map((v) => String(v)) : String(value ?? '').split(',');
+  return parts
+    .flatMap((s) => s.split(','))
     .map((s) => s.trim())
     .filter(Boolean)
     .slice(0, 500);
@@ -276,8 +286,22 @@ app.get('/app/org/contacts', async (c) => {
 
     return c.html(
       <AdminLayout {...props}>
-        <div style="padding:24px 28px;max-width:1160px;">
+        <div style="padding:24px 28px;">
           {tabs}
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+            <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Segments</h1>
+            <div style={`font-family:${MONO};font-size:12px;color:#686b74;`}>
+              {segments.length === 1 ? '1 segment' : `${segments.length} segments`}
+            </div>
+            {canWrite ? (
+              <a
+                href="/app/org/segments/new"
+                style={`${PRIMARY}margin-left:auto;text-decoration:none;display:inline-block;`}
+              >
+                Create segment
+              </a>
+            ) : null}
+          </div>
           <div style="background:#fff;border:1px solid #e2e3e8;">
             <div
               style={`display:grid;grid-template-columns:minmax(180px,1fr) 110px 120px 130px 90px;gap:12px;padding:10px 14px;border-bottom:1px solid #e2e3e8;${MICRO}`}
@@ -325,7 +349,7 @@ app.get('/app/org/contacts', async (c) => {
               ))
             ) : (
               <div style="padding:36px 16px;text-align:center;font-size:13px;color:#686b74;">
-                No segments yet. Search or filter the contacts tab, then hit Save segment.
+                No segments yet. Hit Create segment to pick contacts or set criteria.
               </div>
             )}
           </div>
@@ -392,7 +416,7 @@ app.get('/app/org/contacts', async (c) => {
 
     return c.html(
       <AdminLayout {...props}>
-        <div style="padding:24px 28px;max-width:1160px;">
+        <div style="padding:24px 28px;">
           {tabs}
           <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px;">
             {kpis.map((k) => (
@@ -488,13 +512,7 @@ app.get('/app/org/contacts', async (c) => {
   const memberIds = segment && segment.kind === 'curated' ? jsonParse<string[]>(segment.member_ids_json, []) : null;
 
   const where = buildWhere(orgId, filters, memberIds);
-  const [rows, totalRow, companyOpts, titleOpts, tagOpts, events] = await Promise.all([
-    all<Row>(
-      c.env.DB,
-      `SELECT id, email, name, company, job_title, tags_json, headshot_file_id, source
-         FROM org_contacts WHERE ${where.sql} ORDER BY name COLLATE NOCASE LIMIT ${LIST_LIMIT}`,
-      ...where.params
-    ),
+  const [totalRow, companyOpts, titleOpts, tagOpts, events] = await Promise.all([
     one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM org_contacts WHERE ${where.sql}`, ...where.params),
     all<{ value: string; n: number }>(
       c.env.DB,
@@ -521,13 +539,34 @@ app.get('/app/org/contacts', async (c) => {
     ),
   ]);
 
+  // The count settles first, so the page number can be clamped before the slice.
   const total = totalRow?.n ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const cur = Math.min(Math.max(0, Number(url.searchParams.get('page') ?? '0') || 0), pages - 1);
+  const rows = await all<Row>(
+    c.env.DB,
+    `SELECT id, email, name, company, job_title, tags_json, headshot_file_id, source
+       FROM org_contacts WHERE ${where.sql} ORDER BY name COLLATE NOCASE
+      LIMIT ${PAGE_SIZE} OFFSET ${cur * PAGE_SIZE}`,
+    ...where.params
+  );
+
   const active = hasFilters(filters);
   const shownIds = rows.map((r) => r.id).join(',');
 
+  /** Same view, another page. Keeps the search, filters and segment in the URL. */
+  const pageLink = (p: number) => {
+    const sp = new URLSearchParams(url.searchParams);
+    sp.delete('ok');
+    if (p > 0) sp.set('page', String(p));
+    else sp.delete('page');
+    const s = sp.toString();
+    return '/app/org/contacts' + (s ? `?${s}` : '');
+  };
+
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:24px 28px;max-width:1240px;">
+      <div style="padding:24px 28px;">
         {tabs}
 
         {segment ? (
@@ -546,7 +585,6 @@ app.get('/app/org/contacts', async (c) => {
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Contacts</h1>
           <div style={`font-family:${MONO};font-size:12px;color:#686b74;`}>
             {total === 1 ? '1 contact' : `${total} contacts`}
-            {total > LIST_LIMIT ? ` · first ${LIST_LIMIT} shown` : ''}
           </div>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
             <a href={`/app/org/contacts.csv?${filterQuery(filters)}`} style={`${BTN}text-decoration:none;color:#16171d;`}>
@@ -567,7 +605,7 @@ app.get('/app/org/contacts', async (c) => {
 
         {/* search + filter panel — plain GET, no island needed */}
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;position:relative;">
-          <form method="get" action="/app/org/contacts" style="display:flex;gap:8px;margin:0;">
+          <form id="contacts-search" method="get" action="/app/org/contacts" style="display:flex;gap:8px;margin:0;">
             {filters.company ? <input type="hidden" name="company" value={filters.company} /> : null}
             {filters.job_title ? <input type="hidden" name="job_title" value={filters.job_title} /> : null}
             {filters.tag ? <input type="hidden" name="tag" value={filters.tag} /> : null}
@@ -686,6 +724,15 @@ app.get('/app/org/contacts', async (c) => {
           >
             Add to event
           </button>
+          {canWrite ? (
+            <button
+              type="button"
+              data-bulk-open="#bulk-segment-modal"
+              style="padding:6px 12px;background:transparent;color:#fff;border:1px solid #4a4b55;font-size:12.5px;cursor:pointer;"
+            >
+              Save segment
+            </button>
+          ) : null}
           <button
             type="button"
             id="bulk-clear"
@@ -695,7 +742,8 @@ app.get('/app/org/contacts', async (c) => {
           </button>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+        <div style="background:#fff;border:1px solid #e2e3e8;">
+          <div style="overflow-x:auto;">
           <div
             style={`display:grid;${GRID}gap:10px;padding:10px 14px;border-bottom:1px solid #e2e3e8;align-items:center;min-width:1000px;${MICRO}`}
           >
@@ -770,6 +818,32 @@ app.get('/app/org/contacts', async (c) => {
                 : 'No contacts yet. Every event speaker lands here — or add one by hand.'}
             </div>
           )}
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #e2e3e8;">
+            <div style={`font-family:${MONO};font-size:11px;color:#686b74;`}>
+              {total === 0
+                ? 'Showing 0 of 0'
+                : `Showing ${cur * PAGE_SIZE + 1}–${cur * PAGE_SIZE + rows.length} of ${total}`}
+            </div>
+            {pages > 1 ? (
+              <div style="margin-left:auto;display:flex;gap:6px;">
+                {cur > 0 ? (
+                  <a href={pageLink(cur - 1)} style={PG_ON}>
+                    ← Prev
+                  </a>
+                ) : (
+                  <span style={PG_OFF}>← Prev</span>
+                )}
+                {cur < pages - 1 ? (
+                  <a href={pageLink(cur + 1)} style={PG_ON}>
+                    Next →
+                  </a>
+                ) : (
+                  <span style={PG_OFF}>Next →</span>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -980,7 +1054,46 @@ app.get('/app/org/contacts', async (c) => {
         </div>
       ) : null}
 
-      {/* ---------------------------------------------------- save segment */}
+      {/* --------------------------------------- save segment (from selection) */}
+      {canWrite ? (
+        <div id="bulk-segment-modal" data-dialog hidden style={DIALOG}>
+          <div style={`${PANEL}width:460px;`}>
+            <form method="post" action="/app/org/segments/new" style="display:contents;">
+              <input type="hidden" name="kind" value="curated" />
+              <input type="hidden" name="ids" data-bulk-ids value="" />
+              <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+                <div style="font-size:16px;font-weight:700;">Save segment</div>
+                <button
+                  type="button"
+                  data-dialog-close="#bulk-segment-modal"
+                  style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;"
+                >
+                  ✕
+                </button>
+              </div>
+              <div style="padding:20px 24px;display:grid;gap:14px;">
+                <div>
+                  <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
+                  <input name="name" required placeholder="e.g. Berlin keynotes" style={INPUT} />
+                </div>
+                <div id="bulk-segment-summary" style="font-size:12.5px;color:#686b74;line-height:1.55;">
+                  Curated segment with 0 selected contacts.
+                </div>
+              </div>
+              <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+                <button type="button" data-dialog-close="#bulk-segment-modal" style={BTN}>
+                  Cancel
+                </button>
+                <button type="submit" style={PRIMARY}>
+                  Save segment
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ------------------------------------------ save segment (from filters) */}
       {canWrite && active ? (
         <div id="segment-modal" data-dialog hidden style={DIALOG}>
           <div style={`${PANEL}width:460px;`}>
@@ -1018,7 +1131,9 @@ app.get('/app/org/contacts', async (c) => {
                     <span>
                       <span style="display:block;font-size:13px;font-weight:600;">Curated</span>
                       <span style="display:block;font-size:11.5px;color:#9a9da6;line-height:1.45;">
-                        {`Freezes the ${rows.length} contacts matching right now.`}
+                        {rows.length === total
+                          ? `Freezes the ${rows.length} contacts matching right now.`
+                          : `Freezes the ${rows.length} contacts on this page, out of ${total} matching.`}
                       </span>
                     </span>
                   </label>
@@ -1483,17 +1598,280 @@ app.post('/app/org/contacts/add-to-event', requireOrgRole('admin'), async (c) =>
 
 /* --------------------------------------------------------------- segments */
 
+/** Contacts offered in the curated picker. One page, one subrequest. */
+const BUILDER_LIMIT = 200;
+
+/** What the builder form holds — used to render it and to fill it back in. */
+type Builder = Filters & { name: string; kind: 'curated' | 'dynamic'; ids: string[] };
+
+const NEW_SEGMENT: Builder = { ...EMPTY, name: '', kind: 'curated', ids: [] };
+
+/**
+ * The Create segment page. The POST re-renders it on a validation error, so
+ * the form comes back the way it was submitted.
+ */
+async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: string | null) {
+  const props = await adminProps(c, 'Create segment', {
+    headerTitle: 'Create segment',
+    scripts: ['/js/org-directory.js'],
+  });
+  const orgId = orgIdForRequest(c)!;
+
+  const [contacts, totalRow, companyOpts, titleOpts, tagOpts] = await Promise.all([
+    all<{ id: string; name: string; email: string; company: string }>(
+      c.env.DB,
+      `SELECT id, name, email, company FROM org_contacts
+        WHERE org_id = ? ORDER BY name COLLATE NOCASE LIMIT ${BUILDER_LIMIT}`,
+      orgId
+    ),
+    one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM org_contacts WHERE org_id = ?`, orgId),
+    all<{ value: string; n: number }>(
+      c.env.DB,
+      `SELECT company AS value, COUNT(*) AS n FROM org_contacts
+        WHERE org_id = ? AND company != '' GROUP BY company ORDER BY n DESC, company LIMIT 60`,
+      orgId
+    ),
+    all<{ value: string; n: number }>(
+      c.env.DB,
+      `SELECT job_title AS value, COUNT(*) AS n FROM org_contacts
+        WHERE org_id = ? AND job_title != '' GROUP BY job_title ORDER BY n DESC, job_title LIMIT 60`,
+      orgId
+    ),
+    all<{ value: string; n: number }>(
+      c.env.DB,
+      `SELECT je.value AS value, COUNT(*) AS n FROM org_contacts c, json_each(c.tags_json) je
+        WHERE c.org_id = ? GROUP BY je.value ORDER BY n DESC, value LIMIT 60`,
+      orgId
+    ),
+  ]);
+
+  const total = totalRow?.n ?? 0;
+  const checked = new Set(form.ids);
+
+  return c.html(
+    <AdminLayout {...props}>
+      <div style="padding:24px 28px;max-width:860px;">
+        <a href="/app/org/contacts?tab=segments" style="font-size:12.5px;">
+          ← Back to segments
+        </a>
+        <form method="post" action="/app/org/segments/new" style="margin-top:12px;">
+          <input type="hidden" name="from" value="builder" />
+          <div style="background:#fff;border:1px solid #e2e3e8;">
+            <div style="padding:14px 20px;border-bottom:1px solid #e2e3e8;">
+              <div style={MICRO}>NEW SEGMENT</div>
+              <div style="font-size:16px;font-weight:700;margin-top:4px;">Create segment</div>
+            </div>
+
+            {error ? (
+              <div style="margin:16px 20px -4px;border:1px solid #e03131;background:#fbe9e9;color:#c92a2a;padding:8px 10px;font-size:12.5px;">
+                {error}
+              </div>
+            ) : null}
+
+            <div style="padding:18px 20px;border-bottom:1px solid #e2e3e8;">
+              <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
+              <input name="name" required value={form.name} placeholder="e.g. Berlin keynotes" style={INPUT} />
+            </div>
+
+            {/* curated */}
+            <div data-seg-section="curated" style="padding:18px 20px;border-bottom:1px solid #e2e3e8;">
+              <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer;">
+                <input
+                  type="radio"
+                  name="kind"
+                  value="curated"
+                  checked={form.kind === 'curated'}
+                  style="margin-top:3px;"
+                />
+                <span>
+                  <span style="display:block;font-size:13px;font-weight:600;">Curated</span>
+                  <span style="display:block;font-size:11.5px;color:#9a9da6;line-height:1.45;">
+                    Pick contacts by hand. The list stays as you saved it.
+                  </span>
+                </span>
+              </label>
+
+              {contacts.length ? (
+                <div style="margin-top:12px;display:grid;gap:10px;">
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <input
+                      id="seg-q"
+                      type="search"
+                      placeholder="Filter by name, email or company…"
+                      style={`${INPUT}max-width:320px;`}
+                    />
+                    <div id="seg-count" style={`font-family:${MONO};font-size:11.5px;color:#686b74;`}>
+                      {`${checked.size} selected`}
+                    </div>
+                  </div>
+                  <div style="border:1px solid #e2e3e8;max-height:340px;overflow-y:auto;">
+                    {contacts.map((r) => (
+                      <label
+                        data-seg-row
+                        data-search={`${r.name} ${r.email} ${r.company}`.toLowerCase()}
+                        style="display:grid;grid-template-columns:18px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f3f5;cursor:pointer;"
+                      >
+                        <input
+                          type="checkbox"
+                          data-seg-check
+                          name="ids"
+                          value={r.id}
+                          checked={checked.has(r.id)}
+                          style="cursor:pointer;"
+                        />
+                        <div style="min-width:0;">
+                          <div style="font-size:13px;color:#16171d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                            {r.name || r.email}
+                          </div>
+                          <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                            {r.email}
+                          </div>
+                        </div>
+                        <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                          {r.company || '—'}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div id="seg-empty" hidden style="font-size:12.5px;color:#9a9da6;">
+                    No contact matches that filter.
+                  </div>
+                  {total > BUILDER_LIMIT ? (
+                    <div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">
+                      {`Showing the first ${BUILDER_LIMIT} of ${total} contacts. Use a dynamic segment to reach the rest.`}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div style="margin-top:12px;font-size:12.5px;color:#686b74;">
+                  No contacts in the directory yet.
+                </div>
+              )}
+            </div>
+
+            {/* dynamic */}
+            <div data-seg-section="dynamic" style="padding:18px 20px;">
+              <label style="display:flex;gap:9px;align-items:flex-start;cursor:pointer;">
+                <input
+                  type="radio"
+                  name="kind"
+                  value="dynamic"
+                  checked={form.kind === 'dynamic'}
+                  style="margin-top:3px;"
+                />
+                <span>
+                  <span style="display:block;font-size:13px;font-weight:600;">Dynamic</span>
+                  <span style="display:block;font-size:11.5px;color:#9a9da6;line-height:1.45;">
+                    Stores the criteria below. Members update as contacts change.
+                  </span>
+                </span>
+              </label>
+              <div style="margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>COMPANY</div>
+                  <select name="company" style={`${SELECT}width:100%;`}>
+                    <option value="">All companies</option>
+                    {companyOpts.map((o) => (
+                      <option value={o.value} selected={form.company === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>JOB TITLE</div>
+                  <select name="job_title" style={`${SELECT}width:100%;`}>
+                    <option value="">All job titles</option>
+                    {titleOpts.map((o) => (
+                      <option value={o.value} selected={form.job_title === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div style={`${MICRO}margin-bottom:5px;`}>TAG</div>
+                  <select name="tag" style={`${SELECT}width:100%;`}>
+                    <option value="">All tags</option>
+                    {tagOpts.map((o) => (
+                      <option value={o.value} selected={form.tag === o.value}>
+                        {`${o.value} (${o.n})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <div style={`${MICRO}margin-bottom:5px;`}>SEARCH TEXT</div>
+                <input name="q" value={form.q} placeholder="Optional — name, email or company" style={INPUT} />
+              </div>
+            </div>
+
+            <div style="padding:14px 20px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+              <a href="/app/org/contacts?tab=segments" style={`${BTN}text-decoration:none;color:#16171d;`}>
+                Cancel
+              </a>
+              <button type="submit" style={PRIMARY}>
+                Create segment
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </AdminLayout>
+  );
+}
+
+app.get('/app/org/segments/new', requireOrgRole('admin'), async (c) => {
+  if (!c.var.event) return c.redirect('/app/events/new');
+  return renderSegmentBuilder(c, NEW_SEGMENT, null);
+});
+
 app.post('/app/org/segments/new', requireOrgRole('admin'), async (c) => {
   if (!c.var.event) return c.redirect('/app/events/new');
   const orgId = orgIdForRequest(c)!;
-  const form = await c.req.parseBody();
+  const form = await c.req.parseBody({ all: true });
+
+  // The builder posts its criteria as fields; the two modals post a ready-made
+  // querystring and a list of ids.
+  const fromBuilder = String(form.from ?? '') === 'builder';
   const name = String(form.name ?? '').trim();
   const kind = String(form.kind ?? 'dynamic') === 'curated' ? 'curated' : 'dynamic';
-  const query = String(form.query ?? '');
-  const ids = idList(form.ids);
-  if (!name) return redirectWithToast(c, '/app/org/contacts', 'A segment needs a name');
-  if (kind === 'dynamic' && !query) return redirectWithToast(c, '/app/org/contacts', 'Search or filter first, then save');
-  if (kind === 'curated' && !ids.length) return redirectWithToast(c, '/app/org/contacts', 'No contacts match right now');
+  const filters = readFilters(
+    new URLSearchParams({
+      q: String(form.q ?? ''),
+      company: String(form.company ?? ''),
+      job_title: String(form.job_title ?? ''),
+      tag: String(form.tag ?? ''),
+    })
+  );
+  const query = String(form.query ?? '') || filterQuery(filters);
+  const posted = idList(form.ids);
+
+  // Never store an id from another org.
+  const ids = posted.length
+    ? (
+        await all<{ id: string }>(
+          c.env.DB,
+          `SELECT id FROM org_contacts WHERE org_id = ? AND id IN (SELECT value FROM json_each(?))`,
+          orgId,
+          JSON.stringify(posted)
+        )
+      ).map((r) => r.id)
+    : [];
+
+  const reject = (message: string) =>
+    fromBuilder
+      ? renderSegmentBuilder(c, { ...filters, name, kind, ids: posted }, message)
+      : redirectWithToast(c, '/app/org/contacts', message);
+
+  if (!name) return reject('A segment needs a name');
+  if (kind === 'dynamic' && !query) {
+    return reject(fromBuilder ? 'A dynamic segment needs at least one criterion' : 'Search or filter first, then save');
+  }
+  if (kind === 'curated' && !ids.length) {
+    return reject(fromBuilder ? 'Pick at least one contact' : 'No contacts match right now');
+  }
 
   const id = newId('seg');
   await run(

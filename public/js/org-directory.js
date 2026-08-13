@@ -1,14 +1,47 @@
 /**
- * Speaker Directory island (`/app/org/contacts`).
+ * Speaker Directory island (`/app/org/contacts`, `/app/org/segments/new`).
  *
- * Only two jobs: the bulk-select bar, and small conveniences in the import and
- * composer modals. Search, filters, tabs, segments, creation, import and sends
- * are all plain GET/POST — this file adds nothing they depend on.
+ * Three jobs: the bulk-select bar, small conveniences in the import and
+ * composer modals, and filtering the contact picker on the segment builder.
+ * Search, filters, tabs, segments, creation, import and sends are all plain
+ * GET/POST — this file adds nothing they depend on.
  */
 import { toast, api, openDialog } from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+/* ---------------------------------------------------------- search (server) */
+
+// The contacts table is paginated, so search runs on the server. Typing submits
+// the GET form after a pause; Enter still submits it without this.
+const SEARCH_DEBOUNCE = 400;
+const FOCUS_KEY = 'org-directory:search-focus';
+
+const searchForm = $('#contacts-search');
+if (searchForm) {
+  const input = searchForm.querySelector('[name=q]');
+  const initial = input.value.trim();
+  let timer;
+
+  // A debounced submit reloads the page. Put the caret back so typing continues.
+  if (sessionStorage.getItem(FOCUS_KEY)) {
+    sessionStorage.removeItem(FOCUS_KEY);
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (input.value.trim() === initial) return;
+      sessionStorage.setItem(FOCUS_KEY, '1');
+      searchForm.submit();
+    }, SEARCH_DEBOUNCE);
+  });
+
+  searchForm.addEventListener('submit', () => clearTimeout(timer));
+}
 
 /* ------------------------------------------------------------- bulk select */
 
@@ -44,6 +77,10 @@ function syncBar() {
   const summary = $('#add-event-summary');
   if (summary) {
     summary.textContent = rows.length === 1 ? '1 CONTACT SELECTED' : `${rows.length} CONTACTS SELECTED`;
+  }
+  const segSummary = $('#bulk-segment-summary');
+  if (segSummary) {
+    segSummary.textContent = `Curated segment with ${rows.length} selected contact${rows.length === 1 ? '' : 's'}.`;
   }
 
   if (selectAll) {
@@ -135,4 +172,62 @@ if (previewBtn && previewBox) {
       toast(err.message, false);
     }
   });
+}
+
+/* ------------------------------------------------------- segment builder */
+
+// The builder is a plain form. This only filters the rendered rows and counts
+// the ticks; ticked contacts stay ticked while you type.
+const segQ = $('#seg-q');
+const segCount = $('#seg-count');
+const segChecks = () => $$('[data-seg-check]');
+
+if (segQ) {
+  const segRows = $$('[data-seg-row]');
+  const segEmpty = $('#seg-empty');
+  segQ.addEventListener('input', () => {
+    const q = segQ.value.trim().toLowerCase();
+    let shown = 0;
+    segRows.forEach((row) => {
+      const hit = !q || row.dataset.search.includes(q);
+      row.hidden = !hit;
+      if (hit) shown++;
+    });
+    segEmpty.hidden = shown > 0;
+  });
+}
+
+if (segCount) {
+  const syncSegCount = () => {
+    const n = segChecks().filter((el) => el.checked).length;
+    segCount.textContent = `${n} selected`;
+  };
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('[data-seg-check]')) syncSegCount();
+  });
+  syncSegCount();
+}
+
+// Dim the type you are not building, so the active section reads first.
+const segSections = $$('[data-seg-section]');
+if (segSections.length) {
+  const syncSegKind = () => {
+    const kind = document.querySelector('[name=kind]:checked')?.value;
+    segSections.forEach((s) => {
+      s.style.opacity = s.dataset.segSection === kind ? '1' : '0.55';
+    });
+  };
+  document.addEventListener('change', (e) => {
+    if (e.target.matches('[name=kind]')) syncSegKind();
+  });
+  // Ticking a contact means you want a curated segment.
+  document.addEventListener('change', (e) => {
+    if (!e.target.matches('[data-seg-check]') || !e.target.checked) return;
+    const curated = document.querySelector('[name=kind][value=curated]');
+    if (curated && !curated.checked) {
+      curated.checked = true;
+      syncSegKind();
+    }
+  });
+  syncSegKind();
 }
