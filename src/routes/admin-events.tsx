@@ -1,5 +1,6 @@
 /** `/app/events/new` + the header event switcher target (spec §5.5). */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
@@ -15,6 +16,27 @@ const app = new Hono<Ctx>();
 const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:4px;';
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;';
 const SELECT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;background:#fff;';
+
+/**
+ * Responsive layout for the new-event form. The literal 768 is deliberate —
+ * importing MOBILE_MAX into a route module's top-level template crashes the
+ * worker at startup (SPECS/M-mobile.md).
+ */
+const PAGE_CSS = `
+  .ev-wrap{padding:36px 28px;}
+  .ev-cancel{padding:8px 14px;}
+  .ev-create{padding:8px 16px;}
+  @media (max-width:768px){
+    .ev-wrap{padding:20px 14px;}
+    /* Form rows are grid items; their default min-width:auto lets the widest
+       <option> of the timezone select stretch the page past 320px. On a block
+       box min-width:0 is a no-op, so one rule covers the whole form. */
+    .ev-wrap select{min-width:0;}
+    .ev-wrap div{min-width:0;}
+    .ev-cancel{padding:11px 16px;}
+    .ev-create{padding:11px 18px;}
+  }
+`;
 
 function defaultDates(): { start: string; end: string } {
   const d = new Date(Date.now() + 180 * 86_400_000);
@@ -32,8 +54,9 @@ app.get('/app/events/new', async (c) => {
 
   return c.html(
     <AdminLayout {...props} scripts={['/js/setup.js']}>
-      <div style="padding:36px 28px;display:flex;justify-content:center;">
-        <div style="width:100%;max-width:640px;">
+      <style>{raw(PAGE_CSS)}</style>
+      <div class="ev-wrap" style="display:flex;justify-content:center;">
+        <div style="width:100%;min-width:0;max-width:640px;">
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;`}>
             NEW EVENT · STEP 1 OF 2 · BASICS
           </div>
@@ -68,7 +91,7 @@ app.get('/app/events/new', async (c) => {
                 Public URLs live here — forms, agenda, speaker pages.
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;">
               <div>
                 <div style={FIELD_LABEL}>Starts *</div>
                 <input type="date" name="start_date" required value={dates.start} style={INPUT} />
@@ -103,14 +126,16 @@ app.get('/app/events/new', async (c) => {
             <div style="display:flex;gap:8px;justify-content:flex-end;border-top:1px solid #eceded;padding-top:18px;">
               <a
                 href="/app"
-                style="padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#16171d;text-decoration:none;"
+                class="ev-cancel"
+                style="background:#fff;border:1px solid #e2e3e8;font-size:13px;color:#16171d;text-decoration:none;"
               >
                 Cancel
               </a>
               <button
                 type="submit"
                 data-busy="Creating…"
-                style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+                class="ev-create"
+                style="background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
               >
                 Create event
               </button>

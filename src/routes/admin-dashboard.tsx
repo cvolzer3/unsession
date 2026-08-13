@@ -5,6 +5,7 @@
  * and a right rail (review progress / my reviews / deadlines).
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO, fmtDate, firstName } from '../views/layout';
 import { adminProps } from '../views/chrome';
@@ -12,6 +13,38 @@ import { all, one } from '../lib/db';
 import { loadEvalContext, reviewerQueue } from '../lib/evals';
 
 const app = new Hono<Ctx>();
+
+/**
+ * Responsive layout for the dashboard. Everything that has to change below the
+ * mobile breakpoint lives here; the rest stays inline (see SPECS/M-mobile.md).
+ * The literal 768 is deliberate — importing MOBILE_MAX into a route module's
+ * top-level template crashes the worker at startup.
+ */
+const PAGE_CSS = `
+  .dash-wrap{padding:22px 28px;}
+  .dash-empty{padding:24px 28px;}
+  .dash-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
+  .dash-cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;}
+  .dash-att{display:flex;align-items:center;gap:10px;padding:11px 16px;}
+  .dash-att-cta{margin-left:auto;padding:5px 12px;}
+  .dash-dl{display:flex;align-items:baseline;gap:10px;padding:10px 16px;}
+  .dash-dl-left{margin-left:auto;}
+  .dash-pub{padding:9px 16px;}
+  @media (max-width:768px){
+    .dash-wrap{padding:16px 14px;}
+    .dash-empty{padding:18px 14px;}
+    .dash-kpis{grid-template-columns:repeat(2,1fr);gap:10px;}
+    .dash-cols{grid-template-columns:minmax(0,1fr);}
+    /* Dot in its own column, title/sub and the action stacked beside it, so a
+       long title never squeezes the button off the row. */
+    .dash-att{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 10px;align-items:start;padding:12px 14px;}
+    .dash-att-dot{margin-top:5px;}
+    .dash-att-cta{grid-column:2;justify-self:start;margin-left:0;padding:10px 14px;}
+    .dash-dl{flex-wrap:wrap;gap:2px 10px;padding:11px 14px;}
+    .dash-dl-what{order:3;flex:1 1 100%;min-width:0;}
+    .dash-pub{padding:13px 14px;}
+  }
+`;
 
 function hourIn(tz: string): number {
   try {
@@ -152,7 +185,8 @@ app.get('/app', async (c) => {
   if (!event) {
     return c.html(
       <AdminLayout {...props}>
-        <div style="padding:24px 28px;max-width:1160px;">
+        <style>{raw(PAGE_CSS)}</style>
+        <div class="dash-empty" style="max-width:1160px;">
           <div style="background:#fff;border:1px solid #e2e3e8;padding:40px 28px;text-align:center;">
             <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;`}>
               NO EVENT YET
@@ -385,14 +419,15 @@ app.get('/app', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:22px 28px;">
+      <style>{raw(PAGE_CSS)}</style>
+      <div class="dash-wrap">
         <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:18px;">
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">
             {`${greeting(event.timezone)}, ${firstName(c.var.user)}`}
           </h1>
         </div>
 
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">
+        <div class="dash-kpis">
           {kpis.map((k) => (
             <a
               href={k.href}
@@ -405,7 +440,7 @@ app.get('/app', async (c) => {
           ))}
         </div>
 
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px;align-items:start;">
+        <div class="dash-cols">
           <div style="min-width:0;display:flex;flex-direction:column;gap:12px;">
             <div style="background:#fff;border:1px solid #e2e3e8;">
               <div style={`padding:12px 16px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;`}>
@@ -415,9 +450,10 @@ app.get('/app', async (c) => {
                 attention.map((a) => (
                   <a
                     href={a.href}
-                    style="display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
+                    class="dash-att"
+                    style="border-bottom:1px solid #f2f3f5;color:#16171d;text-decoration:none;"
                   >
-                    <span style={`width:9px;height:9px;background:${a.dot};flex:none;`}></span>
+                    <span class="dash-att-dot" style={`width:9px;height:9px;background:${a.dot};flex:none;`}></span>
                     <span style="min-width:0;">
                       <span style="display:block;font-size:13px;font-weight:500;">{a.title}</span>
                       <span
@@ -430,7 +466,7 @@ app.get('/app', async (c) => {
                         {a.sub}
                       </span>
                     </span>
-                    <span style="margin-left:auto;flex:none;padding:5px 12px;border:1px solid #cdd2ea;background:#fff;color:#4c5fd5;font-size:12px;font-weight:600;white-space:nowrap;">
+                    <span class="dash-att-cta" style="flex:none;border:1px solid #cdd2ea;background:#fff;color:#4c5fd5;font-size:12px;font-weight:600;white-space:nowrap;">
                       {a.cta}
                     </span>
                   </a>
@@ -448,13 +484,16 @@ app.get('/app', async (c) => {
                 deadlines.map((d) => {
                   const left = daysLeft(d.date);
                   return (
-                    <div style="display:flex;align-items:baseline;gap:10px;padding:10px 16px;border-bottom:1px solid #f2f3f5;">
+                    <div class="dash-dl" style="border-bottom:1px solid #f2f3f5;">
                       <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;`}>
                         {fmtDate(d.date)}
                       </div>
-                      <div style="font-size:13px;font-weight:500;">{d.what}</div>
+                      <div class="dash-dl-what" style="font-size:13px;font-weight:500;">
+                        {d.what}
+                      </div>
                       <div
-                        style={`margin-left:auto;font-family:${MONO};font-size:10px;color:${
+                        class="dash-dl-left"
+                        style={`font-family:${MONO};font-size:10px;color:${
                           left < 15 ? '#c92a2a' : '#9a9da6'
                         };white-space:nowrap;`}
                       >
@@ -484,7 +523,8 @@ app.get('/app', async (c) => {
                   href={p.href}
                   target="_blank"
                   rel="noreferrer"
-                  style="display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid #f2f3f5;color:#16171d;font-size:12.5px;text-decoration:none;"
+                  class="dash-pub"
+                  style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #f2f3f5;color:#16171d;font-size:12.5px;text-decoration:none;"
                 >
                   <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{p.name}</span>
                   <span style="margin-left:auto;flex:none;color:#9a9da6;font-size:11px;">↗</span>

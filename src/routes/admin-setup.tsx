@@ -4,6 +4,7 @@
  * derived swatches and live preview repaint client-side via `public/js/setup.js`.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
 import { adminProps } from '../views/chrome';
@@ -23,15 +24,78 @@ const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13
 const SELECT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;background:#fff;';
 const CARD = 'background:#fff;border:1px solid #e2e3e8;padding:18px 20px;';
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
-const DASHED_BTN = 'padding:7px 12px;background:#fff;border:1px dashed #c9cbd3;font-size:12.5px;color:#686b74;cursor:pointer;';
+// Padding lives in `.st-dashed` so the hit area can grow on a phone.
+const DASHED_BTN = 'background:#fff;border:1px dashed #c9cbd3;font-size:12.5px;color:#686b74;cursor:pointer;';
 const DIALOG_WRAP =
-  'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
-const DIALOG_CARD = 'background:#fff;width:400px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);';
+  'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:16px;';
+// The card scrolls inside itself so a tall dialog never runs off a short phone
+// screen (`max-height:100%` = the padded overlay box).
+// `max-width:100%` cannot cap this: the overlay's grid track grows to the
+// item's own 400px, so the cap has to be viewport-relative.
+const DIALOG_CARD =
+  'background:#fff;width:min(400px,calc(100vw - 32px));max-height:100%;overflow-y:auto;box-shadow:0 16px 48px rgba(22,23,29,0.25);';
 const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;';
 const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:12px;';
 const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex;gap:8px;justify-content:flex-end;';
-const CANCEL_BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
-const CREATE_BTN = 'padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
+// Padding lives in `.st-cancel` / `.st-create` so it can grow on a phone.
+const CANCEL_BTN = 'background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
+const CREATE_BTN = 'background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
+
+/**
+ * Responsive layout for Setup & Theming. The two panel columns stack, the theme
+ * controls get touch-sized hit areas, and the chip rows grow tappable padding.
+ * The literal 768 is deliberate — importing MOBILE_MAX into a route module's
+ * top-level template crashes the worker at startup (SPECS/M-mobile.md).
+ */
+const PAGE_CSS = `
+  .st-grid{padding:24px 28px;display:grid;grid-template-columns:minmax(0,560px) minmax(320px,420px);gap:24px;align-items:start;}
+  .st-grid select{min-width:0;}
+  .st-theme{display:grid;gap:18px;position:sticky;top:20px;}
+  .st-row{display:flex;align-items:center;gap:10px;}
+  .st-rowlab{width:110px;}
+  .st-color{width:44px;height:32px;}
+  .st-chip-edit{padding:7px 4px 7px 12px;}
+  .st-chip-x{padding:7px 8px 7px 4px;}
+  .st-opt{padding:4px 10px;font-size:12px;}
+  .st-optadd{padding:4px 9px;font-size:11.5px;}
+  .st-dashed{padding:7px 12px;}
+  .st-cancel{padding:8px 14px;}
+  .st-create{padding:8px 16px;}
+  .st-del{margin-right:auto;padding:8px 0;}
+  .st-save{padding:8px 16px;}
+  .st-x{padding:0;}
+  .st-reset{padding:0;}
+  .st-logo{padding:7px 14px;}
+  @media (max-width:768px){
+    .st-reset{padding:9px 0 9px 12px;margin-top:-9px;margin-bottom:-9px;}
+    .st-logo{padding:11px 16px;}
+    .st-save{padding:11px 18px;}
+    .st-x{padding:6px 4px;margin-right:-4px;}
+    .st-grid{padding:16px 14px;grid-template-columns:minmax(0,1fr);gap:16px;}
+    /* Cards are grid items inside grid items; their default min-width:auto
+       grows the implicit track to the widest field and overflows the page.
+       On a block box this is a no-op, so one rule covers the whole panel. */
+    .st-grid div{min-width:0;}
+    /* Sticky would pin the theme card over the panels once they stack. */
+    .st-theme{position:static;gap:16px;}
+    /* Label above the control: a 110px label plus a 16px-forced input does not
+       fit 320px side by side. */
+    .st-row{flex-wrap:wrap;gap:6px 10px;}
+    .st-rowlab{width:100%;}
+    .st-color{width:56px;height:40px;}
+    .sw-input{height:40px;}
+    .st-chip-edit{padding:11px 6px 11px 14px;}
+    .st-chip-x{padding:11px 12px 11px 6px;}
+    .st-opt{padding:11px 12px;font-size:12.5px;}
+    .st-optadd{padding:11px 14px;font-size:12.5px;}
+    .st-dashed{padding:11px 14px;}
+    .st-cancel{padding:11px 16px;}
+    .st-create{padding:11px 18px;}
+    /* Cancel + Save stay together on the first row; Delete drops below them. */
+    .st-del{order:3;flex:1 1 100%;margin-right:0;padding:11px 0 2px;text-align:left;}
+    .st-dlgfoot{flex-wrap:wrap;}
+  }
+`;
 
 type TaxRow = { id: string; name: string; has_color: number; has_duration: number; position: number };
 type OptRow = { id: string; taxonomy_id: string; name: string; color: string | null; duration_min: number | null };
@@ -67,7 +131,8 @@ app.get('/app/setup', async (c) => {
     <button
       type="submit"
       form="setup-form"
-      style="padding:8px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
+      class="st-save"
+      style="background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;"
     >
       Save changes
     </button>
@@ -75,8 +140,9 @@ app.get('/app/setup', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={saveButton} scripts={['/js/setup.js']}>
+      <style>{raw(PAGE_CSS)}</style>
       <form id="setup-form" method="post" action="/app/setup">
-        <div style="padding:24px 28px;display:grid;grid-template-columns:minmax(0,560px) minmax(320px,420px);gap:24px;align-items:start;">
+        <div class="st-grid">
           <div style="display:grid;gap:18px;">
             {/* ---------------------------------------------------------- basics */}
             <div style={CARD}>
@@ -102,7 +168,7 @@ app.get('/app/setup', async (c) => {
                       <div
                         id="slug-info"
                         hidden
-                        style="position:absolute;top:calc(100% + 6px);left:-8px;width:270px;background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);padding:12px 14px;z-index:60;font-size:12px;line-height:1.55;color:#686b74;font-weight:400;"
+                        style="position:absolute;top:calc(100% + 6px);left:-8px;width:min(270px,calc(100vw - 60px));background:#fff;border:1px solid #e2e3e8;box-shadow:0 8px 24px rgba(22,23,29,0.12);padding:12px 14px;z-index:60;font-size:12px;line-height:1.55;color:#686b74;font-weight:400;"
                       >
                         Unsession is open source. Self-host it and your event links live on your own domain instead of
                         this one.
@@ -128,7 +194,7 @@ app.get('/app/setup', async (c) => {
                     />
                   </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;">
                   <div>
                     <div style={FIELD_LABEL}>Starts</div>
                     <input
@@ -185,7 +251,8 @@ app.get('/app/setup', async (c) => {
                       type="button"
                       data-dialog-open={`#room-edit-${r.id}`}
                       title="Edit room"
-                      style="display:inline-flex;align-items:center;gap:8px;background:none;border:none;padding:7px 4px 7px 12px;font-size:13px;color:#16171d;font-family:inherit;cursor:pointer;"
+                      class="st-chip-edit"
+                      style="display:inline-flex;align-items:center;gap:8px;background:none;border:none;font-size:13px;color:#16171d;font-family:inherit;cursor:pointer;"
                     >
                       {r.name}
                       <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
@@ -196,13 +263,14 @@ app.get('/app/setup', async (c) => {
                       type="submit"
                       form={`rm-${r.id}`}
                       title="Remove room"
-                      style="background:none;border:none;color:#9a9da6;cursor:pointer;font-size:13px;padding:7px 8px 7px 4px;"
+                      class="st-chip-x"
+                      style="background:none;border:none;color:#9a9da6;cursor:pointer;font-size:13px;"
                     >
                       ✕
                     </button>
                   </span>
                 ))}
-                <button type="button" data-dialog-open="#room-dialog" style={DASHED_BTN}>
+                <button type="button" data-dialog-open="#room-dialog" class="st-dashed" style={DASHED_BTN}>
                   + Add room
                 </button>
               </div>
@@ -222,7 +290,8 @@ app.get('/app/setup', async (c) => {
                           type="button"
                           data-dialog-open={`#opt-edit-${o.id}`}
                           title="Edit option"
-                          style={`display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e3e8;padding:4px 10px;font-size:12px;color:#16171d;font-family:inherit;cursor:pointer;background:${
+                          class="st-opt"
+                          style={`display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e3e8;color:#16171d;font-family:inherit;cursor:pointer;background:${
                             o.color ? tint(o.color, 0.9) : '#f4f5f9'
                           };`}
                         >
@@ -239,43 +308,45 @@ app.get('/app/setup', async (c) => {
                     <button
                       type="button"
                       data-dialog-open={`#opt-dialog-${tx.id}`}
-                      style="padding:4px 9px;background:#fff;border:1px dashed #c9cbd3;font-size:11.5px;color:#686b74;cursor:pointer;"
+                      class="st-optadd"
+                      style="background:#fff;border:1px dashed #c9cbd3;color:#686b74;cursor:pointer;"
                     >
                       +
                     </button>
                   </div>
                 </div>
               ))}
-              <button type="button" data-dialog-open="#tax-dialog" style={`margin-top:6px;${DASHED_BTN}`}>
+              <button type="button" data-dialog-open="#tax-dialog" class="st-dashed" style={`margin-top:6px;${DASHED_BTN}`}>
                 + Custom taxonomy (e.g. Audience, Region)
               </button>
             </div>
           </div>
 
           {/* ------------------------------------------------------------ theme */}
-          <div style="display:grid;gap:18px;position:sticky;top:20px;">
+          <div class="st-theme">
             <div style={CARD}>
               <div style={`${MICRO}margin-bottom:14px;`}>THEME</div>
               <div style="display:grid;gap:12px;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="font-size:13px;width:110px;">Primary color</div>
+                <div class="st-row">
+                  <div class="st-rowlab" style="font-size:13px;">Primary color</div>
                   <input
                     id="theme-primary"
                     type="color"
                     name="primary"
+                    class="st-color"
                     value={theme.primary}
-                    style="width:44px;height:32px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                    style="border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
                   />
                   <span id="theme-primary-hex" style={`font-family:${MONO};font-size:12px;color:#686b74;`}>
                     {theme.primary}
                   </span>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="font-size:13px;width:110px;">Font pairing</div>
+                <div class="st-row">
+                  <div class="st-rowlab" style="font-size:13px;">Font pairing</div>
                   <select
                     id="theme-font"
                     name="font"
-                    style="flex:1;padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"
+                    style="flex:1;min-width:0;padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;"
                   >
                     {FONT_PAIRINGS.map((p) => (
                       <option value={p.ui} selected={p.ui === theme.font}>
@@ -284,15 +355,16 @@ app.get('/app/setup', async (c) => {
                     ))}
                   </select>
                 </div>
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="font-size:13px;width:110px;">Logo</div>
+                <div class="st-row">
+                  <div class="st-rowlab" style="font-size:13px;">Logo</div>
                   <span title="File storage not yet enabled">
                     <button
                       id="logo-upload"
                       type="button"
                       disabled
                       title="File storage not yet enabled"
-                      style="padding:7px 14px;background:#f7f7f9;border:1px dashed #c9cbd3;font-size:12.5px;color:#b9bcc4;cursor:not-allowed;"
+                      class="st-logo"
+                      style="background:#f7f7f9;border:1px dashed #c9cbd3;font-size:12.5px;color:#b9bcc4;cursor:not-allowed;"
                     >
                       Upload SVG/PNG
                     </button>
@@ -308,7 +380,8 @@ app.get('/app/setup', async (c) => {
                       type="button"
                       hidden={!hasOverride}
                       title="Discard overrides and re-derive from the primary color"
-                      style="margin-left:auto;background:none;border:none;padding:0;font-size:11px;color:#4c5fd5;cursor:pointer;font-family:inherit;"
+                      class="st-reset"
+                      style="margin-left:auto;background:none;border:none;font-size:11px;color:#4c5fd5;cursor:pointer;font-family:inherit;"
                     >
                       Reset
                     </button>
@@ -409,7 +482,7 @@ app.get('/app/setup', async (c) => {
               <button
                 type="button"
                 data-dialog-close="#room-dialog"
-                style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                class="st-x" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;"
               >
                 ✕
               </button>
@@ -419,7 +492,7 @@ app.get('/app/setup', async (c) => {
                 <div style={FIELD_LABEL}>Room name *</div>
                 <input name="name" required placeholder="e.g. Workshop Lab B" style={INPUT} />
               </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;">
                 <div>
                   <div style={FIELD_LABEL}>Capacity</div>
                   <input type="number" min="1" name="capacity" placeholder="e.g. 120" style={INPUT} />
@@ -433,11 +506,11 @@ app.get('/app/setup', async (c) => {
                 Priority sets column order in the agenda grid — 1 is leftmost.
               </div>
             </div>
-            <div style={DIALOG_FOOT}>
-              <button type="button" data-dialog-close="#room-dialog" style={CANCEL_BTN}>
+            <div class="st-dlgfoot" style={DIALOG_FOOT}>
+              <button type="button" data-dialog-close="#room-dialog" class="st-cancel" style={CANCEL_BTN}>
                 Cancel
               </button>
-              <button type="submit" style={CREATE_BTN}>
+              <button type="submit" class="st-create" style={CREATE_BTN}>
                 Add room
               </button>
             </div>
@@ -455,7 +528,7 @@ app.get('/app/setup', async (c) => {
                 <button
                   type="button"
                   data-dialog-close={`#room-edit-${r.id}`}
-                  style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                  class="st-x" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;"
                 >
                   ✕
                 </button>
@@ -465,7 +538,7 @@ app.get('/app/setup', async (c) => {
                   <div style={FIELD_LABEL}>Room name *</div>
                   <input name="name" required value={r.name} style={INPUT} />
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;">
                   <div>
                     <div style={FIELD_LABEL}>Capacity</div>
                     <input
@@ -486,11 +559,11 @@ app.get('/app/setup', async (c) => {
                   Priority sets column order in the agenda grid — 1 is leftmost.
                 </div>
               </div>
-              <div style={DIALOG_FOOT}>
-                <button type="button" data-dialog-close={`#room-edit-${r.id}`} style={CANCEL_BTN}>
+              <div class="st-dlgfoot" style={DIALOG_FOOT}>
+                <button type="button" data-dialog-close={`#room-edit-${r.id}`} class="st-cancel" style={CANCEL_BTN}>
                   Cancel
                 </button>
-                <button type="submit" style={CREATE_BTN}>
+                <button type="submit" class="st-create" style={CREATE_BTN}>
                   Save room
                 </button>
               </div>
@@ -509,7 +582,7 @@ app.get('/app/setup', async (c) => {
                 <button
                   type="button"
                   data-dialog-close={`#opt-dialog-${tx.id}`}
-                  style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                  class="st-x" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;"
                 >
                   ✕
                 </button>
@@ -528,13 +601,14 @@ app.get('/app/setup', async (c) => {
                   />
                 </div>
                 {tx.has_color ? (
-                  <div style="display:flex;align-items:center;gap:10px;">
-                    <div style="font-size:12px;color:#686b74;width:110px;">Color</div>
+                  <div class="st-row">
+                    <div class="st-rowlab" style="font-size:12px;color:#686b74;">Color</div>
                     <input
                       type="color"
                       name="color"
                       value="#7048e8"
-                      style="width:44px;height:32px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                      class="st-color"
+                      style="border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
                     />
                   </div>
                 ) : null}
@@ -552,11 +626,11 @@ app.get('/app/setup', async (c) => {
                   </div>
                 ) : null}
               </div>
-              <div style={DIALOG_FOOT}>
-                <button type="button" data-dialog-close={`#opt-dialog-${tx.id}`} style={CANCEL_BTN}>
+              <div class="st-dlgfoot" style={DIALOG_FOOT}>
+                <button type="button" data-dialog-close={`#opt-dialog-${tx.id}`} class="st-cancel" style={CANCEL_BTN}>
                   Cancel
                 </button>
-                <button type="submit" style={CREATE_BTN}>
+                <button type="submit" class="st-create" style={CREATE_BTN}>
                   Add option
                 </button>
               </div>
@@ -578,7 +652,7 @@ app.get('/app/setup', async (c) => {
                   <button
                     type="button"
                     data-dialog-close={`#opt-edit-${o.id}`}
-                    style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                    class="st-x" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;"
                   >
                     ✕
                   </button>
@@ -589,13 +663,14 @@ app.get('/app/setup', async (c) => {
                     <input name="name" required value={o.name} style={INPUT} />
                   </div>
                   {tx.has_color ? (
-                    <div style="display:flex;align-items:center;gap:10px;">
-                      <div style="font-size:12px;color:#686b74;width:110px;">Color</div>
+                    <div class="st-row">
+                      <div class="st-rowlab" style="font-size:12px;color:#686b74;">Color</div>
                       <input
                         type="color"
                         name="color"
                         value={o.color ?? '#7048e8'}
-                        style="width:44px;height:32px;border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
+                        class="st-color"
+                        style="border:1px solid #e2e3e8;padding:2px;background:#fff;cursor:pointer;"
                       />
                     </div>
                   ) : null}
@@ -613,20 +688,20 @@ app.get('/app/setup', async (c) => {
                     </div>
                   ) : null}
                 </div>
-                <div style={DIALOG_FOOT}>
+                <div class="st-dlgfoot" style={DIALOG_FOOT}>
                   <button
                     type="submit"
                     formaction="/app/setup/options/delete"
                     formnovalidate
                     data-confirm={`Delete “${o.name}”? Sessions tagged with it lose the tag, and evaluation rules pinned to it stop matching. Submitted answers keep their text.`}
-                    style="margin-right:auto;padding:8px 0;background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;"
+                    class="st-del" style="background:none;border:none;color:#c92a2a;font-size:12.5px;cursor:pointer;"
                   >
                     ✕ Delete option
                   </button>
-                  <button type="button" data-dialog-close={`#opt-edit-${o.id}`} style={CANCEL_BTN}>
+                  <button type="button" data-dialog-close={`#opt-edit-${o.id}`} class="st-cancel" style={CANCEL_BTN}>
                     Cancel
                   </button>
-                  <button type="submit" style={CREATE_BTN}>
+                  <button type="submit" class="st-create" style={CREATE_BTN}>
                     Save option
                   </button>
                 </div>
@@ -644,7 +719,7 @@ app.get('/app/setup', async (c) => {
               <button
                 type="button"
                 data-dialog-close="#tax-dialog"
-                style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;padding:0;"
+                class="st-x" style="margin-left:auto;background:none;border:none;color:#9a9da6;cursor:pointer;font-size:15px;"
               >
                 ✕
               </button>
@@ -670,11 +745,11 @@ app.get('/app/setup', async (c) => {
                 </div>
               </div>
             </div>
-            <div style={DIALOG_FOOT}>
-              <button type="button" data-dialog-close="#tax-dialog" style={CANCEL_BTN}>
+            <div class="st-dlgfoot" style={DIALOG_FOOT}>
+              <button type="button" data-dialog-close="#tax-dialog" class="st-cancel" style={CANCEL_BTN}>
                 Cancel
               </button>
-              <button type="submit" style={CREATE_BTN}>
+              <button type="submit" class="st-create" style={CREATE_BTN}>
                 Create taxonomy
               </button>
             </div>
