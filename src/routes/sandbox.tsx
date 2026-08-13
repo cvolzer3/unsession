@@ -127,10 +127,9 @@ app.get('/sandbox/:org', async (c) => {
         </div>
         <div style="font-size:18px;font-weight:700;letter-spacing:-0.01em;margin-bottom:2px;">Choose your seat</div>
         <div style="font-size:13px;color:#686b74;margin-bottom:18px;line-height:1.55;">
-          One pre-filled event, three points of view. You can switch roles any time from the chip in the
-          bottom-right corner.
+          You can easily switch roles at any time.
         </div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;flex-direction:column;gap:6px;">
           {SANDBOX_PERSONA_KEYS.map((key) => {
             const p = SANDBOX_PERSONAS[key];
             return (
@@ -146,20 +145,17 @@ app.get('/sandbox/:org', async (c) => {
                     {initials(p.name)}
                   </span>
                   <span style="min-width:0;">
-                    <span style="display:block;font-size:13.5px;font-weight:600;">{p.name}</span>
+                    <span style="display:block;font-size:13.5px;font-weight:600;">{p.title}</span>
                     <span style="display:block;font-size:12px;color:#686b74;">{p.blurb}</span>
                   </span>
                   <span style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;flex:none;`}>
-                    {`${p.title.toUpperCase()} →`}
+                    {`${p.name.toUpperCase()} →`}
                   </span>
                 </button>
               </form>
             );
           })}
         </div>
-      </div>
-      <div style="font-size:12px;color:#9a9da6;margin-top:16px;line-height:1.5;text-align:center;">
-        This sandbox keeps its data — bookmark this page to come back to the picker.
       </div>
     </Shell>
   );
