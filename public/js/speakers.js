@@ -51,12 +51,15 @@ const box = (on) =>
   };color:#fff;font-size:12px;flex:none;margin-top:1px;`;
 const boxOf = (s) =>
   `display:inline-grid;place-items:center;width:22px;height:22px;font-size:12px;flex:none;${CELL[s]}font-family:${MONO};`;
+/* Paddings live in admin-speakers.tsx's PAGE_CSS (.spk-filtersel, .spk-chip,
+   .spk-pgbtn, .spk-task*) so the phone rules can grow the tap targets — an
+   inline padding here would beat them. */
 const filterStyle = (on) =>
-  `padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${
+  `font-size:12.5px;cursor:pointer;border:1px solid ${on ? '#4c5fd5' : '#e2e3e8'};background:${
     on ? '#eef0fb' : '#fff'
   };color:${on ? '#4c5fd5' : '#33343c'};font-weight:${on ? '600' : '400'};`;
 const pgBtn = (on) =>
-  `padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;${
+  `font-size:12px;border:1px solid #e2e3e8;background:#fff;${
     on ? 'color:#33343c;cursor:pointer;' : 'color:#c9cbd2;cursor:default;'
   }`;
 
@@ -112,7 +115,7 @@ function renderGrid() {
   $('#f-state').style.cssText = filterStyle(!!state.state);
   const chip = $('#f-review');
   if (chip) {
-    chip.style.cssText = `padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid ${
+    chip.style.cssText = `font-size:12.5px;cursor:pointer;border:1px solid ${
       state.review ? '#b08800' : '#e8d79a'
     };background:#fdf5dc;color:#b08800;font-weight:600;`;
   }
@@ -173,8 +176,9 @@ if (focusParam === 'overdue' || focusParam === 'unconfirmed') {
       : `${n} accepted speaker${n === 1 ? '' : 's'} who haven’t confirmed yet`;
   const gridWrap = $('#grid-body').parentElement;
   const banner = document.createElement('div');
+  banner.className = 'spk-focusbanner';
   banner.style.cssText =
-    'display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;';
+    'margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;';
   banner.innerHTML =
     `<span>Showing <b>${esc(label)}</b>.</span>` +
     '<button type="button" data-focus-clear style="margin-left:auto;background:none;border:none;color:#7a5c0a;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0;white-space:nowrap;">Show all speakers</button>';
@@ -232,32 +236,35 @@ function drawerHtml(d, animate = true) {
   const remindableUnqueued = d.tasks.filter((t) => t.remindable && !t.reminderQueued);
   const remindAllBtn =
     remindableUnqueued.length > 1
-      ? `<button id="remind-all" title="Queues a reminder for each open task." style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind all · 1 email</button>`
+      ? `<button id="remind-all" class="spk-taskbtn" title="Queues a reminder for each open task." style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind all · 1 email</button>`
       : '';
+
+  // The row's buttons sit in their own box so the phone rules can drop them onto
+  // a line of their own; `display:contents` keeps desktop exactly as it was.
+  const taskActs = (t) =>
+    (t.review
+      ? `<button data-approve="${t.id}" class="spk-taskbtn" style="background:#e6f4ea;border:1px solid #b7dfc4;font-size:11.5px;color:#2b8a3e;cursor:pointer;flex:none;">Approve</button>
+         <button data-changes="${t.id}" class="spk-taskbtn" style="background:#fff;border:1px solid #e8d79a;font-size:11.5px;color:#b08800;cursor:pointer;flex:none;">Request changes</button>`
+      : '') +
+    (t.remindable
+      ? t.reminderQueued
+        ? `<button disabled class="spk-taskbtn" title="Waiting in Emails → Outbox" style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#2b8a3e;flex:none;">Queued ✓</button>`
+        : `<button data-remind="${t.id}" class="spk-taskbtn" style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind</button>`
+      : '') +
+    (t.removable
+      ? `<button data-remove="${t.id}" class="spk-taskx" title="Remove this task (logged)" style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#9a9da6;cursor:pointer;flex:none;">×</button>`
+      : '');
 
   const taskRows = d.tasks
     .map(
       (t) => `
       <div style="padding:8px 0;border-bottom:1px solid #f2f3f5;">
-      <div style="display:flex;align-items:center;gap:8px;">
+      <div class="spk-taskrow">
         <span style="${boxOf(t.state)}">${GLYPH[t.state]}</span>
-        <div style="font-size:13px;">${esc(t.name)}</div>
+        <div class="spk-taskname">${esc(t.name)}</div>
         ${t.tag ? `<span style="font-family:${MONO};font-size:8.5px;color:#9a9da6;background:#f4f4f6;padding:2px 5px;flex:none;">${esc(t.tag)}</span>` : ''}
         <div style="margin-left:auto;font-family:${MONO};font-size:10.5px;color:${STATE_COLOR[t.state]};flex:none;">${t.stateLabel}</div>
-        ${
-          t.review
-            ? `<button data-approve="${t.id}" style="padding:4px 9px;background:#e6f4ea;border:1px solid #b7dfc4;font-size:11.5px;color:#2b8a3e;cursor:pointer;flex:none;">Approve</button>
-               <button data-changes="${t.id}" style="padding:4px 9px;background:#fff;border:1px solid #e8d79a;font-size:11.5px;color:#b08800;cursor:pointer;flex:none;">Request changes</button>`
-            : ''
-        }
-        ${
-          t.remindable
-            ? t.reminderQueued
-              ? `<button disabled title="Waiting in Emails → Outbox" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#2b8a3e;flex:none;">Queued ✓</button>`
-              : `<button data-remind="${t.id}" style="padding:4px 9px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Remind</button>`
-            : ''
-        }
-        ${t.removable ? `<button data-remove="${t.id}" title="Remove this task (logged)" style="padding:4px 8px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#9a9da6;cursor:pointer;flex:none;">×</button>` : ''}
+        ${taskActs(t) ? `<div class="spk-taskacts">${taskActs(t)}</div>` : ''}
       </div>
       ${
         t.answers && t.answers.length
@@ -283,7 +290,7 @@ function drawerHtml(d, animate = true) {
       </div>
       <textarea id="travel-notes" rows="3" placeholder="Arrival and departure, seating preferences, dietary needs…" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-family:inherit;line-height:1.5;background:#fff;resize:vertical;">${esc(s.travel || '')}</textarea>
       <div style="font-size:11px;color:#9a9da6;margin-top:4px;line-height:1.45;">Speaker-submitted answers appear under their task below.</div>
-      <button id="travel-save" style="margin-top:6px;padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Save notes</button>
+      <button id="travel-save" class="spk-drawerbtn" style="margin-top:6px;background:#fff;border:1px solid #e2e3e8;font-size:12px;cursor:pointer;">Save notes</button>
     </div>`;
 
   const assign = `
@@ -296,16 +303,16 @@ function drawerHtml(d, animate = true) {
       </select>
       <div id="asg-oneoff" hidden style="display:grid;gap:6px;">
         <input id="oo-name" placeholder="Task name — e.g. Re-record your intro video" style="width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
-        <div style="display:flex;gap:6px;">
+        <div class="spk-oneoffrow">
           <select id="oo-type" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
             <option value="checkbox">Checkbox</option>
             <option value="file">File request</option>
             <option value="form">Form</option>
           </select>
-          <input id="oo-due" type="date" style="width:150px;padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
+          <input id="oo-due" type="date" class="spk-oodue" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;">
         </div>
       </div>
-      <button id="asg-do" style="justify-self:start;padding:7px 13px;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;">Assign to ${esc(first)}</button>
+      <button id="asg-do" class="spk-assignbtn" style="justify-self:start;background:#fff;border:1px solid #e2e3e8;font-size:12.5px;cursor:pointer;">Assign to ${esc(first)}</button>
     </div>`;
 
   // Profile-content edit trail (migration 0020) — who changed the name / bio /
@@ -326,7 +333,7 @@ function drawerHtml(d, animate = true) {
           ${
             v.current
               ? `<span style="font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;color:#2b8a3e;background:#e6f4ea;padding:2px 7px;flex:none;">CURRENT</span>`
-              : `<button data-restore-version="${esc(v.id)}" style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Restore</button>`
+              : `<button data-restore-version="${esc(v.id)}" class="spk-restorebtn" style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;cursor:pointer;flex:none;">Restore</button>`
           }
         </div>`
               )
@@ -372,7 +379,7 @@ function drawerHtml(d, animate = true) {
       }
       ${travel}
       <div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div class="spk-taskshead">
           <div style="font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;">TASKS</div>
           ${remindAllBtn}
           <div style="margin-left:auto;font-family:${MONO};font-size:11px;color:${fracColor};font-weight:600;">${d.frac.done}/${d.frac.total} complete</div>
@@ -559,8 +566,9 @@ function markStale() {
   if (stale) return;
   stale = true;
   const bar = document.createElement('div');
+  bar.className = 'spk-stalebar';
   bar.style.cssText =
-    'position:fixed;bottom:24px;left:24px;background:#16171d;color:#fff;padding:10px 14px;font-size:12.5px;z-index:85;display:flex;gap:10px;align-items:center;';
+    'position:fixed;background:#16171d;color:#fff;padding:10px 14px;font-size:12.5px;z-index:85;display:flex;gap:10px;align-items:center;';
   bar.innerHTML = 'Grid is out of date <button style="background:#4c5fd5;color:#fff;border:none;padding:5px 10px;font-size:12px;cursor:pointer;">Refresh</button>';
   bar.querySelector('button').addEventListener('click', () => reload());
   document.body.appendChild(bar);
@@ -754,8 +762,8 @@ function clauseRowsHtml(clauses, attr) {
             .map((o) => `<option value="${esc(o)}"${o === cl.value ? ' selected' : ''}>${esc(o)}</option>`)
             .join('')}</select>`
         : `<input data-${attr}-val="${i}" value="${esc(cl.value)}" placeholder="e.g. Travel support = Yes" style="flex:1;padding:8px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">`;
-      return `<div style="display:flex;gap:6px;align-items:center;">
-        <select data-${attr}-field="${i}" style="width:126px;flex:none;padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
+      return `<div class="spk-clauserow">
+        <select data-${attr}-field="${i}" class="spk-clausefield" style="padding:8px 8px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;">
           ${['Track', 'Format', 'Level', 'Form answer']
             .map((f) => `<option${f === cl.field ? ' selected' : ''}>${f}</option>`)
             .join('')}
@@ -1594,7 +1602,7 @@ function renderImportMapping() {
     .map((h, i) => {
       const guess = guessTarget(h);
       const sample = (imp.rows[0] || [])[i];
-      return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;">
+      return `<div class="spk-maprow">
         <div style="min-width:0;">
           <div style="font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(
             h || `Column ${i + 1}`

@@ -46,19 +46,179 @@ const LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;';
 const BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
-const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
+const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
 
 /**
- * Both drawers on this page — the speaker detail (rendered by speakers.js into
- * `#drawer`) and the template editor. Their widths live here, not inline, so
- * the shared full-screen rule in ADMIN_BASE_CSS can override them.
+ * Page CSS. Every desktop declaration below is byte-for-byte what used to sit
+ * inline (or in the JS island's template strings); the `@media (max-width:768px)`
+ * half is the phone shape. Classes prefixed `spk-` are page-scoped; the island
+ * `public/js/speakers.js` renders the same class names into the speaker drawer,
+ * the clause rows and the CSV mapper, so those restack here too.
+ *
+ * The speakers × task-templates grid is the criterion-7 decision
+ * (SPECS/M-mobile.md). It is a matrix: 220px of speaker plus 92px per template
+ * plus the done fraction, so six templates need ~950px. Scrolling it sideways
+ * on a phone would push the speaker's name off-screen exactly when you are
+ * reading their task states — the row header is not sticky — so below 768px a
+ * row reflows into a card instead: the speaker on line one with the done
+ * fraction beside it, then one labelled chip per task wrapping underneath.
+ * Nothing is hidden and nothing scrolls sideways.
+ *
+ * Both drawers keep their widths here, not inline, so the shared full-screen
+ * rule in ADMIN_BASE_CSS can override them.
  */
-const DRAWER_CSS = `
+const PAGE_CSS = `
   .drawer-speaker,.drawer-template{position:fixed;top:0;right:0;bottom:0;max-width:92vw;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);display:flex;flex-direction:column;}
   /* The speaker panel re-renders while open, so speakers.js sets its own
      animation inline — only the sizing belongs here. */
   .drawer-speaker{width:440px;}
   .drawer-template{width:480px;animation:slidein 0.18s ease;}
+
+  .spk-page{padding:22px 28px;}
+  /* Queued task reminders */
+  .spk-rembar{padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#33343c;flex-wrap:wrap;}
+  .spk-remsend{padding:8px 16px;}
+  .spk-remgroup{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fafafb;}
+  .spk-remrow{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;padding:6px 14px 6px 28px;align-items:center;}
+  .spk-remundo{padding:4px 10px;}
+  /* Filter bar */
+  .spk-filters{display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
+  .spk-filtersel{padding:6px 8px;}
+  .spk-search{width:220px;padding:6px 10px;}
+  .spk-chip{padding:6px 11px;}
+  .spk-actions{margin-left:auto;display:flex;gap:6px;}
+  .spk-action{padding:6px 11px;}
+  .spk-action-primary{padding:7px 12px;}
+  /* The grid. Column widths are dynamic (one per template) and live in the
+     Grid component's own <style>; only the shape-independent parts sit here. */
+  .spk-gridhead{display:grid;padding:10px 14px;border-bottom:1px solid #e2e3e8;align-items:end;}
+  .spk-gridrow{display:grid;padding:9px 14px;border-bottom:1px solid #f2f3f5;align-items:center;}
+  .spk-who{padding-right:10px;cursor:pointer;}
+  /* display:contents keeps the cells as direct grid items on desktop, so the
+     wrapper costs nothing there and can become the phone's chip row. */
+  .spk-cells{display:contents;}
+  .spk-cell{text-align:center;}
+  .spk-celllbl{display:none;}
+  .spk-pager{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid #e2e3e8;}
+  .spk-pgbtn{padding:6px 12px;}
+  .spk-legend{display:flex;gap:18px;padding:12px 2px;font-size:12px;color:#686b74;align-items:center;}
+  /* Task templates */
+  .spk-tplpanel{margin-top:16px;background:#fff;border:1px solid #e2e3e8;padding:16px 20px;}
+  .spk-tplhead{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .spk-tplnew{margin-left:auto;padding:7px 13px;}
+  .spk-tplrow{display:flex;gap:8px;align-items:center;}
+  .spk-tplname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  /* Template editor drawer */
+  .spk-typegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .spk-filegrid{display:grid;grid-template-columns:1.4fr 1fr 0.8fr;gap:8px;}
+  .spk-triggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .spk-duerow{display:flex;gap:8px;align-items:center;}
+  .spk-duesel{flex:1;}
+  .spk-duen{width:76px;}
+  .spk-gracen{width:64px;}
+  .spk-duedate{width:150px;}
+  .spk-rembody{margin-left:30px;}
+  .spk-remadd{width:220px;}
+  .spk-edfoot{padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;}
+  /* Dialogs */
+  .spk-dialogscrim{padding:20px;}
+  .spk-panel{max-width:calc(100vw - 40px);}
+  .spk-dialogpad{padding:24px;}
+  .spk-dialoghead{padding:18px 24px;}
+  .spk-dialogbody{padding:20px 24px;grid-template-columns:minmax(0,1fr);}
+  #import-file{max-width:100%;}
+  .spk-dialogfootlink{margin-right:auto;}
+  .spk-dialogfoot{padding:14px 24px;}
+  .spk-emlpanel{width:620px;height:560px;}
+  .spk-dirrow{display:grid;grid-template-columns:18px minmax(0,1fr) 140px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f3f5;cursor:pointer;}
+  /* Rendered by speakers.js */
+  .spk-oneoffrow{display:flex;gap:6px;}
+  .spk-oodue{width:150px;}
+  .spk-clauserow{display:flex;gap:6px;align-items:center;}
+  .spk-clausefield{width:126px;flex:none;}
+  .spk-maprow{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;}
+  .spk-taskrow{display:flex;align-items:center;gap:8px;}
+  .spk-taskshead{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .spk-taskname{font-size:13px;}
+  .spk-taskacts{display:contents;}
+  .spk-taskbtn{padding:4px 9px;}
+  .spk-taskx{padding:4px 8px;}
+  .spk-restorebtn{padding:4px 10px;}
+  .spk-drawerbtn{padding:6px 12px;}
+  .spk-assignbtn{padding:7px 13px;}
+  .spk-stalebar{bottom:24px;left:24px;}
+  .spk-focusbanner{display:flex;align-items:center;gap:10px;}
+
+  @media (max-width:768px){
+    .spk-page{padding:14px 14px 28px;}
+    .spk-rembar{padding:10px 12px;gap:8px 10px;}
+    .spk-remsend{padding:11px 16px;}
+    .spk-remgroup{flex-wrap:wrap;gap:4px 10px;padding:10px 12px;}
+    .spk-remrow{grid-template-columns:minmax(0,1fr) auto;padding:8px 12px 8px 18px;}
+    .spk-remundo{padding:9px 12px;}
+    /* Two selects share a row, the search takes its own, the buttons wrap
+       under them — the whole bar stays one block instead of a sideways strip. */
+    .spk-filters{gap:6px;}
+    .spk-filtersel{flex:1 1 calc(50% - 3px);min-width:0;}
+    .spk-search{flex:1 0 100%;width:auto;}
+    .spk-chip{flex:1 0 100%;padding:10px 11px;}
+    .spk-actions{margin-left:0;flex:1 0 100%;flex-wrap:wrap;gap:6px;}
+    .spk-action,.spk-action-primary{flex:1 1 auto;padding:11px 10px;text-align:center;}
+    .spk-gridhead{display:none;}
+    .spk-gridrow{padding:12px 14px;gap:8px 10px;align-items:start;}
+    .spk-who{grid-area:who;padding-right:0;padding-bottom:2px;}
+    .spk-done{grid-area:done;}
+    .spk-cells{grid-area:cells;display:flex;flex-wrap:wrap;gap:6px;}
+    .spk-cell{display:inline-flex;align-items:center;gap:6px;text-align:left;border:1px solid #eceded;padding:3px 9px 3px 3px;min-height:34px;max-width:100%;}
+    .spk-celllbl{display:block;font-family:${MONO};font-size:10px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .spk-pager{padding:10px 12px;}
+    .spk-pgbtn{padding:10px 15px;}
+    .spk-legend{flex-wrap:wrap;gap:6px 14px;padding:12px 2px 4px;}
+    .spk-tplpanel{padding:14px;}
+    .spk-tplhead{flex-wrap:wrap;gap:8px 10px;}
+    .spk-tplnew{padding:11px 14px;}
+    .spk-tplrow{flex-wrap:wrap;gap:5px 8px;}
+    .spk-tplname{flex:1 1 auto;min-width:0;}
+    .spk-typegrid{grid-template-columns:repeat(2,1fr);}
+    .spk-filegrid{grid-template-columns:1fr;}
+    .spk-triggrid{grid-template-columns:1fr;}
+    .spk-duerow{flex-wrap:wrap;}
+    .spk-duesel{flex:1 0 100%;}
+    .spk-duen,.spk-gracen,.spk-duedate{width:auto;flex:1 1 auto;}
+    .spk-rembody{margin-left:0;}
+    .spk-remadd{width:100%;}
+    .spk-edfoot{flex-wrap:wrap;}
+    .drawer-speaker .us-icon-btn,.drawer-template .us-icon-btn{padding:11px;}
+    .spk-dialogscrim{padding:10px;}
+    .spk-panel{max-width:calc(100vw - 20px);max-height:calc(100vh - 20px);overflow-y:auto;}
+    .spk-dialogpad{padding:16px;}
+    .spk-dialoghead{padding:14px 16px;}
+    .spk-dialogbody{padding:16px;}
+    .spk-dialogfoot{padding:12px 16px;flex-wrap:wrap;justify-content:flex-end;}
+    .spk-dialogfootlink{flex:1 0 100%;margin-right:0;margin-bottom:4px;}
+    .spk-emlpanel{width:100%;height:auto;}
+    /* Company drops under the name instead of taking a third of a 320px row. */
+    .spk-dirrow{grid-template-columns:22px minmax(0,1fr);grid-template-areas:"box who" ". company";gap:2px 10px;padding:10px 12px;}
+    .spk-dirbox{grid-area:box;width:20px;height:20px;}
+    .spk-dirwho{grid-area:who;}
+    .spk-dircompany{grid-area:company;}
+    .spk-oneoffrow{flex-wrap:wrap;}
+    .spk-oodue{width:auto;flex:1 1 auto;}
+    .spk-clauserow{flex-wrap:wrap;}
+    .spk-clausefield{width:auto;flex:1 0 100%;}
+    .spk-maprow{grid-template-columns:1fr;gap:4px;}
+    .spk-taskrow{flex-wrap:wrap;gap:6px 8px;}
+    .spk-taskname{flex:1 1 auto;min-width:0;}
+    .spk-taskacts{display:flex;flex:1 0 100%;flex-wrap:wrap;justify-content:flex-end;gap:6px;}
+    .spk-taskshead{flex-wrap:wrap;gap:6px 8px;}
+    .spk-taskbtn,.spk-taskx,.spk-restorebtn{padding:9px 12px;min-height:40px;}
+    .spk-taskx{min-width:40px;}
+    .spk-drawerbtn{padding:10px 14px;min-height:40px;}
+    .spk-assignbtn{padding:11px 14px;min-height:40px;}
+    /* Keep the refresh bar clear of the sandbox chip pinned to the bottom. */
+    .spk-stalebar{bottom:78px;left:14px;right:14px;}
+    .spk-focusbanner{flex-wrap:wrap;gap:6px 10px;}
+  }
 `;
 
 const CELL_STYLE: Record<string, string> = {
@@ -243,15 +403,25 @@ async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData
 
 const Grid: FC<{ data: PageData }> = ({ data }) => {
   const n = data.active.length;
-  const cols = `220px repeat(${n},minmax(92px,1fr)) 72px`;
   const minW = 320 + 92 * n + 72;
-  const head = `display:grid;grid-template-columns:${cols};padding:10px 14px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;align-items:end;min-width:${minW}px;`;
-  const rowStyle = `display:grid;grid-template-columns:${cols};padding:9px 14px;border-bottom:1px solid #f2f3f5;align-items:center;min-width:${minW}px;`;
+  /**
+   * The only column-shaped rules — one track per template, so they cannot live
+   * in the static PAGE_CSS. The phone block turns the same two elements into
+   * the card: the head disappears (each chip carries its own label) and the row
+   * becomes a two-area block, speaker beside the fraction, chips underneath.
+   */
+  const gridCss = `
+    .spk-gridhead,.spk-gridrow{grid-template-columns:220px repeat(${n},minmax(92px,1fr)) 72px;min-width:${minW}px;}
+    @media (max-width:768px){
+      .spk-gridrow{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"who done" "cells cells";min-width:0;}
+    }
+  `;
   const PAGE = 8;
 
   return (
-    <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
-      <div style={head}>
+    <div class="us-scroll-x" style="background:#fff;border:1px solid #e2e3e8;">
+      <style>{raw(gridCss)}</style>
+      <div class="spk-gridhead" style={`font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`}>
         <div>SPEAKER</div>
         {data.active.map((t) => (
           <div data-tpl-head={t.id} title="Edit template" style="text-align:center;line-height:1.3;cursor:pointer;">
@@ -264,7 +434,8 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
       <div id="grid-body">
         {data.rows.map((r, i) => (
           <div
-            style={rowStyle + (i >= PAGE ? 'display:none;' : '')}
+            class="spk-gridrow"
+            style={i >= PAGE ? 'display:none;' : ''}
             data-row
             data-id={r.id}
             data-name={r.name}
@@ -273,7 +444,7 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
             data-confirmed={r.confirmed ? '1' : ''}
             data-cells={data.active.map((t) => `${t.id}:${r.cells[t.id]}`).join(',')}
           >
-            <div data-open-speaker={r.id} style="padding-right:10px;cursor:pointer;" title="Open speaker profile">
+            <div data-open-speaker={r.id} class="spk-who" title="Open speaker profile">
               <div style="font-size:13px;font-weight:600;">{r.name}</div>
               {r.affiliation ? (
                 <div style="font-size:11px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -284,20 +455,23 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
                 {r.session}
               </div>
             </div>
-            {data.active.map((t) => {
-              const s = r.cells[t.id];
-              return (
-                <div style="text-align:center;">
-                  <span
-                    title={`${t.name}: ${TIP[s]}`}
-                    style={`display:inline-grid;place-items:center;width:26px;height:26px;font-size:13px;${CELL_STYLE[s]}font-family:${MONO};`}
-                  >
-                    {GLYPH[s]}
-                  </span>
-                </div>
-              );
-            })}
+            <div class="spk-cells">
+              {data.active.map((t) => {
+                const s = r.cells[t.id];
+                return (
+                  <div class="spk-cell" title={`${t.name}: ${TIP[s]}`}>
+                    <span
+                      style={`display:inline-grid;place-items:center;width:26px;height:26px;font-size:13px;flex:none;${CELL_STYLE[s]}font-family:${MONO};`}
+                    >
+                      {GLYPH[s]}
+                    </span>
+                    <span class="spk-celllbl">{t.name}</span>
+                  </div>
+                );
+              })}
+            </div>
             <div
+              class="spk-done"
               style={`text-align:right;font-family:${MONO};font-size:12px;color:${
                 r.assigned && r.done === r.assigned ? '#2b8a3e' : Object.values(r.cells).includes('o') ? '#c92a2a' : '#686b74'
               };font-weight:600;`}
@@ -310,17 +484,18 @@ const Grid: FC<{ data: PageData }> = ({ data }) => {
       <div id="grid-empty" hidden style="padding:28px 14px;text-align:center;font-size:13px;color:#9a9da6;">
         No speakers match this view.
       </div>
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid #e2e3e8;">
+      <div class="spk-pager">
         <div id="page-info" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
           {`${data.rows.length ? 1 : 0}–${Math.min(PAGE, data.rows.length)} OF ${data.rows.length}`}
         </div>
         <div style="margin-left:auto;display:flex;gap:6px;">
-          <button id="pg-prev" style="padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;">
+          <button id="pg-prev" class="spk-pgbtn" style="font-size:12px;border:1px solid #e2e3e8;background:#fff;color:#c9cbd2;cursor:default;">
             ← Prev
           </button>
           <button
             id="pg-next"
-            style={`padding:6px 12px;font-size:12px;border:1px solid #e2e3e8;background:#fff;${
+            class="spk-pgbtn"
+            style={`font-size:12px;border:1px solid #e2e3e8;background:#fff;${
               data.rows.length > PAGE ? 'color:#33343c;cursor:pointer;' : 'color:#c9cbd2;cursor:default;'
             }`}
           >
@@ -336,14 +511,15 @@ const TemplateCards: FC<{ data: PageData }> = ({ data }) => {
   const archived = data.templates.length - data.active.length;
   const ordered = [...data.active, ...data.templates.filter((t) => t.archived)];
   return (
-    <div style="margin-top:16px;background:#fff;border:1px solid #e2e3e8;padding:16px 20px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+    <div class="spk-tplpanel">
+      <div class="spk-tplhead">
         <div style={LABEL}>
           {`TASK TEMPLATES · ${data.active.length} ACTIVE${archived ? ` · ${archived} ARCHIVED` : ''}`}
         </div>
         <button
           id="new-tpl"
-          style="margin-left:auto;padding:7px 13px;background:#4c5fd5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;"
+          class="spk-tplnew"
+          style="background:#4c5fd5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;"
         >
           ＋ New template
         </button>
@@ -354,11 +530,11 @@ const TemplateCards: FC<{ data: PageData }> = ({ data }) => {
             data-tpl-card={t.id}
             style={`border:1px solid #eceded;padding:10px 12px;cursor:pointer;${t.archived ? 'opacity:0.55;' : ''}`}
           >
-            <div style="display:flex;gap:8px;align-items:center;">
+            <div class="spk-tplrow">
               <span style={`font-family:${MONO};font-size:9px;background:#eef0fb;color:#4c5fd5;padding:2px 6px;font-weight:600;flex:none;`}>
                 {T.TYPE_LABEL[t.type]}
               </span>
-              <span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <span class="spk-tplname" style="font-size:13px;font-weight:600;">
                 {t.name}
               </span>
               {t.required ? (
@@ -425,7 +601,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
         </div>
         <div>
           <div style={`${LABEL}margin-bottom:6px;`}>TYPE</div>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+          <div class="spk-typegrid">
             <Segmented
               name="type"
               options={[
@@ -445,7 +621,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
             />
           </div>
           <div id="ed-file" hidden style="margin-top:10px;display:grid;gap:10px;">
-            <div style="display:grid;grid-template-columns:1.4fr 1fr 0.8fr;gap:8px;">
+            <div class="spk-filegrid">
               <div>
                 <div style={`${LABEL}margin-bottom:6px;`}>ALLOWED TYPES</div>
                 <input id="ed-ext" placeholder="pdf, key" style={INPUT} />
@@ -563,7 +739,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
         </div>
         <div>
           <div style={`${LABEL}margin-bottom:6px;`}>ASSIGNMENT</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+          <div class="spk-triggrid">
             <Segmented
               name="trigger"
               options={[
@@ -585,21 +761,21 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
         </div>
         <div id="ed-due-wrap">
           <div style={`${LABEL}margin-bottom:6px;`}>DUE</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <select id="ed-duemode" style={`${INPUT}flex:1;`}>
+          <div class="spk-duerow">
+            <select id="ed-duemode" class="spk-duesel" style={INPUT}>
               <option value="after">Days after assignment</option>
               <option value="before">Days before event start</option>
               <option value="abs">Absolute date</option>
             </select>
-            <input id="ed-duen" type="number" min="0" style="width:76px;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
-            <input id="ed-duedate" type="date" hidden style="width:150px;padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
+            <input id="ed-duen" type="number" min="0" class="spk-duen" style="padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
+            <input id="ed-duedate" type="date" hidden class="spk-duedate" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
           </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-            <select id="ed-grace" style={`${INPUT}flex:1;`}>
+          <div class="spk-duerow" style="margin-top:8px;">
+            <select id="ed-grace" class="spk-duesel" style={INPUT}>
               <option value="none">Past due: stays completable (default)</option>
               <option value="lock">Past due: lock after grace period</option>
             </select>
-            <input id="ed-gracen" type="number" min="0" hidden style="width:64px;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
+            <input id="ed-gracen" type="number" min="0" hidden class="spk-gracen" style="padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;" />
             <span id="ed-gracen-label" hidden style="font-size:12px;color:#9a9da6;">
               days
             </span>
@@ -616,10 +792,10 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
               </div>
             </div>
           </div>
-          <div id="ed-rem-body" style="margin-top:12px;margin-left:30px;display:grid;gap:14px;">
+          <div id="ed-rem-body" class="spk-rembody" style="margin-top:12px;display:grid;gap:14px;">
             <div>
               <div style={`${LABEL}margin-bottom:6px;`}>SCHEDULE</div>
-              <select id="ed-rem-add" style="width:220px;padding:7px 8px;border:1px solid #e2e3e8;font-size:12px;background:#fff;color:#686b74;cursor:pointer;">
+              <select id="ed-rem-add" class="spk-remadd" style="padding:7px 8px;border:1px solid #e2e3e8;font-size:12px;background:#fff;color:#686b74;cursor:pointer;">
                 <option value="">＋ Add reminder…</option>
               </select>
               <div id="ed-rem-days" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;"></div>
@@ -646,7 +822,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
           </div>
         </div>
       </div>
-      <div style="padding:14px var(--band-x);border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+      <div class="spk-edfoot">
         <button id="ed-save" style={PRIMARY}>
           Create template
         </button>
@@ -667,9 +843,9 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
  * `/app/api/speakers/import`.
  */
 const ImportDialog: FC = () => (
-  <div id="import-modal" data-dialog hidden style={DIALOG}>
-    <div style="background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;">
-      <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+  <div id="import-modal" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+    <div class="spk-panel" style="background:#fff;width:560px;max-height:88vh;display:flex;flex-direction:column;">
+      <div class="spk-dialoghead" style="border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
         <div style="font-size:16px;font-weight:700;">Import speakers from CSV</div>
         <button
           type="button"
@@ -679,7 +855,7 @@ const ImportDialog: FC = () => (
           ×
         </button>
       </div>
-      <div style="padding:20px 24px;display:grid;gap:16px;overflow-y:auto;">
+      <div class="spk-dialogbody" style="display:grid;gap:16px;overflow-y:auto;">
         <div>
           <div style={`${LABEL}margin-bottom:6px;`}>CSV FILE</div>
           <input type="file" id="import-file" accept=".csv,text/csv" style="font-size:13px;" />
@@ -694,8 +870,8 @@ const ImportDialog: FC = () => (
         </div>
         <div id="import-preview" hidden style="background:#f8f8fa;border:1px solid #e2e3e8;padding:10px 14px;font-size:12.5px;color:#686b74;line-height:1.5;"></div>
       </div>
-      <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
-        <a href="/app/speakers/import-template.csv" style="margin-right:auto;font-size:12px;color:#4c5fd5;">
+      <div class="spk-dialogfoot" style="border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+        <a href="/app/speakers/import-template.csv" class="spk-dialogfootlink" style="font-size:12px;color:#4c5fd5;">
           Download a template CSV
         </a>
         <button type="button" data-dialog-close="#import-modal" style={BTN}>
@@ -747,13 +923,14 @@ async function directoryCandidates(
  * adds the filter box.
  */
 const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ rows, more }) => (
-  <div id="dlg-directory" data-dialog hidden style={DIALOG}>
+  <div id="dlg-directory" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
     <form
       method="post"
       action="/app/speakers/add-from-directory"
-      style="background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;"
+      class="spk-panel"
+      style="background:#fff;width:560px;max-height:88vh;display:flex;flex-direction:column;"
     >
-      <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+      <div class="spk-dialoghead" style="border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
         <div style="font-size:16px;font-weight:700;">Add from directory</div>
         <button
           type="button"
@@ -763,7 +940,7 @@ const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ ro
           ×
         </button>
       </div>
-      <div style="padding:20px 24px;display:grid;gap:12px;overflow-y:auto;">
+      <div class="spk-dialogbody" style="display:grid;gap:12px;overflow-y:auto;">
         {rows.length ? (
           <>
             <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
@@ -774,11 +951,11 @@ const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ ro
               {rows.map((r) => (
                 <label
                   data-dir-row
+                  class="spk-dirrow"
                   data-search={`${r.name} ${r.email} ${r.company}`.toLowerCase()}
-                  style="display:grid;grid-template-columns:18px minmax(0,1fr) 140px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f3f5;cursor:pointer;"
                 >
-                  <input type="checkbox" name="ids" value={r.id} style="cursor:pointer;" />
-                  <div style="min-width:0;">
+                  <input type="checkbox" name="ids" value={r.id} class="spk-dirbox" style="cursor:pointer;" />
+                  <div class="spk-dirwho" style="min-width:0;">
                     <div style="font-size:13px;color:#16171d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                       {r.name}
                     </div>
@@ -786,7 +963,7 @@ const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ ro
                       {r.email}
                     </div>
                   </div>
-                  <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                  <div class="spk-dircompany" style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {r.company}
                   </div>
                 </label>
@@ -810,8 +987,8 @@ const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ ro
           </div>
         )}
       </div>
-      <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
-        <a href="/app/org/contacts" style="margin-right:auto;font-size:12px;color:#4c5fd5;">
+      <div class="spk-dialogfoot" style="border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+        <a href="/app/org/contacts" class="spk-dialogfootlink" style="font-size:12px;color:#4c5fd5;">
           Open the directory
         </a>
         <button type="button" data-dialog-close="#dlg-directory" style={BTN}>
@@ -828,8 +1005,8 @@ const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ ro
 const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, userEmail }) => (
   <>
     {/* apply-to-open-instances */}
-    <div id="dlg-apply" data-dialog hidden style={DIALOG}>
-      <div style="background:#fff;width:460px;max-width:100%;padding:24px;">
+    <div id="dlg-apply" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+      <div class="spk-dialogpad spk-panel" style="background:#fff;width:460px;">
         <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Apply changes to open instances?</div>
         <div id="apply-copy" style="font-size:13px;color:#686b74;line-height:1.55;margin-bottom:14px;"></div>
         <div style="display:grid;gap:8px;margin-bottom:16px;">
@@ -857,8 +1034,8 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
     </div>
 
     {/* post-create “assign now?” offer — N existing speakers match the new rule (speakers.js) */}
-    <div id="dlg-bulk" data-dialog hidden style={DIALOG}>
-      <div style="background:#fff;width:480px;max-width:100%;padding:24px;">
+    <div id="dlg-bulk" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+      <div class="spk-dialogpad spk-panel" style="background:#fff;width:480px;">
         <div id="bulk-title" style="font-size:16px;font-weight:700;margin-bottom:4px;">
           Assign now?
         </div>
@@ -877,8 +1054,8 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
     </div>
 
     {/* assign task — pick a template, then reach speakers by rule or by hand */}
-    <div id="dlg-assign" data-dialog hidden style={DIALOG}>
-      <div style="background:#fff;width:520px;max-width:100%;max-height:88vh;padding:24px;display:flex;flex-direction:column;">
+    <div id="dlg-assign" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+      <div class="spk-dialogpad spk-panel" style="background:#fff;width:520px;max-height:88vh;display:flex;flex-direction:column;">
         <div style="font-size:16px;font-weight:700;margin-bottom:14px;">Assign task</div>
         <div style={`${LABEL}margin-bottom:6px;`}>TEMPLATE</div>
         <select id="as-tpl" style={`${INPUT}margin-bottom:14px;`}></select>
@@ -920,8 +1097,8 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
     </div>
 
     {/* reminder email editor */}
-    <div id="dlg-eml" data-dialog hidden style={`${DIALOG}z-index:95;`}>
-      <div style="background:#fff;width:620px;max-width:100%;height:560px;max-height:88vh;display:flex;flex-direction:column;">
+    <div id="dlg-eml" data-dialog hidden class="spk-dialogscrim" style={`${DIALOG}z-index:95;`}>
+      <div class="spk-emlpanel spk-panel" style="background:#fff;max-height:88vh;display:flex;flex-direction:column;">
         <div style="padding:14px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:14px;">
           <div id="eml-title" style={LABEL}>
             REMINDER EMAIL
@@ -999,8 +1176,8 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
     </div>
 
     {/* compose email to a speaker */}
-    <div id="dlg-compose" data-dialog hidden style={DIALOG}>
-      <div style="background:#fff;width:520px;max-width:100%;padding:24px;">
+    <div id="dlg-compose" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+      <div class="spk-dialogpad spk-panel" style="background:#fff;width:520px;">
         <div style="font-size:16px;font-weight:700;margin-bottom:4px;">Email speaker</div>
         <div id="compose-to" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;margin-bottom:14px;`}></div>
         <div style="display:grid;gap:10px;">
@@ -1025,8 +1202,8 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
     </div>
 
     {/* request changes */}
-    <div id="dlg-changes" data-dialog hidden style={DIALOG}>
-      <div style="background:#fff;width:460px;max-width:100%;padding:24px;">
+    <div id="dlg-changes" data-dialog hidden class="spk-dialogscrim" style={DIALOG}>
+      <div class="spk-dialogpad spk-panel" style="background:#fff;width:460px;">
         <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Request changes</div>
         <div style="font-size:13px;color:#686b74;line-height:1.55;margin-bottom:12px;">
           The task goes back to open and the speaker is emailed with your message. The uploaded file is kept as a
@@ -1076,8 +1253,16 @@ app.get('/app/speakers', async (c) => {
     ? await directoryCandidates(c.env.DB, event.org_id, event.id)
     : { rows: [] as DirectoryCandidate[], more: false };
 
-  const zipBtn = (href: string, label: string) =>
-    files ? (
+  // Two header buttons only fit 320px with their long labels trimmed, so each
+  // carries a phone-length label beside the desktop one.
+  const zipBtn = (href: string, long: string, short: string) => {
+    const label = (
+      <>
+        <span class="us-desktop-only">{long}</span>
+        <span class="us-mobile-only">{short}</span>
+      </>
+    );
+    return files ? (
       <a href={href} style={`${BTN}text-decoration:none;color:#16171d;display:inline-block;`}>
         {label}
       </a>
@@ -1086,11 +1271,12 @@ app.get('/app/speakers', async (c) => {
         {label}
       </span>
     );
+  };
 
   const headerActions = (
     <div style="display:flex;gap:8px;">
-      {zipBtn('/app/speakers/headshots.zip', '↓ All headshots (ZIP)')}
-      {zipBtn('/app/speakers/slides.zip', '↓ All slides (ZIP)')}
+      {zipBtn('/app/speakers/headshots.zip', '↓ All headshots (ZIP)', '↓ Headshots')}
+      {zipBtn('/app/speakers/slides.zip', '↓ All slides (ZIP)', '↓ Slides')}
     </div>
   );
 
@@ -1139,11 +1325,11 @@ app.get('/app/speakers', async (c) => {
 
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/speakers.js']}>
-      <style>{raw(DRAWER_CSS)}</style>
-      <div style="padding:22px 28px;">
+      <style>{raw(PAGE_CSS)}</style>
+      <div class="spk-page">
         {reminderQueue.length > 0 ? (
           <div style="background:#fbf4e2;border:1px solid #e6d29a;margin-bottom:12px;">
-            <div style="padding:10px 14px;display:flex;align-items:center;gap:12px;font-size:13px;color:#33343c;flex-wrap:wrap;">
+            <div class="spk-rembar">
               <span>
                 <strong>{`${reminderQueue.length} queued task reminder${reminderQueue.length === 1 ? '' : 's'}`}</strong>
                 {` — sends as ${reminderGroups.length} email${
@@ -1156,7 +1342,8 @@ app.get('/app/speakers', async (c) => {
                   <input type="hidden" name="only" value="reminders" />
                   <button
                     type="submit"
-                    style="padding:8px 16px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;"
+                    class="spk-remsend"
+                    style="background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;"
                   >
                     {reminderQueue.length > OUTBOX_SEND_LIMIT
                       ? `Send ${OUTBOX_SEND_LIMIT} of ${reminderQueue.length} now`
@@ -1174,7 +1361,7 @@ app.get('/app/speakers', async (c) => {
               <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
                 {reminderGroups.map((g) => (
                   <div style="border-bottom:1px solid #eceded;">
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fafafb;">
+                    <div class="spk-remgroup">
                       <a
                         href={`/app/speakers?open=${g[0].speaker_profile_id}`}
                         style="font-size:13px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
@@ -1196,7 +1383,7 @@ app.get('/app/speakers', async (c) => {
                       </span>
                     </div>
                     {g.map((q) => (
-                      <div style="display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;padding:6px 14px 6px 28px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                      <div class="spk-remrow" style="border-bottom:1px solid #f2f3f5;">
                         <div style="min-width:0;">
                           <div style="font-size:12.5px;color:#33343c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                             {q.task_name}
@@ -1212,7 +1399,8 @@ app.get('/app/speakers', async (c) => {
                             <input type="hidden" name="back" value="/app/speakers" />
                             <button
                               type="submit"
-                              style="padding:4px 10px;background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
+                              class="spk-remundo"
+                              style="background:#fff;border:1px solid #e2e3e8;font-size:11.5px;color:#c92a2a;cursor:pointer;"
                             >
                               Undo
                             </button>
@@ -1233,47 +1421,46 @@ app.get('/app/speakers', async (c) => {
             </details>
           </div>
         ) : null}
-        <div style="display:flex;gap:6px;margin-bottom:14px;align-items:center;flex-wrap:wrap;">
-          <select id="f-task" style="padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+        <div class="spk-filters">
+          <select id="f-task" class="spk-filtersel" style="font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
             <option value="">Task: any</option>
             {data.active.map((t) => (
               <option value={t.id}>{t.name}</option>
             ))}
           </select>
-          <select id="f-state" style="padding:6px 8px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+          <select id="f-state" class="spk-filtersel" style="font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
             <option value="">State: any</option>
             <option value="c">Complete</option>
             <option value="p">To do</option>
             <option value="o">Overdue</option>
             <option value="-">Not assigned</option>
           </select>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <input id="f-q" placeholder="Search name or talk title…" style="width:220px;padding:6px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;" />
-          </div>
+          <input id="f-q" class="spk-search" placeholder="Search name or talk title…" style="border:1px solid #e2e3e8;font-size:12.5px;background:#fff;" />
           {data.pendingReview ? (
-            <button id="f-review" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e8d79a;background:#fdf5dc;color:#b08800;font-weight:600;">
+            <button id="f-review" class="spk-chip" style="font-size:12.5px;cursor:pointer;border:1px solid #e8d79a;background:#fdf5dc;color:#b08800;font-weight:600;">
               {`Pending review (${data.pendingReview})`}
             </button>
           ) : null}
-          <div style="margin-left:auto;display:flex;gap:6px;">
-            <button id="assign-open" style="padding:7px 12px;font-size:12.5px;cursor:pointer;border:none;background:#4c5fd5;color:#fff;font-weight:600;">
+          <div class="spk-actions">
+            <button id="assign-open" class="spk-action-primary" style="font-size:12.5px;cursor:pointer;border:none;background:#4c5fd5;color:#fff;font-weight:600;">
               Assign task
             </button>
             {canWrite ? (
               <button
                 type="button"
                 data-dialog-open="#dlg-directory"
-                style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;"
+                class="spk-action"
+                style="font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;"
               >
                 Add from directory
               </button>
             ) : null}
             {canWrite ? (
-              <button id="btn-import" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
+              <button id="btn-import" class="spk-action" style="font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
                 Import CSV
               </button>
             ) : null}
-            <a href="/app/speakers.csv" style="padding:6px 11px;font-size:12.5px;border:1px solid #e2e3e8;background:#fff;color:#33343c;text-decoration:none;">
+            <a href="/app/speakers.csv" class="spk-action" style="font-size:12.5px;border:1px solid #e2e3e8;background:#fff;color:#33343c;text-decoration:none;">
               Export CSV
             </a>
           </div>
@@ -1281,7 +1468,7 @@ app.get('/app/speakers', async (c) => {
 
         <Grid data={data} />
 
-        <div style="display:flex;gap:18px;padding:12px 2px;font-size:12px;color:#686b74;align-items:center;">
+        <div class="spk-legend">
           <span>
             <span style="display:inline-block;width:10px;height:10px;background:#2b8a3e;vertical-align:-1px;"></span> complete
           </span>

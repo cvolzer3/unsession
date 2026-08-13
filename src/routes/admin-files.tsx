@@ -11,6 +11,7 @@
  * reload would re-run the drawer's slide-in animation on every reply.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx } from '../types';
 import { AdminLayout, MONO } from '../views/layout';
@@ -27,10 +28,59 @@ const app = new Hono<Ctx>();
 /* --------------------------------------------------------------- styles */
 
 const LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
-const SMALL_BTN = 'padding:6px 12px;background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#33343c;cursor:pointer;';
 
-const DRAWER_CSS = `
+/** Library table columns — six of them, so they need ~900px on desktop. */
+const COLS = 'minmax(220px,1.4fr) minmax(120px,1fr) minmax(140px,1.2fr) 150px 76px 90px';
+
+/**
+ * Page CSS. Every desktop declaration below is byte-for-byte what used to sit
+ * inline; the `@media (max-width:768px)` half is the phone shape.
+ *
+ * The library table is the criterion-7 decision (SPECS/M-mobile.md): six
+ * columns need 900px, and the two that carry the review signal — version count
+ * and comment count — are the last two, so sideways scrolling would hide
+ * exactly what the organizer opens this page for. Below 768px a row reflows
+ * into a card: filename and what it is attached to on line one, speaker and
+ * session on line two, upload time plus the version and comment counts (now
+ * spelled out, since the column heads are gone) on line three. The whole card
+ * stays one `<a>`, so the tap target is the card.
+ */
+const PAGE_CSS = `
   .drawer-file{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:70;box-shadow:-12px 0 40px rgba(0,0,0,0.14);display:flex;flex-direction:column;animation:slidein 0.18s ease;}
+  .fil-page{padding:24px 28px;}
+  .fil-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .fil-filters{margin-left:auto;display:flex;gap:6px;}
+  .fil-filter{padding:6px 12px;}
+  .fil-head{display:grid;grid-template-columns:${COLS};gap:0 14px;padding:10px 16px;min-width:900px;}
+  .fil-row{display:grid;grid-template-columns:${COLS};gap:0 14px;padding:11px 16px;min-width:900px;align-items:center;}
+  /* The drawer bands follow the shell's --band-x (22px, 16px on a phone). */
+  .fil-band{padding-left:var(--band-x);padding-right:var(--band-x);}
+  .fil-verrow{display:flex;align-items:center;gap:10px;padding:9px 12px;}
+  .fil-verbtn{padding:6px 12px;}
+  .fil-replyrow{display:flex;gap:6px;padding:9px 12px;margin:0;}
+  .fil-replyinput{flex:1;}
+  .fil-replybtn{padding:6px 12px;}
+  @media (max-width:768px){
+    .fil-page{padding:14px 14px 28px;}
+    .fil-filters{margin-left:0;flex:1 0 100%;flex-wrap:wrap;}
+    .fil-filter{flex:1 1 auto;text-align:center;padding:11px 10px;}
+    .fil-head{display:none;}
+    .fil-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 9px;min-width:0;padding:13px 14px;}
+    .fil-c-file{flex:1 0 100%;min-width:0;margin-bottom:2px;}
+    .fil-c-file > div{white-space:normal !important;}
+    .fil-c-speaker,.fil-c-session,.fil-c-when{flex:0 1 auto;min-width:0;max-width:100%;}
+    .fil-c-versions,.fil-c-comments{flex:0 1 auto;text-align:left !important;font-size:11px !important;}
+    /* Column heads are gone on a phone, so the meta line separates itself. */
+    .fil-c-session::before,.fil-c-when::before,.fil-c-versions::before,.fil-c-comments::before{content:'·';color:#c9cbd2;margin-right:9px;}
+    .drawer-file .us-icon-btn{padding:11px;}
+    .fil-verrow{flex-wrap:wrap;gap:8px 10px;}
+    .fil-verbtn{padding:10px 14px;margin-left:auto;}
+    /* Stack the reply: a full-width field, then the button on its own line, so
+       neither can squeeze the other out of the row. */
+    .fil-replyrow{flex-wrap:wrap;gap:8px;padding:10px 12px;}
+    .fil-replyinput{flex:1 0 100%;}
+    .fil-replybtn{margin-left:auto;padding:11px 16px;}
+  }
 `;
 
 function fmtSize(bytes: number): string {
@@ -198,13 +248,13 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
   <div>
     <a href={backHref} aria-label="Close" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:60;"></a>
     <div class="us-drawer-panel drawer-file">
-      <div style="padding:16px 22px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
+      <div class="fil-band" style="padding-top:16px;padding-bottom:16px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;">
         <div style={LABEL}>FILE DETAIL</div>
         <a href={backHref} class="us-icon-btn" aria-label="Close" style="margin-left:auto;font-size:18px;line-height:1;text-decoration:none;">
           ×
         </a>
       </div>
-      <div style="flex:1;overflow-y:auto;padding:18px 22px;">
+      <div class="fil-band" style="flex:1;overflow-y:auto;padding-top:18px;padding-bottom:18px;">
         <div style="font-size:16px;font-weight:700;letter-spacing:-0.01em;word-break:break-all;">{chain.filename}</div>
         <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;margin-top:4px;`}>
           {`${chain.label.toUpperCase()} · ${fmtSize(chain.size)}`}
@@ -222,7 +272,7 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
         <div style={`${LABEL}margin:22px 0 8px;`}>{`VERSIONS · ${chain.versions.length}`}</div>
         <div style="border:1px solid #eceded;">
           {chain.versions.map((v, i) => (
-            <div style={`display:flex;align-items:center;gap:10px;padding:9px 12px;${i ? 'border-top:1px solid #f2f3f5;' : ''}`}>
+            <div class="fil-verrow" style={i ? 'border-top:1px solid #f2f3f5;' : ''}>
               <span
                 style={`font-family:${MONO};font-size:10px;font-weight:600;padding:2px 6px;flex:none;${
                   i === 0 ? 'background:#e6f4ea;color:#2b8a3e;' : 'background:#f1f3f5;color:#686b74;'
@@ -238,7 +288,13 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
                   {`${fmtDateTime(v.created_at)} · ${fmtSize(v.size)}`}
                 </div>
               </div>
-              <a href={`/files/${v.id}`} target="_blank" rel="noreferrer" style={`${SMALL_BTN}flex:none;text-decoration:none;`}>
+              <a
+                href={`/files/${v.id}`}
+                target="_blank"
+                rel="noreferrer"
+                class="fil-verbtn"
+                style="background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#33343c;cursor:pointer;flex:none;text-decoration:none;"
+              >
                 View ↓
               </a>
             </div>
@@ -263,16 +319,19 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
                 No comments yet.
               </div>
             ) : null}
-            <form method="post" action="/app/files/comment" data-comment-form style="display:flex;gap:6px;padding:9px 12px;margin:0;">
+            <form method="post" action="/app/files/comment" data-comment-form class="fil-replyrow">
               <input type="hidden" name="fileId" value={chain.fileId} />
               <input
                 name="body"
                 required
                 maxlength={2000}
                 placeholder="Reply — the speaker sees this in their portal…"
-                style="flex:1;min-width:0;padding:6px 9px;border:1px solid #e2e3e8;font-size:12px;"
+                class="fil-replyinput"
+                style="min-width:0;padding:6px 9px;border:1px solid #e2e3e8;font-size:12px;"
               />
-              <button type="submit" style={SMALL_BTN}>Comment</button>
+              <button type="submit" class="fil-replybtn" style="background:#fff;border:1px solid #e2e3e8;font-size:12px;color:#33343c;cursor:pointer;">
+                Comment
+              </button>
             </form>
           </div>
         ) : (
@@ -304,23 +363,25 @@ app.get('/app/files', async (c) => {
   const totalVersions = chains.reduce((n, ch) => n + ch.versions.length, 0);
   const totalBytes = chains.reduce((n, ch) => n + ch.versions.reduce((m, v) => m + v.size, 0), 0);
   const listHref = filter === 'all' ? '/app/files' : `/app/files?kind=${filter}`;
-  const cols = 'minmax(220px,1.4fr) minmax(120px,1fr) minmax(140px,1.2fr) 150px 76px 90px';
 
   return c.html(
     <AdminLayout {...props} scripts={['/js/files.js']}>
-      <style>{DRAWER_CSS}</style>
-      <div style="padding:24px 28px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+      {/* raw: the phone rules carry quoted `content:'·'` separators, which JSX
+          would escape into broken CSS. */}
+      <style>{raw(PAGE_CSS)}</style>
+      <div class="fil-page">
+        <div class="fil-bar">
           <div style={LABEL}>
             {`FILES LIBRARY · ${chains.length} FILE${chains.length === 1 ? '' : 'S'} · ${totalVersions} VERSION${
               totalVersions === 1 ? '' : 'S'
             } · ${fmtSize(totalBytes)}`}
           </div>
-          <div style="margin-left:auto;display:flex;gap:6px;">
+          <div class="fil-filters">
             {FILTERS.map(([key, label]) => (
               <a
                 href={key === 'all' ? '/app/files' : `/app/files?kind=${key}`}
-                style={`padding:6px 12px;font-size:12px;text-decoration:none;border:1px solid ${
+                class="fil-filter"
+                style={`font-size:12px;text-decoration:none;border:1px solid ${
                   key === filter ? '#4c5fd5' : '#e2e3e8'
                 };background:${key === filter ? '#eef0fb' : '#fff'};color:${key === filter ? '#4c5fd5' : '#33343c'};font-weight:${
                   key === filter ? '600' : '400'
@@ -332,9 +393,10 @@ app.get('/app/files', async (c) => {
           </div>
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+        <div class="us-scroll-x" style="background:#fff;border:1px solid #e2e3e8;">
           <div
-            style={`display:grid;grid-template-columns:${cols};gap:0 14px;padding:10px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;min-width:900px;`}
+            class="fil-head"
+            style={`border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`}
           >
             <div>FILE</div>
             <div>SPEAKER</div>
@@ -346,9 +408,10 @@ app.get('/app/files', async (c) => {
           {shown.map((ch) => (
             <a
               href={`${listHref}${listHref.includes('?') ? '&' : '?'}file=${ch.fileId}`}
-              style={`display:grid;grid-template-columns:${cols};gap:0 14px;padding:11px 16px;border-bottom:1px solid #f2f3f5;align-items:center;min-width:900px;color:inherit;text-decoration:none;`}
+              class="fil-row"
+              style="border-bottom:1px solid #f2f3f5;color:inherit;text-decoration:none;"
             >
-              <div style="min-width:0;">
+              <div class="fil-c-file" style="min-width:0;">
                 <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                   {ch.filename}
                 </div>
@@ -356,18 +419,30 @@ app.get('/app/files', async (c) => {
                   {ch.label}
                 </div>
               </div>
-              <div style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <div class="fil-c-speaker" style="font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 {ch.speaker ?? '—'}
               </div>
-              <div style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <div class="fil-c-session" style="font-size:12.5px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                 {ch.session ?? '—'}
               </div>
-              <div style={`font-family:${MONO};font-size:11px;color:#686b74;`}>{fmtDateTime(ch.uploadedAt)}</div>
-              <div style={`text-align:right;font-family:${MONO};font-size:12px;font-weight:600;color:${ch.versions.length > 1 ? '#4c5fd5' : '#686b74'};`}>
-                {ch.versions.length}
+              <div class="fil-c-when" style={`font-family:${MONO};font-size:11px;color:#686b74;`}>
+                {fmtDateTime(ch.uploadedAt)}
               </div>
-              <div style={`text-align:right;font-family:${MONO};font-size:12px;color:${ch.comments ? '#16171d' : '#c9cbd2'};`}>
-                {ch.comments || '—'}
+              <div
+                class="fil-c-versions"
+                style={`text-align:right;font-family:${MONO};font-size:12px;font-weight:600;color:${ch.versions.length > 1 ? '#4c5fd5' : '#686b74'};`}
+              >
+                <span class="us-desktop-only">{ch.versions.length}</span>
+                <span class="us-mobile-only">{`${ch.versions.length} version${ch.versions.length === 1 ? '' : 's'}`}</span>
+              </div>
+              <div
+                class="fil-c-comments"
+                style={`text-align:right;font-family:${MONO};font-size:12px;color:${ch.comments ? '#16171d' : '#c9cbd2'};`}
+              >
+                <span class="us-desktop-only">{ch.comments || '—'}</span>
+                <span class="us-mobile-only">
+                  {ch.comments ? `${ch.comments} comment${ch.comments === 1 ? '' : 's'}` : 'no comments'}
+                </span>
               </div>
             </a>
           ))}
