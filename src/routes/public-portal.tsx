@@ -331,7 +331,7 @@ const TaskRow: FC<{ task: ChecklistTask; slug: string; files: boolean }> = ({ ta
     <div style="border-bottom:1px solid var(--chip);">
       <div style="display:flex;gap:12px;align-items:center;padding:13px 18px;">
         {task.type === 'checkbox' && !task.locked ? (
-          <form method="post" action={`/${slug}/portal/task/toggle`} style="display:flex;">
+          <form method="post" action={`/${slug}/portal/task/toggle`} style="display:flex;margin:0;">
             <input type="hidden" name="taskId" value={task.id} />
             <input type="hidden" name="done" value={done ? '0' : '1'} />
             <button type="submit" title={done ? 'Mark as not done' : 'Mark as done'} style={`${boxStyle}cursor:pointer;`}>
