@@ -36,6 +36,7 @@ import {
   loadAgenda,
   publishedRev,
   roomNamer,
+  speakerAffiliation,
   type AgendaBundle,
   type EventDay,
   type OptRow,
@@ -226,7 +227,9 @@ function SpeakersBlock(props: { x: WidgetCtx; s: SessionRow; slug: string; blank
             >
               {p.name}
             </a>
-            {p.tagline ? <div style="font-size:11px;color:var(--muted);margin-top:1px;">{p.tagline}</div> : null}
+            {speakerAffiliation(p) ? (
+              <div style="font-size:11px;color:var(--muted);margin-top:1px;">{speakerAffiliation(p)}</div>
+            ) : null}
           </div>
         </div>
       ))}
@@ -402,8 +405,8 @@ function speakersContent(x: WidgetCtx, opts: { embed: boolean }) {
               >
                 {e.profile.name}
               </a>
-              {!x.hide.has('tagline') && e.profile.tagline ? (
-                <div style="font-size:12.5px;color:var(--muted);margin-top:2px;">{e.profile.tagline}</div>
+              {!x.hide.has('tagline') && speakerAffiliation(e.profile) ? (
+                <div style="font-size:12.5px;color:var(--muted);margin-top:2px;">{speakerAffiliation(e.profile)}</div>
               ) : null}
               {x.hide.has('bio') ? null : <Abstract text={e.profile.bio} hidden={false} />}
               {x.hide.has('sessions') ? null : (
@@ -478,8 +481,10 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
             <div style="font-size:13px;font-weight:700;letter-spacing:-0.01em;margin-top:9px;line-height:1.3;">
               {e.profile.name}
             </div>
-            {!x.hide.has('tagline') && e.profile.tagline ? (
-              <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45;">{e.profile.tagline}</div>
+            {!x.hide.has('tagline') && speakerAffiliation(e.profile) ? (
+              <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45;">
+                {speakerAffiliation(e.profile)}
+              </div>
             ) : null}
           </button>
         ))}
@@ -511,8 +516,8 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
               <Headshot p={e.profile} size={110} />
               <div style="flex:1;min-width:220px;">
                 <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;">{e.profile.name}</div>
-                {e.profile.tagline ? (
-                  <div style="font-size:13px;color:var(--muted);margin-top:3px;">{e.profile.tagline}</div>
+                {speakerAffiliation(e.profile) ? (
+                  <div style="font-size:13px;color:var(--muted);margin-top:3px;">{speakerAffiliation(e.profile)}</div>
                 ) : null}
                 <Abstract text={e.profile.bio} hidden={false} />
                 <div style="margin-top:12px;">
@@ -731,7 +736,9 @@ function basicHtml(x: WidgetCtx, widget: string, origin: string): string {
         .map((s) => `<li>${escXml(s.title)} — ${escXml(whenLabel(x, s))}${roomLabel(x, s) ? ` — ${escXml(roomLabel(x, s))}` : ''}</li>`)
         .join('');
       lines.push(
-        `<li><strong>${escXml(e.profile.name)}</strong>${e.profile.tagline ? ` — ${escXml(e.profile.tagline)}` : ''}` +
+        `<li><strong>${escXml(e.profile.name)}</strong>${
+          speakerAffiliation(e.profile) ? ` — ${escXml(speakerAffiliation(e.profile))}` : ''
+        }` +
           `${e.profile.bio ? `<p>${escXml(e.profile.bio)}</p>` : ''}<ul>${sess}</ul>` +
           `<p><a href="${origin}/${x.event.slug}/speakers/${encodeURIComponent(e.profile.slug)}">Profile</a></p></li>`
       );
@@ -743,7 +750,7 @@ function basicHtml(x: WidgetCtx, widget: string, origin: string): string {
   for (const s of x.scheduled.filter((s2) => s2.type !== 'service')) {
     const tr = s.track_option_id ? x.trackById.get(s.track_option_id)?.name : null;
     const speakers = (x.bundle.speakers.get(s.id) ?? [])
-      .map((p) => `${p.name}${p.tagline ? ` (${p.tagline})` : ''}`)
+      .map((p) => `${p.name}${speakerAffiliation(p) ? ` (${speakerAffiliation(p)})` : ''}`)
       .join(', ');
     lines.push(
       `<li><strong>${escXml(s.title)}</strong><br>${escXml(whenLabel(x, s))}${
@@ -956,7 +963,7 @@ app.get('/:event/agenda.xml', async (c) => {
         .map(
           (p) =>
             `<speaker slug="${escXml(p.slug)}"><name>${escXml(p.name)}</name>` +
-            `${p.tagline ? `<tagline>${escXml(p.tagline)}</tagline>` : ''}` +
+            `${speakerAffiliation(p) ? `<tagline>${escXml(speakerAffiliation(p))}</tagline>` : ''}` +
             `<url>${escXml(`${c.env.APP_ORIGIN}/${event.slug}/speakers/${p.slug}`)}</url></speaker>`
         )
         .join('');
@@ -996,7 +1003,9 @@ app.get('/:event/speakers.json', async (c) => {
       speakers: speakerEntries(x).map((e) => ({
         name: e.profile.name,
         slug: e.profile.slug,
-        tagline: e.profile.tagline,
+        job_title: e.profile.job_title,
+        company: e.profile.company,
+        tagline: speakerAffiliation(e.profile) || null,
         bio: e.profile.bio,
         headshot_url: e.profile.headshot_file_id ? `${c.env.APP_ORIGIN}/files/${e.profile.headshot_file_id}` : null,
         url: `${c.env.APP_ORIGIN}/${event.slug}/speakers/${e.profile.slug}`,
@@ -1046,7 +1055,7 @@ app.get('/:event/speakers.xml', async (c) => {
         .join('');
       lines.push(
         `  <speaker slug="${escXml(e.profile.slug)}"><name>${escXml(e.profile.name)}</name>` +
-          `${e.profile.tagline ? `<tagline>${escXml(e.profile.tagline)}</tagline>` : ''}` +
+          `${speakerAffiliation(e.profile) ? `<tagline>${escXml(speakerAffiliation(e.profile))}</tagline>` : ''}` +
           `<bio>${escXml(e.profile.bio)}</bio>` +
           `<url>${escXml(`${c.env.APP_ORIGIN}/${event.slug}/speakers/${e.profile.slug}`)}</url>` +
           `<sessions>${sessions}</sessions></speaker>`
