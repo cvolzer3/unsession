@@ -9,8 +9,9 @@
  * OWNER: B4.
  */
 import { Hono } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
-import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
+import { PublicLayout, publicNav, PUBLIC_PAGE_MAX, MOBILE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
 import { eventDays, fmtSpan, loadAgenda, roomNamer, speakerAffiliation, type SessionRow } from '../lib/agenda';
@@ -54,6 +55,39 @@ function initialsOfName(name: string): string {
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
+/**
+ * Responsive rules for the profile. Only the properties that must change on a
+ * phone live here — everything else stays inline, per SPECS/M-mobile.md. The
+ * session card is a two-column grid on desktop (time rail + body); below the
+ * breakpoint the rail would squeeze the title to one word per line, so the
+ * card stacks.
+ */
+const speakerCss = () => `
+.sp-page{padding:24px 28px 72px;}
+.sp-hero{gap:30px;margin-top:34px;}
+.sp-shot{width:172px;height:172px;}
+.sp-shot-img{width:172px;height:172px;}
+.sp-body{flex:1;min-width:280px;}
+.sp-name{font-size:34px;overflow-wrap:anywhere;}
+.sp-card{padding:16px 20px;display:grid;grid-template-columns:130px 1fr;gap:18px;}
+.sp-when-b{margin-top:3px;}
+.sp-when-c{margin-top:2px;}
+@media (max-width:${MOBILE_MAX}px){
+  .sp-page{padding:16px 14px 48px;}
+  .sp-hero{gap:16px;margin-top:20px;}
+  .sp-shot{width:120px;height:120px;}
+  .sp-shot-img{width:120px;height:120px;}
+  .sp-body{min-width:0;flex-basis:100%;}
+  .sp-name{font-size:27px;}
+  .sp-card{padding:14px;grid-template-columns:minmax(0,1fr);gap:8px;}
+  /* Stacked card: the time rail reads as one line above the title. */
+  .sp-when{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 9px;}
+  .sp-when-b,.sp-when-c{margin-top:0;}
+  /* Comfortable thumb target for the small text links. */
+  .sp-link{min-height:40px;display:inline-flex;align-items:center;}
+}
+`;
+
 app.get('/:event/speakers/:slug', async (c) => {
   const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
   if (!found) return c.notFound();
@@ -76,10 +110,10 @@ app.get('/:event/speakers/:slug', async (c) => {
 
   const backLink = (
     <div style="display:flex;align-items:center;gap:14px;margin-top:18px;">
-      <a href={`/${event.slug}/speakers`} style="margin-left:auto;font-size:13px;">
+      <a class="sp-link" href={`/${event.slug}/speakers`} style="margin-left:auto;font-size:13px;">
         ← All speakers
       </a>
-      <a href={`/${event.slug}/agenda`} style="font-size:13px;">
+      <a class="sp-link" href={`/${event.slug}/agenda`} style="font-size:13px;">
         Full agenda
       </a>
     </div>
@@ -88,7 +122,8 @@ app.get('/:event/speakers/:slug', async (c) => {
   if (!profile || !mine.length) {
     return c.html(
       <PublicLayout title="Speaker" event={event} theme={theme} maxWidth={PUBLIC_PAGE_MAX} nav={publicNav(event.slug, 'speakers')}>
-        <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 72px;`}>
+        <style>{raw(speakerCss())}</style>
+        <div class="sp-page" style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;`}>
           {backLink}
           <div style="margin-top:60px;text-align:center;">
             <div style="font-size:20px;font-weight:600;">Speaker not found</div>
@@ -137,29 +172,31 @@ app.get('/:event/speakers/:slug', async (c) => {
 
   return c.html(
     <PublicLayout title={profile.name} event={event} theme={theme} maxWidth={PUBLIC_PAGE_MAX} nav={publicNav(event.slug, 'speakers')}>
-      <div style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;padding:24px 28px 72px;`}>
+      <style>{raw(speakerCss())}</style>
+      <div class="sp-page" style={`max-width:${PUBLIC_PAGE_MAX}px;margin:0 auto;`}>
         {backLink}
-        <div style="display:flex;gap:30px;align-items:flex-start;margin-top:34px;flex-wrap:wrap;">
-          <div style="width:172px;height:172px;flex:none;">
+        <div class="sp-hero" style="display:flex;align-items:flex-start;flex-wrap:wrap;">
+          <div class="sp-shot" style="flex:none;">
             {headshot ? (
               <img
                 src={headshot}
                 alt={profile.name}
                 width="172"
                 height="172"
-                style="width:172px;height:172px;object-fit:cover;display:block;background:var(--chip);"
+                class="sp-shot-img"
+                style="object-fit:cover;display:block;background:var(--chip);"
               />
             ) : (
-              <div style="width:172px;height:172px;background:var(--chip);color:var(--primary);display:grid;place-items:center;font-size:46px;font-weight:700;letter-spacing:-0.02em;">
+              <div class="sp-shot" style="background:var(--chip);color:var(--primary);display:grid;place-items:center;font-size:46px;font-weight:700;letter-spacing:-0.02em;">
                 {initialsOfName(profile.name)}
               </div>
             )}
           </div>
-          <div style="flex:1;min-width:280px;">
+          <div class="sp-body">
             <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:0.14em;color:var(--muted);">
               {`SPEAKER · ${event.name.toUpperCase()}`}
             </div>
-            <h1 style="margin:8px 0 0;font-size:34px;letter-spacing:-0.02em;line-height:1.1;">{profile.name}</h1>
+            <h1 class="sp-name" style="margin:8px 0 0;letter-spacing:-0.02em;line-height:1.1;">{profile.name}</h1>
             {speakerAffiliation(profile) ? (
               <div style="font-size:14.5px;color:var(--text-secondary);margin-top:6px;">{speakerAffiliation(profile)}</div>
             ) : null}
@@ -176,7 +213,7 @@ app.get('/:event/speakers/:slug', async (c) => {
                 {linkItems.map((l, i) => (
                   <>
                     {i > 0 ? <span style="color:var(--faint);">·</span> : null}
-                    <a href={l.url} target="_blank" rel="noopener noreferrer">
+                    <a class="sp-link" href={l.url} target="_blank" rel="noopener noreferrer">
                       {`${l.label} ↗`}
                     </a>
                   </>
@@ -191,11 +228,11 @@ app.get('/:event/speakers/:slug', async (c) => {
           </div>
           <div style="display:grid;gap:10px;margin-top:14px;">
             {rows.map((s) => (
-              <div style="background:var(--card);border:1px solid var(--border);padding:16px 20px;display:grid;grid-template-columns:130px 1fr;gap:18px;">
-                <div style="font-family:var(--font-mono);">
+              <div class="sp-card" style="background:var(--card);border:1px solid var(--border);">
+                <div class="sp-when" style="font-family:var(--font-mono);">
                   <div style="font-size:12px;font-weight:600;color:var(--text);">{s.time}</div>
-                  <div style="font-size:10px;color:var(--muted);margin-top:3px;">{s.day}</div>
-                  {s.room ? <div style="font-size:10px;color:var(--muted);margin-top:2px;">{s.room}</div> : null}
+                  <div class="sp-when-b" style="font-size:10px;color:var(--muted);">{s.day}</div>
+                  {s.room ? <div class="sp-when-c" style="font-size:10px;color:var(--muted);">{s.room}</div> : null}
                 </div>
                 <div>
                   <div style="font-size:16.5px;font-weight:600;letter-spacing:-0.01em;line-height:1.3;">{s.title}</div>

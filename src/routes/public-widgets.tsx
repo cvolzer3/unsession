@@ -26,8 +26,9 @@
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
+import { PublicLayout, publicNav, PUBLIC_PAGE_MAX, MOBILE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import {
   eventDays,
@@ -62,6 +63,40 @@ const app = new Hono<Ctx>();
 
 const MONO = 'var(--font-mono)';
 const PAGE_MAX = PUBLIC_PAGE_MAX;
+
+/**
+ * Responsive rules shared by all four widgets, on the full page and inside an
+ * embed iframe alike (embeds are often 300–360px wide, so they need the same
+ * treatment as a phone). Only the properties that must change below the
+ * breakpoint live here; the rest stays inline — see SPECS/M-mobile.md.
+ *
+ * `.wg-tap` gives the small text buttons and links a ~40px thumb target. It
+ * does not set `display` on elements that already declare one inline (the
+ * facet labels are `display:flex`), so `min-height` is what does the work
+ * there.
+ */
+const widgetCss = () => `
+.wg-page{padding:24px 28px 72px;}
+.wg-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px;}
+.wg-shot-fill{width:140px;height:140px;}
+.wg-col{flex:1;min-width:240px;}
+.wg-detail{padding:32px 16px;}
+.wg-detail-card{max-width:620px;margin:0 auto;padding:22px 24px;}
+.wg-detail-col{flex:1;min-width:220px;}
+.wg-x{position:absolute;top:8px;right:10px;}
+@media (max-width:${MOBILE_MAX}px){
+  .wg-page{padding:16px 14px 48px;}
+  /* Two photo columns still fit a 320px screen once the tiles can shrink. */
+  .wg-gallery{grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:10px;}
+  .wg-shot-fill{width:100%;height:auto;aspect-ratio:1/1;}
+  .wg-col,.wg-detail-col{min-width:0;flex-basis:100%;}
+  .wg-detail{padding:12px 8px;}
+  .wg-detail-card{padding:14px 14px 20px;}
+  .wg-tap{min-height:40px;align-items:center;}
+  a.wg-tap,button.wg-tap{display:inline-flex;}
+  .wg-x{top:2px;right:2px;min-width:40px;min-height:40px;}
+}
+`;
 
 /* ------------------------------------------------------------ shared ctx */
 
@@ -164,19 +199,28 @@ const MORE_BTN =
 const SEARCH_INPUT =
   'width:260px;max-width:100%;padding:7px 10px;border:1px solid var(--border-strong);font-size:12.5px;background:var(--card);';
 
-function Headshot(props: { p: SpeakerLite; size: number; round?: boolean }) {
+/**
+ * `fill` hands the box size to `.wg-shot-fill` instead of an inline style, so
+ * the gallery tile can grow to its card's width on a phone — an inline width
+ * would outrank the media query.
+ */
+function Headshot(props: { p: SpeakerLite; size: number; round?: boolean; fill?: boolean }) {
   const { p, size } = props;
   const radius = props.round ? 'border-radius:50%;' : '';
+  const box = props.fill ? '' : `width:${size}px;height:${size}px;`;
+  const cls = props.fill ? 'wg-shot-fill' : undefined;
   return p.headshot_file_id ? (
     <img
       src={`/files/${p.headshot_file_id}`}
       alt={p.name}
       loading="lazy"
-      style={`width:${size}px;height:${size}px;object-fit:cover;display:block;background:var(--chip);${radius}flex:none;`}
+      class={cls}
+      style={`${box}object-fit:cover;display:block;background:var(--chip);${radius}flex:none;`}
     />
   ) : (
     <div
-      style={`width:${size}px;height:${size}px;background:var(--chip);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:${Math.round(
+      class={cls}
+      style={`${box}background:var(--chip);color:var(--primary);display:grid;place-items:center;font-weight:700;font-size:${Math.round(
         size * 0.34
       )}px;letter-spacing:-0.02em;${radius}flex:none;`}
     >
@@ -192,7 +236,7 @@ function Abstract(props: { text: string; hidden: boolean }) {
       <div data-abstract style={`font-size:13px;color:var(--text-secondary);line-height:1.55;margin-top:7px;${CLAMP}`}>
         {props.text}
       </div>
-      <button type="button" data-more style={MORE_BTN}>
+      <button type="button" data-more class="wg-tap" style={MORE_BTN}>
         Show more
       </button>
     </div>
@@ -281,7 +325,7 @@ function FacetGroup(props: { label: string; facet: string; options: { value: str
       <div style={`${MICRO}margin-bottom:7px;`}>{props.label}</div>
       <div style="display:grid;gap:5px;">
         {props.options.map((o) => (
-          <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
+          <label class="wg-tap" style="display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer;">
             <input type="checkbox" data-facet={props.facet} value={o.value} style="width:14px;height:14px;accent-color:var(--primary);" />
             {o.name}
           </label>
@@ -314,6 +358,7 @@ function sessionsContent(x: WidgetCtx, opts: { embed: boolean }) {
         <button
           type="button"
           data-facets-toggle
+          class="wg-tap"
           style="padding:7px 14px;border:1px solid var(--border-strong);background:var(--card);font-size:12.5px;cursor:pointer;"
         >
           Filters
@@ -322,6 +367,7 @@ function sessionsContent(x: WidgetCtx, opts: { embed: boolean }) {
           type="button"
           data-w-clear
           hidden
+          class="wg-tap"
           style="background:none;border:none;padding:0;color:var(--primary);font-size:12px;cursor:pointer;text-decoration:underline;"
         >
           Clear filters
@@ -336,7 +382,8 @@ function sessionsContent(x: WidgetCtx, opts: { embed: boolean }) {
           type="button"
           data-facets-toggle
           aria-label="Close filters"
-          style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:15px;color:var(--muted);cursor:pointer;"
+          class="wg-x"
+          style="background:none;border:none;font-size:15px;color:var(--muted);cursor:pointer;"
         >
           ✕
         </button>
@@ -396,7 +443,7 @@ function speakersContent(x: WidgetCtx, opts: { embed: boolean }) {
             style="background:var(--card);border:1px solid var(--border);padding:16px 18px;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;"
           >
             <Headshot p={e.profile} size={64} round />
-            <div style="flex:1;min-width:240px;">
+            <div class="wg-col">
               <a
                 href={`/${x.event.slug}/speakers/${encodeURIComponent(e.profile.slug)}`}
                 target={blank ? '_blank' : undefined}
@@ -468,7 +515,7 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
           <input data-w-search placeholder="Search speaker by name…" style={SEARCH_INPUT} />
         </div>
       )}
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:16px;">
+      <div class="wg-gallery">
         {entries.map((e) => (
           <button
             type="button"
@@ -477,7 +524,7 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
             data-search={e.profile.name.toLowerCase()}
             style="display:block;background:var(--card);border:1px solid var(--border);padding:10px;text-align:left;cursor:pointer;color:var(--text);font-family:inherit;"
           >
-            <Headshot p={e.profile} size={140} />
+            <Headshot p={e.profile} size={140} fill />
             <div style="font-size:13px;font-weight:700;letter-spacing:-0.01em;margin-top:9px;line-height:1.3;">
               {e.profile.name}
             </div>
@@ -502,19 +549,21 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
         <div
           data-g-detail={e.profile.id}
           hidden
-          style="position:fixed;inset:0;background:rgba(22,23,29,0.5);z-index:60;overflow-y:auto;padding:32px 16px;"
+          class="wg-detail"
+          style="position:fixed;inset:0;background:rgba(22,23,29,0.5);z-index:60;overflow-y:auto;"
         >
-          <div style="max-width:620px;margin:0 auto;background:var(--card);border:1px solid var(--border);padding:22px 24px;">
+          <div class="wg-detail-card" style="background:var(--card);border:1px solid var(--border);">
             <button
               type="button"
               data-g-close
+              class="wg-tap"
               style="background:none;border:none;padding:0;font-size:13px;color:var(--primary);cursor:pointer;text-decoration:underline;"
             >
               ← Back
             </button>
             <div style="display:flex;gap:18px;align-items:flex-start;margin-top:14px;flex-wrap:wrap;">
               <Headshot p={e.profile} size={110} />
-              <div style="flex:1;min-width:220px;">
+              <div class="wg-detail-col">
                 <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;">{e.profile.name}</div>
                 {speakerAffiliation(e.profile) ? (
                   <div style="font-size:13px;color:var(--muted);margin-top:3px;">{speakerAffiliation(e.profile)}</div>
@@ -522,6 +571,7 @@ function galleryContent(x: WidgetCtx, opts: { embed: boolean }) {
                 <Abstract text={e.profile.bio} hidden={false} />
                 <div style="margin-top:12px;">
                   <a
+                    class="wg-tap"
                     href={`/${x.event.slug}/speakers/${encodeURIComponent(e.profile.slug)}`}
                     target={blank ? '_blank' : undefined}
                     rel={blank ? 'noreferrer' : undefined}
@@ -608,6 +658,7 @@ function ItineraryCard(props: { x: WidgetCtx; s: SessionRow; blank: boolean }) {
         <button
           type="button"
           data-star={s.id}
+          class="wg-tap"
           title="Add to my schedule"
           style="background:none;border:1px solid var(--border-strong);padding:5px 10px;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;flex:none;"
         >
@@ -658,15 +709,17 @@ function itineraryContent(x: WidgetCtx, opts: { embed: boolean }) {
         <button
           type="button"
           data-mine-toggle
+          class="wg-tap"
           style="padding:7px 14px;border:1px solid var(--border-strong);background:var(--card);font-size:12.5px;cursor:pointer;white-space:nowrap;"
         >
           ★ My schedule (<span data-mine-count>0</span>)
         </button>
         <a
           data-ics-link
+          class="wg-tap"
           href={`/${x.event.slug}/agenda.ics`}
           data-ics-base={`/${x.event.slug}/agenda.ics`}
-          style="font-size:12.5px;white-space:nowrap;"
+          style="font-size:12.5px;"
         >
           ＋ Add to calendar (.ics)
         </a>
@@ -674,7 +727,7 @@ function itineraryContent(x: WidgetCtx, opts: { embed: boolean }) {
       {x.days.length > 1 ? (
         <div data-i-days style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;">
           {x.days.map((d) => (
-            <button type="button" data-day-tab={String(d.index)} style={dayBtn(d.index === 0)}>
+            <button type="button" data-day-tab={String(d.index)} class="wg-tap" style={dayBtn(d.index === 0)}>
               {d.label.split(' · ')[1] ?? d.label}
             </button>
           ))}
@@ -808,7 +861,8 @@ for (const [key, w] of Object.entries(WIDGETS)) {
           nav={publicNav(event.slug, w.nav)}
           scripts={['/js/public-widgets.js']}
         >
-          <div style={`max-width:${PAGE_MAX}px;margin:0 auto;padding:24px 28px 72px;`}>{w.render(x, { embed: false })}</div>
+          <style>{raw(widgetCss())}</style>
+          <div class="wg-page" style={`max-width:${PAGE_MAX}px;margin:0 auto;`}>{w.render(x, { embed: false })}</div>
         </PublicLayout>
       );
       res.headers.set('cache-control', 'public, max-age=60');
@@ -847,6 +901,7 @@ for (const [key, w] of Object.entries(WIDGETS)) {
           accent={config.accent}
           scripts={['/js/public-widgets.js']}
         >
+          <style>{raw(widgetCss())}</style>
           {w.render(x, { embed: true })}
         </EmbedShell>
       );

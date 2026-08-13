@@ -20,7 +20,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, MONO, fmtDateRange, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
+import { PublicLayout, MONO, fmtDateRange, publicNav, PUBLIC_PAGE_MAX, MOBILE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one } from '../lib/db';
 import {
@@ -116,8 +116,11 @@ function notPublished(event: { name: string; slug: string }, theme: Theme) {
 
 /* ------------------------------------------------------------------ page */
 
-/** Below this width the list becomes cards and the detail popover a bottom sheet. */
-const AGENDA_BREAK = 719;
+/**
+ * Below this width the list becomes cards and the detail popover a bottom
+ * sheet. It is the one breakpoint the whole app uses (SPECS/M-mobile.md).
+ */
+const AGENDA_BREAK = MOBILE_MAX;
 
 /**
  * Responsive rules for the agenda page. Mirrored by `public/js/public-agenda.js`,
@@ -142,8 +145,12 @@ const agendaCss = () => `
 .ag-sheet{position:fixed;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 40px);max-height:min(72vh,560px);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--border);box-shadow:0 16px 48px rgba(26,26,46,0.18);z-index:50;}
 .ag-sheet-body{overflow-y:auto;}
 .ag-backdrop{display:none;}
+.ag-close{padding:2px 4px;}
 @media (max-width:${AGENDA_BREAK}px){
   #agenda-page{padding:16px 14px 48px;}
+  /* Toolbar buttons are the page's real controls — give them a thumb target. */
+  .ag-toolbar button{min-height:40px;}
+  .ag-close{min-width:40px;min-height:40px;padding:2px 4px;}
   .ag-toolbar{gap:7px;padding:8px 0 10px;}
   .ag-bar{flex-wrap:wrap;gap:8px;}
   #track-chips{flex-wrap:nowrap;}

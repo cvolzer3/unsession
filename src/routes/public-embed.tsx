@@ -23,6 +23,7 @@ import type { Context } from 'hono';
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
+import { MOBILE_MAX } from '../views/layout';
 import { pairingFor, themeStyleVars } from '../lib/theme';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
@@ -173,6 +174,14 @@ export const EmbedShell: FC<
   a{color:var(--primary);text-decoration:none;} a:hover{color:var(--primary-hover);text-decoration:underline;}
   *{box-sizing:border-box;} input,select,button{font-family:inherit;}
   [hidden]{display:none !important;}
+  /* An embed is usually narrower than a phone, so the mobile toolkit from the
+     site shells has to exist here too — this document does not load them.
+     Same breakpoint (MOBILE_MAX), measured against the iframe's own width. */
+  .us-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
+  @media (max-width:${MOBILE_MAX}px){
+    /* 16px stops iOS Safari zooming the host page when a field takes focus. */
+    input,textarea,select{font-size:16px !important;}
+  }
 `;
   return (
     <html style={vars}>

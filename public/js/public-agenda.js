@@ -450,7 +450,9 @@ function boot(D) {
         ? `<div style="font-family:${MONO};font-size:10px;color:var(--muted);margin-top:3px;">FORMAT: ${esc(fmtLabel.toUpperCase())}</div>`
         : '') +
       '</div>' +
-      '<button type="button" data-close-detail aria-label="Close" style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;padding:2px 4px;">✕</button></div>' +
+      // Padding lives in `.ag-close` (see the route's <style>) so the mobile
+      // rule can grow it to a 40px thumb target — an inline value would win.
+      '<button type="button" data-close-detail class="ag-close" aria-label="Close" style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;">✕</button></div>' +
       '<div class="ag-sheet-body" style="padding:16px;display:grid;gap:16px;">' +
       `<div style="font-size:13px;line-height:1.7;color:var(--text-secondary);">${esc(
         a.abstract || 'Session details coming soon.'
