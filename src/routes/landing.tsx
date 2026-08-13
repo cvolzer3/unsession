@@ -182,6 +182,20 @@ const CSS = `
   .stat .cap{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;color:#83858f;margin:10px 0 8px;}
   .stat p{margin:0;font-size:13.5px;line-height:1.6;color:#c9cbd4;}
 
+  /* ---------------------------------------------------------- agents */
+  .agents{padding:96px 0;background:var(--paper);}
+  .agents .lede{margin:0 0 24px;}
+  .agents .more{display:inline-flex;gap:18px;margin-top:26px;font-size:14.5px;font-weight:600;flex-wrap:wrap;}
+  .term{background:#16171d;box-shadow:0 18px 44px rgba(22,23,29,0.18);}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #2c2d36;}
+  .term-bar .dot{background:#3a3b45;}
+  .term-bar .tt{font-family:var(--mono);font-size:9.5px;letter-spacing:0.12em;color:#83858f;margin-left:6px;}
+  .term-body{padding:16px 18px;font-family:var(--mono);font-size:11.5px;line-height:1.8;color:#d7d8de;overflow-x:auto;white-space:pre;}
+  .term-body .p{color:#8f9bff;}
+  .term-body .ok{color:#5fd08a;}
+  .term-body .dim{color:#83858f;}
+  .term-body .you{color:var(--amber);}
+
   /* ------------------------------------------------------ opensource */
   .oss-strip{border-bottom:1px solid var(--line);background:#fff;}
   .oss-strip-inner{display:flex;align-items:baseline;gap:18px;padding:22px 0;font-size:14px;color:var(--ink2);flex-wrap:wrap;}
@@ -221,8 +235,8 @@ const CSS = `
     .hero-inner{padding:56px 0 0;}
     .hero h1{font-size:clamp(32px,9vw,44px);}
     .hero p{font-size:16px;}
-    .feature{padding:56px 0;}
-    .feature h2{font-size:26px;}
+    .feature,.agents{padding:56px 0;}
+    .feature h2,.agents h2{font-size:26px;}
     .dark-inner{padding:56px 0;}
     .dark h2{font-size:28px;}
     .stat .big{font-size:32px;}
@@ -467,6 +481,26 @@ const QUEUE_ROWS = [
 
 const PIPELINE = ['COLLECT', 'EVALUATE', 'DECIDE', 'ONBOARD', 'SCHEDULE', 'PUBLISH'];
 
+/**
+ * The MCP vignette. Rendered one `<div>` per line inside `white-space:pre`, so
+ * leading spaces survive without the source indentation leaking in.
+ */
+const TERMINAL: [string, string][] = [
+  ['p', '$ claude mcp add --transport http unsession \\'],
+  ['p', '    https://unsession.dev/api/mcp \\'],
+  ['p', '    --header "Authorization: Bearer uns_…"'],
+  ['', ' '],
+  ['ok', '✓ Connected · unsession · 19 tools'],
+  ['', ' '],
+  ['you', '> which accepted speakers still owe us slides?'],
+  ['', ' '],
+  ['dim', '  ⚙ list_sessions → list_tasks → list_speakers'],
+  ['', ' '],
+  ['', '  3 of 41 are outstanding: Marcus Chen, Amara'],
+  ['', '  Okafor, Jonas Weber. Want me to assign the'],
+  ['', '  slides task and send the reminder digest?'],
+];
+
 const STATS = [
   {
     big: '1',
@@ -514,6 +548,7 @@ app.get('/', (c) => {
             <div class="nav-links">
               <a href="#how">How it works</a>
               <a href="/events">Events</a>
+              <a href="/docs/mcp">MCP &amp; API</a>
               <a href="#oss">Open source</a>
             </div>
             <div class="nav-cta">
@@ -680,6 +715,65 @@ app.get('/', (c) => {
           </div>
         </div>
 
+        {/* ------------------------------------------------------ agents */}
+        <div class="agents" id="agents">
+          <div class="wrap f-grid">
+            <div class="f-copy">
+              <div class="kicker">FOR AGENTS · MCP + API</div>
+              <h2>Your AI agent can work the CFP with you</h2>
+              <p class="lede">
+                Unsession ships a Model Context Protocol server, so Claude Code, Claude, Cursor — anything that
+                speaks MCP — can read your submission queue, pull evaluation scores, accept a talk, add a sponsor
+                session, or move something on the agenda. Same engines, same permissions, same activity log as the
+                admin UI.
+              </p>
+              <ul class="ticks">
+                <li>
+                  <span class="tick">✓</span>
+                  <span>
+                    <b>One command to connect</b> — mint a token in the admin, point your agent at{' '}
+                    <span style="font-family:var(--mono);font-size:13px;">unsession.dev/api/mcp</span>, done. Nothing
+                    to install or host.
+                  </span>
+                </li>
+                <li>
+                  <span class="tick">✓</span>
+                  <span>
+                    <b>Read-only or read-write</b> — an agent you trust to answer questions isn’t the one you trust
+                    to send decisions. Read-only tokens can’t even see the write tools.
+                  </span>
+                </li>
+                <li>
+                  <span class="tick">✓</span>
+                  <span>
+                    <b>Every write is on the record</b> — the activity log names the token, so “who moved this
+                    session?” answers the same for an agent as for a person.
+                  </span>
+                </li>
+              </ul>
+              <div class="more">
+                <a href="/docs/mcp">Read the MCP docs →</a>
+                <a href="/docs/mcp#rest">Or use the REST API →</a>
+              </div>
+            </div>
+            <div class="f-vis">
+              <div class="term">
+                <div class="term-bar">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="tt">CLAUDE CODE</span>
+                </div>
+                <div class="term-body">
+                  {TERMINAL.map(([cls, text]) => (
+                    <div class={cls}>{text}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* -------------------------------------------------- open source */}
         <div class="oss-strip" id="oss">
           <div class="wrap oss-strip-inner">
@@ -721,6 +815,7 @@ app.get('/', (c) => {
             <span>UNSESSION</span>
             <span class="right">
               <a href="/events">EVENTS</a>
+              <a href="/docs/mcp">MCP &amp; API</a>
               <a href={GITHUB}>SOURCE</a>
               <span>AGPL-3.0</span>
             </span>

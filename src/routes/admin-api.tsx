@@ -5,7 +5,8 @@
  * optional event restriction), revoke. The secret is shown exactly once, in a
  * copy panel rendered straight from the create POST — it never travels through
  * a redirect URL. Sandbox orgs cannot create tokens (403): personas are shared
- * and throwaway. The page footer documents the base URL and the MCP endpoint.
+ * and throwaway. The page footer documents the base URL and the MCP endpoint,
+ * and links the public setup guide at `/docs/mcp` (`routes/docs.tsx`).
  *
  * Progressive enhancement: everything here is plain form POSTs — no island.
  */
@@ -192,8 +193,14 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
             <div>
               <span style={MICRO}>MCP ENDPOINT&ensp;</span>
               <span style={`font-family:${MONO};font-size:12.5px;`}>{`${origin}/api/mcp`}</span>
-              &ensp;— the same tokens drive agents (Claude Code, claude.ai custom connectors) over stateless
-              Streamable HTTP; read-only tokens see only the read tools.
+              &ensp;— the same tokens drive agents (Claude Code, Claude connectors, Cursor, VS Code) over stateless
+              Streamable HTTP; read-only tokens see only the read tools.{' '}
+              <a href="/docs/mcp" style="color:#4c5fd5;font-weight:600;">
+                Setup guide, tool reference and connection snippets →
+              </a>
+            </div>
+            <div style={`font-family:${MONO};font-size:12px;background:#f8f8fa;border:1px solid #eceded;padding:10px 12px;overflow-x:auto;white-space:nowrap;`}>
+              {`claude mcp add --transport http unsession ${origin}/api/mcp --header "Authorization: Bearer <token>"`}
             </div>
             <div style="font-size:12.5px;color:#9a9da6;">
               Deliberately out of scope in v1: form/schema editing, event creation, team management, email template

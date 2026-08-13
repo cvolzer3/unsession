@@ -13,6 +13,7 @@ import { runScheduledJobs } from './lib/jobs';
 import api from './routes/api';
 import mcp from './routes/mcp';
 import landing from './routes/landing';
+import docs from './routes/docs';
 import auth from './routes/auth';
 import sandbox from './routes/sandbox';
 import confirm from './routes/confirm';
@@ -56,8 +57,10 @@ app.use('/app/*', requireUser);
 
 app.get('/healthz', (c) => c.json({ ok: true, service: 'unsession' }));
 
-// Landing + auth
+// Landing + docs + auth. `docs` claims /docs and /mcp before the /:event
+// catch-alls, so those two slugs are effectively reserved.
 app.route('/', landing);
+app.route('/', docs);
 app.route('/', auth);
 app.route('/', sandbox);
 app.route('/', confirm);

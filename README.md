@@ -14,13 +14,60 @@ Unsession is open-source speaker & session management for conferences. It covers
 - **Decisions** — accept / decline / waitlist individually or in bulk; templated decision emails that always go through preview + confirm; CSV import, CSV/XLSX export.
 - **Speaker onboarding** — speaker portal with email + password sign-in (submissions, statuses, tasks, profile), explicit participation confirmation that can gate public agenda display, task templates (checkbox / file request / form / profile), file uploads to R2, ICS calendar invites with proper updates on reschedule, per-submission activity log.
 - **Agenda & publishing** — drag-and-drop agenda builder with conflict detection (double-booked rooms, a speaker in two places at once), themed public agenda and speaker directory with a WCAG-checked palette derived from one brand color, embeddable agenda/speaker widgets, edge-cached public pages invalidated on publish.
-- **API & MCP** — bearer-token REST API (`/api/v1/*`) and an MCP server (`POST /api/mcp`) over the same operations; tokens are created in the admin, scoped read-only or read-write, optionally restricted to one event.
+- **API & MCP** — bearer-token REST API (`/api/v1/*`) and an MCP server (`POST /api/mcp`) over the same operations; tokens are created in the admin, scoped read-only or read-write, optionally restricted to one event. See [MCP server](#mcp-server) below, or the guide at [unsession.dev/docs/mcp](https://unsession.dev/docs/mcp).
 
 ## Stack
 
 Cloudflare Workers · [Hono](https://hono.dev) JSX server rendering (TypeScript) · D1 (SQLite) · R2 · Cloudflare Email Service.
 
 There is **no client build step**: pages are server-rendered HTML, and interactivity comes from small vanilla-JS islands under `public/js/`. `hono` is the only runtime dependency.
+
+## MCP server
+
+Unsession exposes its own [Model Context Protocol](https://modelcontextprotocol.io) server, so an AI agent can work the CFP with you — read the submission queue, pull evaluation scores, decide a talk, add a sponsor session, reschedule it, chase a speaker task. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
+
+| | |
+|---|---|
+| **Endpoint** | `POST https://unsession.dev/api/mcp` (self-hosted: `https://<your-domain>/api/mcp`) |
+| **Transport** | Streamable HTTP — stateless JSON-RPC 2.0 over POST. No SSE, no sessions, no SDK, no Durable Objects. |
+| **Auth** | `Authorization: Bearer uns_…` — the same tokens as the REST API, minted at `/app/api` |
+| **Tools** | 19 — 10 read, 9 write. Write tools are omitted from `tools/list` for read-only tokens. |
+
+**1. Mint a token.** Sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write, optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens.)
+
+**2. Connect your agent.** Claude Code, in one command:
+
+```sh
+claude mcp add --transport http unsession https://unsession.dev/api/mcp \
+  --header "Authorization: Bearer uns_your_token_here"
+```
+
+Or check it into a repo — Claude Code expands `${VAR}` in `url` and `headers`, so this is safe to commit:
+
+```json
+{
+  "mcpServers": {
+    "unsession": {
+      "type": "http",
+      "url": "https://unsession.dev/api/mcp",
+      "headers": { "Authorization": "Bearer ${UNSESSION_TOKEN}" }
+    }
+  }
+}
+```
+
+Cursor (`.cursor/mcp.json`) uses the same shape without `type`; VS Code (`.vscode/mcp.json`) nests servers under `servers` and takes the token from an `inputs` prompt; the Claude apps take the URL plus a `Request headers` entry (`authorization` → `Bearer uns_…`) in the custom-connector dialog. Any client that speaks remote HTTP MCP with a custom header works — verify a token with:
+
+```sh
+curl -s https://unsession.dev/api/mcp \
+  -H "Authorization: Bearer uns_your_token_here" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+**3. Hosting it yourself.** The MCP endpoint is part of the worker — deploy per [Self-hosting](#self-hosting) below and it is live at `/api/mcp` on your origin, with nothing extra to enable or run. Mint tokens on your own instance at `/app/api`; hosted-service tokens don't work against it.
+
+Every write lands in the activity log as `api:<token name>`. Three tools send email — `decide_submission` (suppressible with `sendEmail: false`), `update_session`/`schedule_session` when a confirmed session moves, and `assign_task` — and the rest are silent. Note that `decide_submission` applies a decision immediately rather than queueing it for the Emails → Outbox review the admin UI uses; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts), spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
 
 ## Self-hosting
 

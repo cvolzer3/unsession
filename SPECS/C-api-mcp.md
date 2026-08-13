@@ -103,12 +103,20 @@ Every tool takes `event` (slug or id) where relevant; descriptions written for
 agent consumption (state effects, side effects like "sends the decision email
 unless sendEmail=false").
 
+An agent needs a URL and a token before it can call `tools/list`, so the setup
+instructions can't live behind the protocol: `/docs/mcp` is the public guide,
+linked from the landing page (nav, the "FOR AGENTS" band, footer), the README,
+and the `/app/api` footer.
+
 ## Files
 
 - `migrations/0010_api_tokens.sql`
 - `src/lib/api-tokens.ts` — mint/hash/verify/middleware
 - `src/routes/api.tsx` — REST router (`/api/v1/*`)
 - `src/routes/mcp.ts` — MCP endpoint (`/api/mcp`)
+- `src/routes/docs.tsx` — public setup guide (`/docs/mcp`, with `/docs` + `/mcp`
+  redirecting in) — token → connect (Claude Code, `.mcp.json`, Claude apps,
+  Cursor, VS Code, raw curl) → tool reference → self-hosting → protocol details
 - `src/routes/admin-api.tsx` — token management UI (`/app/api`)
 - `src/index.tsx` — registration (API routes bypass session auth; mounted
   before the `/:event` catch-alls)
