@@ -462,7 +462,7 @@ app.get('/app/org/contacts', async (c) => {
               ))
             ) : (
               <div style="padding:28px 16px;text-align:center;font-size:13px;color:#686b74;">
-                No org-level emails yet. Select contacts and hit Communicate.
+                No org-level emails yet. Select contacts and hit Send Email.
               </div>
             )}
           </div>
@@ -677,7 +677,7 @@ app.get('/app/org/contacts', async (c) => {
             data-bulk-open="#communicate-modal"
             style="padding:6px 12px;background:#4c5fd5;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;"
           >
-            Communicate
+            Send Email
           </button>
           <button
             type="button"
@@ -875,7 +875,7 @@ app.get('/app/org/contacts', async (c) => {
             <form method="post" action="/app/org/contacts/communicate" style="display:contents;">
               <input type="hidden" name="ids" data-bulk-ids value="" />
               <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
-                <div style="font-size:16px;font-weight:700;">Communicate</div>
+                <div style="font-size:16px;font-weight:700;">Send Email</div>
                 <button
                   type="button"
                   data-dialog-close="#communicate-modal"
