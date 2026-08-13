@@ -8,6 +8,7 @@
  * your first password" flow for accounts created before passwords existed.
  */
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, User } from '../types';
@@ -26,7 +27,7 @@ import {
 } from '../lib/auth';
 import { newId } from '../lib/ids';
 import { now, one, run } from '../lib/db';
-import { deleteCookie } from 'hono/cookie';
+import { deleteCookie, getCookie } from 'hono/cookie';
 import { SANDBOX_COOKIE } from '../lib/seed-data';
 
 const app = new Hono<Ctx>();
@@ -89,10 +90,26 @@ function backTo(path: string, err: string, next?: string): string {
   return `${path}?${p.toString()}`;
 }
 
+/**
+ * A sandbox persona session (the `us_sandbox` crumb from routes/sandbox.tsx)
+ * must not count as "already signed in" on /signin and /signup — the visitor
+ * pressing those buttons wants their own account, not the seat they were
+ * trying out.
+ */
+function inSandbox(c: Context<Ctx>): boolean {
+  return Boolean(getCookie(c, SANDBOX_COOKIE));
+}
+
+/** Drop the persona session and its role-switcher crumb before opening a real one. */
+async function shedSandbox(c: Context<Ctx>): Promise<void> {
+  await destroySession(c);
+  deleteCookie(c, SANDBOX_COOKIE, { path: '/' });
+}
+
 /* ------------------------------------------------------------------ sign in */
 
 app.get('/signin', (c) => {
-  if (c.var.user) return c.redirect(c.req.query('next') || '/app');
+  if (c.var.user && !inSandbox(c)) return c.redirect(c.req.query('next') || '/app');
   const next = c.req.query('next') || '';
   const err = c.req.query('err');
   const host = c.env.APP_ORIGIN.replace(/^https?:\/\//, '');
@@ -171,6 +188,7 @@ app.post('/auth/signin', async (c) => {
     return c.redirect(backTo('/signin', 'Invalid email or password', next));
   }
 
+  await shedSandbox(c);
   await createSession(c, user.id, null);
   return c.redirect(withOk(safeNext(next), 'Signed in'));
 });
@@ -178,7 +196,7 @@ app.post('/auth/signin', async (c) => {
 /* ------------------------------------------------------------------ sign up */
 
 app.get('/signup', (c) => {
-  if (c.var.user) return c.redirect(c.req.query('next') || '/app');
+  if (c.var.user && !inSandbox(c)) return c.redirect(c.req.query('next') || '/app');
   const next = c.req.query('next') || '';
   return c.html(
     <Shell title="Create an account" toast={c.req.query('ok') ?? null}>
@@ -254,6 +272,7 @@ app.post('/auth/signup', async (c) => {
     now()
   );
 
+  await shedSandbox(c);
   await createSession(c, id, null);
   return c.redirect(withOk(safeNext(next), 'Welcome'));
 });
@@ -393,6 +412,7 @@ app.post('/auth/reset', async (c) => {
   const user = await findOrCreateUserByEmail(c.env.DB, verified.email);
   await run(c.env.DB, `UPDATE users SET password_hash = ? WHERE id = ?`, await hashPassword(password), user.id);
 
+  await shedSandbox(c);
   await createSession(c, user.id, null);
   return c.redirect(withOk(safeNext(payload.next), 'Password set'));
 });
@@ -500,6 +520,7 @@ app.get('/auth/verify', async (c) => {
     }
   }
 
+  await shedSandbox(c);
   await createSession(c, user.id, null);
   const next = safeNext(payload.next);
   // Invited and draft-link people arrive without credentials — the verified
