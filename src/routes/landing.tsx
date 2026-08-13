@@ -488,10 +488,9 @@ const PIPELINE = ['COLLECT', 'EVALUATE', 'DECIDE', 'ONBOARD', 'SCHEDULE', 'PUBLI
  */
 const TERMINAL: [string, string][] = [
   ['p', '$ claude mcp add --transport http unsession \\'],
-  ['p', '    https://unsession.dev/api/mcp \\'],
-  ['p', '    --header "Authorization: Bearer uns_…"'],
+  ['p', '    https://unsession.dev/api/mcp'],
   ['', ' '],
-  ['ok', '✓ Connected · unsession · 19 tools'],
+  ['ok', '✓ Authenticated · unsession · 19 tools'],
   ['', ' '],
   ['you', '> which accepted speakers still owe us slides?'],
   ['', ' '],
@@ -733,9 +732,9 @@ app.get('/', (c) => {
                 <li>
                   <span class="tick">✓</span>
                   <span>
-                    <b>One command to connect</b> — mint a token in the admin, point your agent at{' '}
-                    <span style="font-family:var(--mono);font-size:13px;">unsession.dev/api/mcp</span>, done. Nothing
-                    to install or host.
+                    <b>One command to connect</b> — point your agent at{' '}
+                    <span style="font-family:var(--mono);font-size:13px;">unsession.dev/api/mcp</span> and sign in
+                    with OAuth, or mint a token in the admin. Nothing to install or host.
                   </span>
                 </li>
                 <li>

@@ -108,6 +108,28 @@ instructions can't live behind the protocol: `/docs/mcp` is the public guide,
 linked from the landing page (nav, the "FOR AGENTS" band, footer), the README,
 and the `/app/api` footer.
 
+## OAuth 2.1 + DCR (addendum, DECISIONS D15)
+
+Static tokens stay primary; MCP clients that expect an OAuth "Connect" flow
+get one:
+
+- Discovery: API 401s carry `WWW-Authenticate: Bearer resource_metadata="…"`
+  (RFC 9728); `/.well-known/oauth-protected-resource[/api/mcp]` and
+  `/.well-known/oauth-authorization-server[/api/mcp]` (RFC 8414) describe the
+  server. CORS `*` on the machine-facing endpoints.
+- `POST /oauth/register` (RFC 7591): public clients only, no secrets. Redirect
+  URIs must be https, loopback http, or a native-app scheme; never a fragment.
+- `GET/POST /oauth/authorize`: rides the cookie session (`requireUser`).
+  Consent picks a non-sandbox org where the user is owner/admin, plus scope
+  read or read,write. PKCE S256 required; codes are 10-minute single-use rows
+  in `oauth_codes`, swept by cron.
+- `POST /oauth/token`: `authorization_code` and `refresh_token` grants. Mints
+  ordinary `api_tokens` rows — `oauth_client_id` set, 1-hour `expires_at`,
+  `refresh_token_hash` (secret `unsr_…`) rotated on every refresh. Revoking
+  the row from `/app/api` kills the whole connection.
+
+OAuth files: `migrations/0026_oauth_dcr.sql`, `src/routes/oauth.tsx`.
+
 ## Files
 
 - `migrations/0010_api_tokens.sql`

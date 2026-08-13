@@ -23,10 +23,10 @@ Unsession ships an MCP server, so Claude Code, Claude, Cursor, and anything else
 |---|---|
 | **Endpoint** | `POST https://unsession.dev/api/mcp` (self-hosted: `https://<your-domain>/api/mcp`) |
 | **Transport** | Streamable HTTP — stateless JSON-RPC 2.0 over POST. No SSE, no sessions, no SDK, no Durable Objects. |
-| **Auth** | `Authorization: Bearer uns_…` — the same tokens as the REST API, minted at `/app/api` |
+| **Auth** | OAuth (add the URL, sign in) or a static token: `Authorization: Bearer uns_…`, minted at `/app/api` |
 | **Tools** | 19 — 10 read, 9 write. Write tools are omitted from `tools/list` for read-only tokens. |
 
-**1. Mint a token.** Sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write, optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens.)
+**1. Connect with OAuth, or mint a token.** Clients that speak OAuth — the Claude apps, VS Code, Cursor — need only the endpoint URL: add it, sign in, and pick a workspace and a scope on the consent page. The server supports dynamic client registration, so there is nothing to configure first. For header-based clients, mint a token instead: sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write, optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens or approve OAuth connections.)
 
 **2. Connect your agent.** Claude Code, in one command:
 
@@ -49,7 +49,7 @@ Or check it into a repo — Claude Code expands `${VAR}` in `url` and `headers`,
 }
 ```
 
-Cursor (`.cursor/mcp.json`) uses the same shape without `type`; VS Code (`.vscode/mcp.json`) nests servers under `servers` and takes the token from an `inputs` prompt; the Claude apps take the URL plus a `Request headers` entry (`authorization` → `Bearer uns_…`) in the custom-connector dialog. Any client that speaks remote HTTP MCP with a custom header works — verify a token with:
+Cursor (`.cursor/mcp.json`) uses the same shape without `type`; VS Code (`.vscode/mcp.json`) nests servers under `servers` and takes the token from an `inputs` prompt. Both also accept the bare URL and connect through OAuth, as do the Claude apps in the custom-connector dialog. Any client that speaks remote HTTP MCP with OAuth or a custom header works — verify a token with:
 
 ```sh
 curl -s https://unsession.dev/api/mcp \
@@ -58,7 +58,7 @@ curl -s https://unsession.dev/api/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-**3. Hosting it yourself.** The MCP endpoint is part of the worker — deploy per [Self-hosting](#self-hosting) below and it is live at `/api/mcp` on your origin, with nothing extra to enable or run. Mint tokens on your own instance at `/app/api`; hosted-service tokens don't work against it.
+**3. Hosting it yourself.** The MCP endpoint is part of the worker — deploy per [Self-hosting](#self-hosting) below and it is live at `/api/mcp` on your origin, with nothing extra to enable or run. OAuth runs on your origin too, and tokens are minted on your own instance at `/app/api`; hosted-service credentials don't work against it.
 
 Every write lands in the activity log as `api:<token name>`. Three tools send email — `decide_submission` (suppressible with `sendEmail: false`), `update_session`/`schedule_session` when a confirmed session moves, and `assign_task` — and the rest are silent. Note that `decide_submission` applies a decision immediately rather than queueing it for the Emails → Outbox review the admin UI uses; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts), spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
 
