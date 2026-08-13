@@ -356,7 +356,7 @@ function boot(D) {
     binCount.textContent = `${list.length} SESSION${list.length === 1 ? '' : 'S'}`;
     if (!list.length) {
       binEl.innerHTML =
-        '<div style="border:1px dashed #d4d5db;padding:20px 14px;font-size:12.5px;color:#9a9da6;text-align:center;">Nothing waiting. Accepted sessions land here — or drag a scheduled card back.</div>';
+        '<div style="border:1px dashed #d4d5db;padding:20px 14px;font-size:12.5px;color:#9a9da6;text-align:center;">Nothing waiting. Accepted sessions land here.</div>';
       return;
     }
     binEl.innerHTML = list
@@ -935,11 +935,12 @@ function boot(D) {
       const headline = r.placed
         ? `Auto-scheduled ${r.placed} session${r.placed === 1 ? '' : 's'}`
         : 'Nothing could be placed';
+      const detailed = !!(r.skipped.length || r.over.length);
       h +=
         '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">' +
-        '<div style="display:flex;gap:10px;align-items:flex-start;">' +
+        `<div style="display:flex;gap:10px;align-items:${detailed ? 'flex-start' : 'center'};">` +
         '<div style="flex:1;">' +
-        `<div style="font-weight:700;font-size:13px;margin-bottom:${r.skipped.length || r.over.length ? '5px' : '0'};">${esc(headline)}</div>` +
+        `<div style="font-weight:700;font-size:13px;line-height:1.45;margin-bottom:${detailed ? '5px' : '0'};">${esc(headline)}</div>` +
         r.over
           .map(
             (s) =>
@@ -1121,7 +1122,7 @@ function boot(D) {
         const res = await api('/app/api/sessions/update', { id: S.selId, patch: { title, published } });
         upsert(res.session);
         markDirty();
-        toast('Saved — synced to agenda and public pages');
+        toast('Saved');
         render();
       } catch (err) {
         toast(err.message, false);
@@ -1212,7 +1213,7 @@ function boot(D) {
         S.unpublished = false;
         const dot = document.getElementById('unpublished-dot');
         if (dot) dot.hidden = true;
-        toast('Published — public agenda updated');
+        toast('Published');
       } catch (err) {
         toast(err.message, false);
       }

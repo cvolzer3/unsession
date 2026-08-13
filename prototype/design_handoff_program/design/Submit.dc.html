@@ -34,7 +34,7 @@
       <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;">CALL FOR SPEAKERS · CLOSES AUG 31</div>
       <h1 style="margin:0 0 8px;font-size:27px;letter-spacing:-0.02em;line-height:1.15;">Speak at DevConf 2027</h1>
       <p style="margin:0 0 6px;font-size:15px;color:#555a63;line-height:1.55;">Oct 14–15 · Station Berlin + online. Talks, deep dives, workshops, lightning talks, panels.</p>
-      <p style="margin:0 0 26px;font-size:12.5px;color:#8b857a;">Signed in via magic link as <span style="font-family:'IBM Plex Mono',monospace;">you@example.com</span> — no password, ever. Your draft autosaves.</p>
+      <p style="margin:0 0 26px;font-size:12.5px;color:#8b857a;">Signed in via magic link as <span style="font-family:'IBM Plex Mono',monospace;">you@example.com</span>. Your draft autosaves.</p>
     </sc-if>
     <sc-if value="{{ isSponsor }}" hint-placeholder-val="{{ false }}">
       <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;">SPONSOR SESSION REQUEST · INVITE-ONLY · CLOSES SEP 15</div>
@@ -64,7 +64,7 @@
       </sc-if>
       <div>
         <div style="font-size:14px;font-weight:600;margin-bottom:6px;">Session title <span style="color:#e03131;">*</span></div>
-        <input onInput="{{ onTitle }}" value="{{ vTitle }}" placeholder="Make it concrete — attendees choose by title" style="{{ titleStyle }}">
+        <input onInput="{{ onTitle }}" value="{{ vTitle }}" placeholder="Make it concrete" style="{{ titleStyle }}">
         <sc-if value="{{ eTitle }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:4px;">{{ eTitle }}</div></sc-if>
       </div>
       <div>
@@ -94,7 +94,7 @@
       <sc-if value="{{ showAV }}" hint-placeholder-val="{{ false }}">
         <div style="border-left:3px solid #e8590c;padding-left:14px;">
           <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Workshop AV &amp; room needs <span style="color:#e03131;">*</span></div>
-          <div style="font-size:12px;color:#8b857a;margin-bottom:6px;">Appeared because you chose Workshop — required for workshops.</div>
+          <div style="font-size:12px;color:#8b857a;margin-bottom:6px;">Required for workshops.</div>
           <textarea onInput="{{ onAV }}" value="{{ vAV }}" rows="2" placeholder="Power strips, second screen, network access…" style="{{ avStyle }}"></textarea>
           <sc-if value="{{ eAV }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:4px;">{{ eAV }}</div></sc-if>
         </div>
@@ -102,7 +102,7 @@
       <div style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:0.14em;color:#8b857a;border-bottom:1px solid #ece7de;padding-bottom:6px;margin-top:6px;">02 · SPEAKERS</div>
       <label style="display:flex;gap:9px;font-size:13.5px;align-items:flex-start;color:#555a63;">
         <input type="checkbox" checked="{{ agentMode }}" onChange="{{ onAgent }}" style="accent-color:#e8590c;margin-top:2px;">
-        <span>I’m submitting on behalf of someone else — I manage this submission, the speaker gets speaker-facing emails.</span>
+        <span>I’m submitting on behalf of someone else.</span>
       </label>
       <sc-for list="{{ speakers }}" as="s" hint-placeholder-count="1">
         <div style="border:1px solid #ded8cd;background:#fff;padding:16px;display:grid;gap:12px;">
@@ -129,7 +129,7 @@
       </label>
       <sc-if value="{{ eCoc }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#c92a2a;margin-top:-14px;">{{ eCoc }}</div></sc-if>
       <button onClick="{{ submit }}" style="padding:15px 0;background:#e8590c;color:#fff;border:none;font-size:15.5px;font-weight:700;cursor:pointer;letter-spacing:0.01em;" style-hover="background:#c44a0a;">Submit session →</button>
-      <div style="font-size:12px;color:#8b857a;text-align:center;">Drafts validate softly — submitting runs the real checks. You can edit until the CFP closes.</div>
+      <div style="font-size:12px;color:#8b857a;text-align:center;">You can edit until the CFP closes.</div>
     </div>
   </div>
 </sc-if>
@@ -208,7 +208,7 @@ class Component extends DCLogic {
       vAV: st.av, onAV: (ev) => this.touch({ av: ev.target.value }), avStyle: inp(e.av), eAV: e.av || null,
       agentMode: st.agent, onAgent: (ev) => this.touch({ agent: ev.target.checked }),
       speakers: st.speakers.map((s, i) => ({
-        label: st.agent && i === 0 ? 'SPEAKER 1 · THE ACTUAL SPEAKER (YOU MANAGE, THEY GET SPEAKER EMAILS)' : `SPEAKER ${i + 1}${i === 0 ? ' · YOU' : ''}`,
+        label: st.agent && i === 0 ? 'SPEAKER 1 · THE ACTUAL SPEAKER' : `SPEAKER ${i + 1}${i === 0 ? ' · YOU' : ''}`,
         name: s.name, email: s.email, bio: s.bio, removable: i > 0,
         nameStyle: inp(e['name' + i]), emailStyle: inp(e['email' + i]),
         onName: (ev) => this.patchSpeaker(i, { name: ev.target.value }),

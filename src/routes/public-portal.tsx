@@ -588,7 +588,7 @@ app.get('/:event/portal', async (c) => {
         <div style={`${LABEL}margin-bottom:10px;`}>MY SUBMISSIONS</div>
         {data.submissions.length === 0 && data.drafts.length === 0 ? (
           <div style={`${CARD}padding:18px 20px;margin-bottom:24px;font-size:13.5px;color:var(--text-secondary);`}>
-            Nothing here yet — this portal fills up once you submit a session and it gets a decision.
+            Nothing here yet. Your sessions appear once they’re decided.
           </div>
         ) : null}
         {data.submissions.map((s) => (
