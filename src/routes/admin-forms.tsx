@@ -22,7 +22,10 @@ import { looksRich, markdownToRich, sanitizeRich } from '../lib/rich';
 import {
   PALETTE,
   PRESET_NAMES,
+  applyOptionRenames,
+  cascadeRenamesIntoDrafts,
   currentVersion,
+  detectOptionRenames,
   hydrateSchema,
   listForms,
   listNotifyMembers,
@@ -167,7 +170,12 @@ function condChip(f: FormField, fields: FormField[]): string | null {
   if (!f.cond) return null;
   const src = fields.find((x) => x.id === f.cond!.src);
   if (!src) return 'IF (ARCHIVED FIELD)';
-  return `IF ${src.label.toUpperCase()} ${f.cond.op.toUpperCase()} ${String(f.cond.val).split(' (')[0].toUpperCase()}`;
+  const base = `IF ${src.label.toUpperCase()} ${f.cond.op.toUpperCase()} ${String(f.cond.val).split(' (')[0].toUpperCase()}`;
+  // A removed (or externally renamed) option orphans the condition — the field
+  // can never show again. Same guard the archived-source chip provides.
+  const needsVal = ['is', 'is not', 'contains', 'does not contain'].includes(f.cond.op);
+  const orphaned = needsVal && !!src.opts?.length && !src.opts.includes(String(f.cond.val));
+  return orphaned ? `${base} — MISSING OPTION` : base;
 }
 
 function tagLine(f: FormField): string {
@@ -1098,12 +1106,19 @@ app.post('/app/api/forms/:id/schema', guard, async (c) => {
   const fields = body.fields
     .map((f, i) => normalizeField(f, i))
     .filter((f): f is FormField => !!f);
-  const { fields: clean, dropped } = sanitizeConditions(fields);
+  const { fields: sanitized, dropped } = sanitizeConditions(fields);
+
+  // Options are stored by label, so an in-place rename would orphan every
+  // condition (and draft answer) still holding the old label — cascade it.
+  const before = await currentVersion(db, form.id);
+  const renames = before ? detectOptionRenames(parseSchema(before.schema_json).fields, sanitized) : [];
+  const clean = applyOptionRenames(sanitized, renames);
+
   const problem = validateSchema(clean);
   if (problem) return c.json({ ok: false, error: problem }, 400);
 
-  const before = await currentVersion(db, form.id);
   const result = await saveSchema(db, form.id, { fields: clean });
+  await cascadeRenamesIntoDrafts(db, form.id, renames);
   if (result.bumped) {
     await logActivity(db, {
       eventId: event.id,
