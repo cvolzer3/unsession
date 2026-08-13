@@ -309,7 +309,7 @@ app.get('/app/files', async (c) => {
   return c.html(
     <AdminLayout {...props} scripts={['/js/files.js']}>
       <style>{DRAWER_CSS}</style>
-      <div style="padding:24px 28px;max-width:1160px;">
+      <div style="padding:24px 28px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
           <div style={LABEL}>
             {`FILES LIBRARY · ${chains.length} FILE${chains.length === 1 ? '' : 'S'} · ${totalVersions} VERSION${

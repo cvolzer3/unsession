@@ -385,7 +385,7 @@ app.get('/app', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:22px 28px;max-width:1160px;">
+      <div style="padding:22px 28px;">
         <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:18px;">
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">
             {`${greeting(event.timezone)}, ${firstName(c.var.user)}`}
