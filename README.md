@@ -2,31 +2,58 @@
   <img src="public/brand/unsession-readme.png" alt="Unsession" width="600">
 </p>
 
-<p align="center"><strong>Run your call for speakers without the bloat.</strong></p>
+<p align="center"><strong>From open call to opening keynote.</strong></p>
 
-Unsession is open-source speaker & session management for conferences. It covers the whole speaker pipeline — call for speakers → evaluation → decisions → speaker onboarding → agenda → publish — and deliberately nothing else: no CRM, no marketing suite, no media library. It ships as a single Cloudflare Worker with server-rendered pages and no client build step, built on three bets: speed, focus, and instant self-serve. The [sandbox](https://unsession.dev) provisions a real, pre-filled event in seconds, no account needed.
+Unsession runs the whole speaker side of your event: proposals in, fair reviews, confident decisions, speakers who show up ready, and an agenda you can publish and trust. It is open-source speaker & session management for conferences — the pipeline is
+
+<p align="center"><code>COLLECT → EVALUATE → DECIDE → ONBOARD → SCHEDULE → PUBLISH</code></p>
+
+and deliberately nothing else: no CRM, no marketing suite, no media library. It ships as a single Cloudflare Worker with server-rendered pages and no client build step.
+
+The [sandbox](https://unsession.dev) is a live event mid-lifecycle — submissions in review, an agenda half-built, a speaker mid-onboarding. Pick a seat: organizer, speaker, or evaluator. No signup, no demo call, no credit card.
 
 - **Hosted service:** https://unsession.dev — runs this repo unmodified (admin at `/app`)
 - **License:** [AGPL-3.0](LICENSE)
 
-## Features
+## How it works
 
-- **CFP forms** — form builder with fixed core fields (title, abstract, format, per-speaker name/email/bio/headshot) plus custom fields: word-limited text with live counters, selects bound to event taxonomies, URLs, file uploads. Conditional show/hide logic, drafts with autosave and emailed draft links, co-speakers, multiple forms per event, themed mobile-first public forms.
-- **Evaluation** — evaluation plans scoped to a slice of submissions, reviewer rosters, 1–5 rubric criteria, anonymized (blind) review, keyboard-driven scoring, reviewer progress tracking.
-- **Decisions** — accept / decline / waitlist individually or in bulk; templated decision emails that always go through preview + confirm; CSV import, CSV/XLSX export.
-- **Speaker onboarding** — speaker portal with email + password sign-in (submissions, statuses, tasks, profile), explicit participation confirmation that can gate public agenda display, task templates (checkbox / file request / form / profile), file uploads to R2, ICS calendar invites with proper updates on reschedule, per-submission activity log.
-- **Agenda & publishing** — drag-and-drop agenda builder with conflict detection (double-booked rooms, a speaker in two places at once), themed public agenda and speaker directory with a WCAG-checked palette derived from one brand color, embeddable agenda/speaker widgets, edge-cached public pages invalidated on publish.
-- **API & MCP** — bearer-token REST API (`/api/v1/*`) and an MCP server (`POST /api/mcp`) over the same operations; tokens are created in the admin, scoped read-only or read-write, optionally restricted to one event. See [MCP server](#mcp-server) below, or the guide at [unsession.dev/docs/mcp](https://unsession.dev/docs/mcp).
+### 01 · Collect — a call for speakers people actually finish
 
-## Stack
+Every abandoned draft is a talk you never got to consider. Unsession's forms are easy to start, hard to lose, and painless on a phone.
 
-Cloudflare Workers · [Hono](https://hono.dev) JSX server rendering (TypeScript) · D1 (SQLite) · R2 · Cloudflare Email Service.
+- **Drafts survive anything.** Autosaved from the first keystroke, resumable on any device via an emailed draft link.
+- **Ask only what's relevant.** Conditional show/hide logic — a workshop pitch and a lightning talk each see their own questions.
+- **Your brand, your questions.** A form builder with fixed core fields (title, abstract, format, per-speaker name/email/bio/headshot) plus custom fields: word-limited text with live counters, selects bound to event taxonomies, URLs, file uploads. Co-speakers, multiple forms per event, themed mobile-first public forms.
 
-There is **no client build step**: pages are server-rendered HTML, and interactivity comes from small vanilla-JS islands under `public/js/`. `hono` is the only runtime dependency.
+### 02 · Decide — fair decisions, made in an evening
 
-## MCP server
+Give every proposal the same fair read, see the results ranked, and send decisions knowing exactly what each speaker will receive.
 
-Unsession exposes its own [Model Context Protocol](https://modelcontextprotocol.io) server, so an AI agent can work the CFP with you — read the submission queue, pull evaluation scores, decide a talk, add a sponsor session, reschedule it, chase a speaker task. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
+- **Talks win on merit.** Blind review hides names and bios in one toggle, so the work gets judged, not the byline.
+- **Your committee flies through the queue.** Evaluation plans scoped to a slice of submissions, reviewer rosters, 1–5 rubric criteria, keyboard-driven scoring, reviewer progress tracking.
+- **No decision leaves unchecked.** Accept / decline / waitlist individually or in bulk; templated decision emails always go through preview + confirm. CSV import, CSV/XLSX export.
+
+### 03 · Onboard — speakers arrive ready, without the chasing
+
+The weeks between "accepted" and stage day are where events go sideways. Give each speaker one link and a clear checklist, and get out of the reminder-email business.
+
+- **One portal, one checklist.** Speakers sign in to see their submissions, statuses, tasks, and profile — and an explicit participation confirmation can gate public agenda display.
+- **Slides, headshots, A/V needs.** Task templates (checkbox / file request / form / profile) with due dates; files land in your storage instead of your inbox.
+- **Schedule changes that stick.** ICS calendar invites update themselves when a session moves, and every submission keeps its own activity log.
+
+### 04 · Publish — an agenda you can stand behind on stage day
+
+Build the schedule by dragging sessions into place, and catch double-booked rooms and speakers before your attendees do.
+
+- **Conflicts surface instantly.** Double-booked rooms and a speaker in two places flag themselves while you're still dragging.
+- **Looks like your event.** One brand color becomes a polished public agenda and speaker directory with a WCAG-checked palette.
+- **Everywhere at once.** Embeddable agenda/speaker widgets and edge-cached public pages, invalidated on publish.
+
+Underneath all four: nothing falls through the cracks. The whole pipeline lives in one place — not spread across a form tool, a spreadsheet, and someone's inbox — and every decision, email, task, and schedule change is logged per submission, so "did we tell them?" is always one click away.
+
+## Your AI agent can work the CFP with you
+
+Unsession ships a [Model Context Protocol](https://modelcontextprotocol.io) server, so Claude Code, Claude, Cursor — anything that speaks MCP — can read your submission queue, pull evaluation scores, accept a talk, add a sponsor session, or move something on the agenda. Same engines, same permissions, same activity log as the admin UI. There is also a bearer-token REST API (`/api/v1/*`) over the same operations. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
 
 | | |
 |---|---|
@@ -35,7 +62,7 @@ Unsession exposes its own [Model Context Protocol](https://modelcontextprotocol.
 | **Auth** | `Authorization: Bearer uns_…` — the same tokens as the REST API, minted at `/app/api` |
 | **Tools** | 19 — 10 read, 9 write. Write tools are omitted from `tools/list` for read-only tokens. |
 
-**1. Mint a token.** Sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write, optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens.)
+**1. Mint a token.** Sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write — an agent you trust to answer questions isn't the one you trust to send decisions, and read-only tokens can't even see the write tools. Optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens.)
 
 **2. Connect your agent.** Claude Code, in one command:
 
@@ -69,7 +96,13 @@ curl -s https://unsession.dev/api/mcp \
 
 **3. Hosting it yourself.** The MCP endpoint is part of the worker — deploy per [Self-hosting](#self-hosting) below and it is live at `/api/mcp` on your origin, with nothing extra to enable or run. Mint tokens on your own instance at `/app/api`; hosted-service tokens don't work against it.
 
-Every write lands in the activity log as `api:<token name>`. Three tools send email — `decide_submission` (suppressible with `sendEmail: false`), `update_session`/`schedule_session` when a confirmed session moves, and `assign_task` — and the rest are silent. Note that `decide_submission` applies a decision immediately rather than queueing it for the Emails → Outbox review the admin UI uses; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts), spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
+Every write is on the record: it lands in the activity log as `api:<token name>`, so "who moved this session?" answers the same for an agent as for a person. Three tools send email — `decide_submission` (suppressible with `sendEmail: false`), `update_session`/`schedule_session` when a confirmed session moves, and `assign_task` — and the rest are silent. Note that `decide_submission` applies a decision immediately rather than queueing it for the Emails → Outbox review the admin UI uses; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts), spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
+
+## Stack
+
+Cloudflare Workers · [Hono](https://hono.dev) JSX server rendering (TypeScript) · D1 (SQLite) · R2 · Cloudflare Email Service.
+
+There is **no client build step**: pages are server-rendered HTML, and interactivity comes from small vanilla-JS islands under `public/js/`. `hono` is the only runtime dependency.
 
 ## Self-hosting
 
@@ -120,7 +153,12 @@ npm run typecheck          # tsc --noEmit
 - `SPECS/` — per-track build specs
 - `prototype/` — hi-fi design reference (the visual source of truth)
 - `src/CONVENTIONS.md` — code conventions
+- [`public/brand/`](public/brand/) — logo, mark, and watermark assets + usage notes
 
 ## License
 
-[AGPL-3.0](LICENSE). Run it, change it, ship it — and if you offer a modified version to others over a network, share your changes. The hosted service at https://unsession.dev runs this repository unmodified.
+[AGPL-3.0](LICENSE). Run it, change it, ship it — and if you offer a modified version to others over a network, share your changes. The hosted service at https://unsession.dev runs this repository unmodified — open source isn't a tier, it's the product.
+
+<p align="center">
+  <img src="public/brand/unsession-watermark.png" alt="" width="420">
+</p>
