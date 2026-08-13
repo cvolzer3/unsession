@@ -575,7 +575,7 @@ app.get('/', (c) => {
             </p>
             <div class="hero-ctas">
               <SandboxForm variant="primary" />
-              <a class="btn btn-ghost" href="/signin">
+              <a class="btn btn-ghost" href="/signup">
                 Create a free account
               </a>
             </div>
@@ -801,7 +801,7 @@ app.get('/', (c) => {
             </p>
             <div class="hero-ctas">
               <SandboxForm variant="amber" />
-              <a class="btn btn-outline-light" href="/signin">
+              <a class="btn btn-outline-light" href="/signup">
                 Create a free account
               </a>
             </div>
