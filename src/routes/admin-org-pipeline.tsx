@@ -8,8 +8,8 @@
  * The board is server-rendered; only drag-and-drop lives in
  * `public/js/org-pipeline.js`, which POSTs each drop to
  * `/app/api/org/pipeline/move` and reverts the card when the server says no.
- * The card page carries a plain `Move to` form so the same stage change works
- * without JavaScript.
+ * The card page shows the stage as a dropdown that submits on change; a
+ * noscript Move button keeps the same stage change working without JavaScript.
  */
 import { Hono } from 'hono';
 import type { Context } from 'hono';
@@ -518,6 +518,21 @@ app.get('/app/org/pipeline/:id', async (c) => {
         {/* ------------------------------------------------------- summary */}
         <div style={`${CARD}padding:18px 20px;display:grid;gap:14px;`}>
           <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+            {card.headshot_file_id ? (
+              <img
+                src={`/files/${card.headshot_file_id}`}
+                alt={card.name}
+                style="width:56px;height:56px;border-radius:50%;object-fit:cover;flex:none;"
+              />
+            ) : (
+              <div
+                style={`width:56px;height:56px;border-radius:50%;flex:none;background:${initialsGradient(
+                  card.name || card.email
+                )};color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:18px;font-weight:600;`}
+              >
+                {initials(card.name || card.email)}
+              </div>
+            )}
             <div style="min-width:0;">
               <a
                 href={`/app/org/contact/${card.contact_id}`}
@@ -528,44 +543,57 @@ app.get('/app/org/pipeline/:id', async (c) => {
               <div style={`font-family:${MONO};font-size:11.5px;color:#686b74;margin-top:4px;`}>{card.email}</div>
               {card.company ? <div style="font-size:12.5px;color:#686b74;margin-top:2px;">{card.company}</div> : null}
             </div>
-            <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-              {card.score === null ? null : <ScoreBadge score={card.score} />}
-              <span style="display:flex;align-items:center;gap:7px;">
-                {dot ? <span style={`width:8px;height:8px;border-radius:50%;background:${dot};`}></span> : null}
-                <span style={`font-size:13px;font-weight:700;color:${dot ?? '#16171d'};`}>{STAGE_LABEL[stage]}</span>
-              </span>
-            </div>
-          </div>
-
-          <div style="border-top:1px solid #f2f3f5;padding-top:14px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
+            {/* The stage lives here as a dropdown — picking a stage moves the card. */}
             <form
               method="post"
               action={`/app/org/pipeline/${card.id}/move`}
-              style="margin:0;display:flex;align-items:flex-end;gap:8px;"
+              style="margin:0;margin-left:auto;display:flex;align-items:center;gap:8px;"
             >
-              <label style="display:block;">
-                <div style={FIELD_LABEL}>Move to</div>
-                <select name="stage" style={`${INPUT}width:190px;`}>
-                  {STAGES.map((s) => (
-                    <option value={s} selected={s === stage}>
-                      {STAGE_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit" style={PRIMARY_BTN}>
-                Move
-              </button>
+              {dot ? <span style={`width:8px;height:8px;border-radius:50%;flex:none;background:${dot};`}></span> : null}
+              <select
+                name="stage"
+                onchange="this.form.submit()"
+                title="Move to a different stage"
+                style={`${INPUT}width:170px;font-weight:700;color:${dot ?? '#16171d'};`}
+              >
+                {STAGES.map((s) => (
+                  <option value={s} selected={s === stage}>
+                    {STAGE_LABEL[s]}
+                  </option>
+                ))}
+              </select>
+              <noscript>
+                <button type="submit" style={PRIMARY_BTN}>
+                  Move
+                </button>
+              </noscript>
             </form>
+          </div>
+
+          <div style="border-top:1px solid #f2f3f5;padding-top:14px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+              <div style={FIELD_LABEL}>Score</div>
+              {/* The badge sits in the same 13px/1.55 line box as the rationale text so their first lines align. */}
+              <div style="font-size:13px;line-height:1.55;color:#9a9da6;">
+                {card.score === null ? '—' : <ScoreBadge score={card.score} />}
+              </div>
+            </div>
             <div style="flex:1;min-width:220px;">
               <div style={FIELD_LABEL}>Rationale</div>
               <div style="font-size:13px;color:#33343c;line-height:1.55;white-space:pre-wrap;">
                 {card.rationale || '—'}
               </div>
-              <button type="button" data-dialog-open="#score-dialog" style="margin-top:8px;background:none;border:none;padding:0;font-size:12px;color:#4c5fd5;cursor:pointer;">
-                Edit score & rationale
-              </button>
             </div>
+            <button
+              type="button"
+              data-dialog-open="#score-dialog"
+              style="display:inline-flex;align-items:center;gap:7px;padding:8px 13px;background:#fff;border:1px solid #cfd3dc;font-size:13px;font-weight:600;color:#16171d;cursor:pointer;box-shadow:0 1px 2px rgba(22,23,29,0.06);align-self:flex-start;white-space:nowrap;"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+              </svg>
+              Edit score &amp; rationale
+            </button>
           </div>
         </div>
 
