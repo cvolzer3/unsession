@@ -451,7 +451,13 @@ app.post('/app/api/agenda/autoschedule', requireOrgRole('collaborator'), async (
     .filter((s): s is SessionRow => !!s)
     .map((s) => toViewSession(s, fresh, ids));
 
-  return c.json({ ok: true, sessions, skipped });
+  // Sessions the second pass had to run across a soft band (lunch) — surfaced so
+  // the organizer sees the trade instead of finding it on the published agenda.
+  const over = placements
+    .filter((p) => p.over)
+    .map((p) => ({ id: p.id, title: p.title, band: p.over as string }));
+
+  return c.json({ ok: true, sessions, skipped, over });
 });
 
 /** Undo an auto-schedule run: send exactly those sessions back to the bin. */

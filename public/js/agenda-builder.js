@@ -244,7 +244,7 @@ function boot(D) {
       S.warn = null;
       S.snapshot = null;
       S.autoUndo = placed.length ? placed.map((s) => s.id) : null;
-      S.autoResult = { placed: placed.length, skipped: res.skipped || [] };
+      S.autoResult = { placed: placed.length, skipped: res.skipped || [], over: res.over || [] };
       if (placed.length) markDirty();
       render();
     } catch (err) {
@@ -939,7 +939,13 @@ function boot(D) {
         '<div style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16171d;color:#fff;padding:14px 18px;z-index:80;box-shadow:0 8px 24px rgba(22,23,29,0.35);max-width:560px;">' +
         '<div style="display:flex;gap:10px;align-items:flex-start;">' +
         '<div style="flex:1;">' +
-        `<div style="font-weight:700;font-size:13px;margin-bottom:${r.skipped.length ? '5px' : '0'};">${esc(headline)}</div>` +
+        `<div style="font-weight:700;font-size:13px;margin-bottom:${r.skipped.length || r.over.length ? '5px' : '0'};">${esc(headline)}</div>` +
+        r.over
+          .map(
+            (s) =>
+              `<div style="font-size:12px;line-height:1.45;color:#ffd9a0;">Placed over ${esc(s.band)} — no other slot was free: “${esc(s.title)}”</div>`
+          )
+          .join('') +
         r.skipped
           .map(
             (s) =>
