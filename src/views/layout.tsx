@@ -8,6 +8,7 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Event, Theme, User } from '../types';
 import { pairingFor, themeStyleVars, initialsOf } from '../lib/theme';
+import { Favicons, SocialMeta } from './meta';
 import { SANDBOX_PERSONAS, SANDBOX_PERSONA_KEYS, type SandboxPersonaKey } from '../lib/seed-data';
 
 export const MONO = "'IBM Plex Mono',monospace";
@@ -250,6 +251,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{`Unsession — ${title}`}</title>
+        <Favicons />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
         <style>{raw(ADMIN_BASE_CSS)}</style>
@@ -405,6 +407,8 @@ export function publicNav(slug: string, active: string): { label: string; href: 
 
 export type PublicLayoutProps = PropsWithChildren<{
   title: string;
+  /** Share/meta description — falls back to "title · event name" when omitted. */
+  description?: string;
   event: { name: string; slug: string };
   theme: Theme;
   toast?: string | null;
@@ -440,7 +444,15 @@ export const PublicLayout: FC<PublicLayoutProps> = (props) => {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{`${props.event.name} — ${props.title}`}</title>
+        {/* Content-focused share tags: the event is the subject, so it is the
+            og:site_name and the brand card is left off — a shared CFP or
+            agenda link unfurls as the event's page, not as Unsession's. */}
+        <SocialMeta
+          title={`${props.event.name} — ${props.title}`}
+          description={props.description ?? `${props.title} · ${props.event.name}`}
+          siteName={props.event.name}
+          image={null}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={fontsHref} rel="stylesheet" />
         <style>{raw(css)}</style>

@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
 import { GOOGLE_FONTS, fmtDateRange } from '../views/layout';
+import { SocialMeta } from '../views/meta';
 import { all } from '../lib/db';
 import { seedSandbox } from '../lib/seed';
 import { GITHUB_URL } from '../lib/defaults';
@@ -525,15 +526,16 @@ const STATS = [
 /* ------------------------------------------------------------------- page */
 
 app.get('/', (c) => {
+  const origin = (c.env.APP_ORIGIN || new URL(c.req.url).origin).replace(/\/$/, '');
   return c.html(
-    <html>
+    <html lang="en">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Unsession — from open call to opening keynote</title>
-        <meta
-          name="description"
-          content="Unsession runs the whole speaker side of your event. Proposals in, fair reviews, confident decisions, speakers who show up ready, and an agenda you can publish and trust. Open source, free to try in the sandbox."
+        <SocialMeta
+          title="Unsession — from open call to opening keynote"
+          description="Unsession runs the whole speaker side of your event. Proposals in, fair reviews, confident decisions, speakers who show up ready, and an agenda you can publish and trust. Open source, free to try in the sandbox."
+          url={`${origin}/`}
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
@@ -883,13 +885,17 @@ app.get('/events', async (c) => {
     </a>
   );
 
+  const origin = (c.env.APP_ORIGIN || new URL(c.req.url).origin).replace(/\/$/, '');
   return c.html(
-    <html>
+    <html lang="en">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Unsession — Events</title>
-        <meta name="description" content="Published events running on Unsession — browse each event's agenda, sessions, and speakers." />
+        <SocialMeta
+          title="Events on Unsession"
+          description="Published events running on Unsession — browse each event's agenda, sessions, and speakers."
+          url={`${origin}/events`}
+        />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
         <style>{raw(EVENTS_CSS)}</style>

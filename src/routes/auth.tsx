@@ -12,6 +12,7 @@ import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, User } from '../types';
 import { MONO, GOOGLE_FONTS, ADMIN_BASE_CSS, Toast } from '../views/layout';
+import { Favicons } from '../views/meta';
 import {
   createSession,
   destroySession,
@@ -36,6 +37,7 @@ export const Shell: FC<{ title: string; toast?: string | null; width?: number; c
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{`Unsession — ${props.title}`}</title>
+      <Favicons />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href={GOOGLE_FONTS} rel="stylesheet" />
       <style>{raw(ADMIN_BASE_CSS)}</style>

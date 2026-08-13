@@ -17,6 +17,7 @@ import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { ADMIN_BASE_CSS, GOOGLE_FONTS, MONO, SandboxCookieFallback, Toast, initials } from '../views/layout';
+import { Favicons } from '../views/meta';
 import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { loadPublicEvent } from '../lib/public';
 import { now, run } from '../lib/db';
@@ -49,6 +50,7 @@ const Shell: FC<
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{`${props.eventName} — Evaluation queue`}</title>
+      <Favicons />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href={GOOGLE_FONTS} rel="stylesheet" />
       <style>{raw(ADMIN_BASE_CSS + EVAL_QUEUE_CSS)}</style>

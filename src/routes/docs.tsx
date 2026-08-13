@@ -16,6 +16,7 @@ import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { GOOGLE_FONTS } from '../views/layout';
+import { SocialMeta } from '../views/meta';
 import { GITHUB_URL } from '../lib/defaults';
 
 const app = new Hono<Ctx>();
@@ -217,10 +218,7 @@ app.get('/docs/mcp', (c) => {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>{title}</title>
-        <meta name="description" content={description} />
-        <meta property="og:title" content={title} />
-        <meta property="og:description" content={description} />
+        <SocialMeta title={title} description={description} url={`${origin}/docs/mcp`} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
         <style>{raw(CSS)}</style>
