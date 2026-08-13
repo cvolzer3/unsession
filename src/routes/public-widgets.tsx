@@ -917,9 +917,9 @@ app.get('/:event/agenda.ics', async (c) => {
         // Names only — a public feed must never carry speaker emails.
         speakers: (x.bundle.speakers.get(s.id) ?? []).map((p) => ({ name: p.name })),
         roomName: roomLabel(x, s) || null,
-        url: `${c.env.APP_ORIGIN}/${event.slug}/agenda`,
-      })),
-      { from: c.env.EMAIL_FROM }
+        // The public agenda's #s= hash opens this session's detail sheet.
+        url: `${c.env.APP_ORIGIN}/${event.slug}/agenda#s=${s.id}`,
+      }))
     );
     return new Response(body, {
       headers: {

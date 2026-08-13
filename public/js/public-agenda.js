@@ -402,6 +402,24 @@ function boot(D) {
   }
 
   /* ------------------------------------------------------------- detail */
+  /** Google Calendar template link — UTC instants via epochOf, like the .ics. */
+  function googleUrl(a) {
+    try {
+      const fmt = (e) => new Date(e).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+      const where = [a.allRooms ? 'All rooms' : a.room || '', D.venue || ''].filter(Boolean).join(' · ');
+      const p = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: a.title,
+        dates: `${fmt(epochOf(a.day, a.start))}/${fmt(epochOf(a.day, a.end))}`,
+        details: `${speakerLine(a)}\n\n${location.origin}/${D.slug}/agenda#s=${a.id}`.trim(),
+      });
+      if (where) p.set('location', where);
+      return `https://calendar.google.com/calendar/render?${p}`;
+    } catch {
+      return null; // unknown event timezone — the .ics link still works
+    }
+  }
+
   function renderDetail() {
     const a = S.selId ? D.sessions.find((x) => x.id === S.selId) : null;
     if (!a) {
@@ -434,9 +452,18 @@ function boot(D) {
       '</div>' +
       '<button type="button" data-close-detail aria-label="Close" style="margin-left:auto;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;padding:2px 4px;">✕</button></div>' +
       '<div class="ag-sheet-body" style="padding:16px;display:grid;gap:16px;">' +
-      `<div style="font-size:13px;line-height:1.7;color:var(--text-secondary);padding-bottom:16px;border-bottom:1px solid var(--chip);">${esc(
+      `<div style="font-size:13px;line-height:1.7;color:var(--text-secondary);">${esc(
         a.abstract || 'Session details coming soon.'
       )}</div>` +
+      (() => {
+        const g = googleUrl(a);
+        return (
+          '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--chip);font-size:12px;">' +
+          `<a href="/${D.slug}/agenda/session/${a.id}.ics" style="white-space:nowrap;">＋ Add to calendar (.ics)</a>` +
+          (g ? `<a href="${esc(g)}" target="_blank" rel="noopener noreferrer" style="white-space:nowrap;">Google Calendar ↗</a>` : '') +
+          '</div>'
+        );
+      })() +
       a.speakers
         .map(
           (p) =>

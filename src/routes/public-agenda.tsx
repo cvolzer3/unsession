@@ -1,6 +1,8 @@
 /**
- * Public agenda — `/{event}` (redirect), `/{event}/agenda`, `/{event}/agenda.json`
- * and the speaker-only ICS feed `/{event}/portal/session/<id>.ics`.
+ * Public agenda — `/{event}` (redirect), `/{event}/agenda`, `/{event}/agenda.json`,
+ * the anonymous per-session calendar file `/{event}/agenda/session/<id>.ics`
+ * (METHOD:PUBLISH) and the speaker-only invite `/{event}/portal/session/<id>.ics`
+ * (METHOD:REQUEST; serves METHOD:CANCEL once a downloaded slot is unscheduled).
  *
  * Ported from `Agenda.dc.html`. The LIST view is server-rendered (grouped by
  * day) so the page reads without JavaScript; `public/js/public-agenda.js`
@@ -33,7 +35,7 @@ import {
   type AgendaBundle,
   type SessionRow,
 } from '../lib/agenda';
-import { icsFilename, sessionIcs } from '../lib/ics';
+import { agendaIcs, cancelIcs, icsFilename, sessionIcs } from '../lib/ics';
 import { loadEmbedConfig, trackFiltered } from './public-embed';
 
 const app = new Hono<Ctx>();
@@ -202,6 +204,7 @@ app.get('/:event/agenda', async (c) => {
     const payload = {
       slug: event.slug,
       timezone: event.timezone,
+      venue: event.venue,
       days,
       dayStart: event.day_start_min,
       dayEnd: event.day_end_min,
@@ -289,7 +292,13 @@ app.get('/:event/agenda', async (c) => {
         <style>{raw(agendaCss())}</style>
         <div id="agenda-page">
           <h1 style="margin:12px 0 2px;font-size:28px;letter-spacing:-0.02em;">Agenda</h1>
-          <div style="font-size:13px;color:var(--muted);">{subtitle}</div>
+          <div style="font-size:13px;color:var(--muted);">
+            {subtitle}
+            {' · '}
+            <a href={`/${event.slug}/agenda.ics`} style="white-space:nowrap;">
+              ＋ Calendar feed (.ics)
+            </a>
+          </div>
           <div id="agenda-toolbar" class="ag-toolbar">
             <div class="ag-bar">
               <div id="view-btns" class="ag-scroll">
@@ -446,6 +455,45 @@ app.get('/:event/agenda.json', async (c) => {
   });
 });
 
+/* -------------------------------------------------- public per-session ics */
+
+/**
+ * Anonymous per-session calendar file — the detail sheet's "Add to calendar".
+ * METHOD:PUBLISH with speaker names only (never emails); invite mechanics
+ * stay on the speaker-gated portal route below.
+ */
+app.get('/:event/agenda/session/:file', async (c) => {
+  const file = c.req.param('file');
+  if (!file.endsWith('.ics')) return c.notFound();
+  const sessionId = file.slice(0, -4);
+  const found = await loadPublicEvent(c.env.DB, c.req.param('event'));
+  if (!found) return c.notFound();
+  const { event } = found;
+  if (!event.published) return c.notFound();
+
+  return withCache(c, `${event.slug}/${publishedRev(event)}/session/${sessionId}.ics`, async () => {
+    const bundle = await loadAgenda(c.env.DB, event.id);
+    const session = publicSessions(event, bundle).find((s) => s.id === sessionId);
+    if (!session) return c.text('Session not found on the published agenda.', 404);
+    const roomName = roomNamer(bundle);
+    const body = agendaIcs(event, [
+      {
+        session,
+        speakers: (bundle.speakers.get(session.id) ?? []).map((p) => ({ name: p.name })),
+        roomName: session.all_rooms ? 'All rooms' : session.room_id ? roomName(session.room_id) : null,
+        url: `${c.env.APP_ORIGIN}/${event.slug}/agenda#s=${session.id}`,
+      },
+    ]);
+    return new Response(body, {
+      headers: {
+        'content-type': 'text/calendar; charset=utf-8',
+        'content-disposition': `attachment; filename="${icsFilename(session.title)}"`,
+        'cache-control': 'public, max-age=60',
+      },
+    });
+  });
+});
+
 /* ------------------------------------------------------------------- ics */
 
 /** Speakers of the session (or any organizer of the event) may pull the file. */
@@ -478,9 +526,6 @@ app.get('/:event/portal/session/:file', async (c) => {
   if (!(await mayDownload(c, event, sessionId))) {
     return c.text('Sign in as a speaker of this session to download its calendar file.', 403);
   }
-  if (session.day === null || session.start_min === null) {
-    return c.text('This session is not scheduled yet — the calendar file appears once it has a slot.', 409);
-  }
 
   const speakers = await all<{ name: string; email: string }>(
     c.env.DB,
@@ -488,6 +533,25 @@ app.get('/:event/portal/session/:file', async (c) => {
       WHERE ss.session_id = ? ORDER BY ss.position`,
     sessionId
   );
+
+  if (session.day === null || session.start_min === null) {
+    // A bumped sequence means it held a slot at some point — hand back a
+    // METHOD:CANCEL so an earlier import clears instead of lingering stale.
+    if (Number(session.ics_sequence) > 0) {
+      const body = cancelIcs(event, session, speakers, {
+        from: c.env.EMAIL_FROM,
+        url: `${c.env.APP_ORIGIN}/${event.slug}/portal`,
+      });
+      return new Response(body, {
+        headers: {
+          'content-type': 'text/calendar; charset=utf-8; method=CANCEL',
+          'content-disposition': `attachment; filename="${icsFilename(session.title)}"`,
+          'cache-control': 'no-store',
+        },
+      });
+    }
+    return c.text('This session is not scheduled yet — the calendar file appears once it has a slot.', 409);
+  }
   const room = session.all_rooms
     ? 'All rooms'
     : session.room_id
