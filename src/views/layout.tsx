@@ -221,10 +221,12 @@ export type AdminLayoutProps = PropsWithChildren<{
   sandbox?: SandboxWidget | null;
 }>;
 
-function navLink(href: string, label: string, active: boolean, external = false) {
+function navLink(href: string, label: string, active: boolean, external = false, compact = false) {
   const style = active
     ? 'display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;text-decoration:none;'
-    : 'display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;';
+    : compact
+      ? 'display:block;padding:4px 20px;color:#686b74;font-size:12px;text-decoration:none;'
+      : 'display:block;padding:7px 20px;color:#16171d;font-size:13.5px;text-decoration:none;';
   return external ? (
     <a href={href} target="_blank" rel="noreferrer" style={style}>
       {label}
@@ -258,13 +260,16 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
       </head>
       <body>
         <div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
-          <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
-            <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
+          {/* Three fixed-height zones: logo header and user footer never scroll;
+              only the link list between them does. */}
+          <nav style="background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;">
+            <div style="flex-shrink:0;padding:20px 20px 18px;display:flex;align-items:center;gap:8px;">
               <div style={`width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:12px;font-weight:600;`}>
                 U
               </div>
               <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Unsession</div>
             </div>
+            <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-bottom:14px;">
             {navLink('/app', 'Dashboard', path === '/app')}
             <div style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>
               EVENT
@@ -281,17 +286,18 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink('/app/agenda', 'Agenda', isActive('/app/agenda'))}
             {navLink('/app/embeds', 'Embeds', isActive('/app/embeds'))}
             <div style={SECTION_LABEL}>PUBLIC</div>
-            {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true))}
-            {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true)}
-            {navLink(`/${slug}/sessions`, 'Sessions Page ↗', false, true)}
-            {navLink(`/${slug}/speakers`, 'Speakers Page ↗', false, true)}
+            {(props.publicForms ?? []).map((f) => navLink(`/${slug}/${f.slug}`, `${f.name} ↗`, false, true, true))}
+            {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true, true)}
+            {navLink(`/${slug}/sessions`, 'Sessions Page ↗', false, true, true)}
+            {navLink(`/${slug}/speakers`, 'Speakers Page ↗', false, true, true)}
             <div style={SECTION_LABEL}>ORGANIZATION</div>
             {navLink('/app/org/contacts', 'Speaker Directory', isActive('/app/org/contacts'))}
             {navLink('/app/org/pipeline', 'Pipeline', isActive('/app/org/pipeline'))}
             {navLink('/app/team', 'Team', isActive('/app/team'))}
             {/* Sandbox orgs can't mint API tokens — hide the page entirely. */}
             {props.sandbox ? null : navLink('/app/api', 'API', isActive('/app/api'))}
-            <div style="margin-top:auto;padding:14px 20px 0;border-top:1px solid #eceded;">
+            </div>
+            <div style="flex-shrink:0;padding:14px 20px 16px;border-top:1px solid #eceded;">
               <div style="display:flex;align-items:center;gap:9px;">
                 <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>
                   {initials(user?.name || user?.email || '')}
