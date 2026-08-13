@@ -46,7 +46,7 @@ const CSS = `
 
   /* ------------------------------------------------------------- nav */
   .nav{position:sticky;top:0;z-index:50;background:rgba(250,248,245,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
-  .nav-inner{display:flex;align-items:center;gap:12px;padding:14px 0;}
+  .nav-inner{display:flex;align-items:center;gap:12px;padding-top:14px;padding-bottom:14px;}
   .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
   .nav-links a{color:var(--ink2);}
   .nav-links a.on{color:var(--ink);font-weight:600;}
@@ -115,7 +115,7 @@ const CSS = `
     .toc a.sub{display:none;}
   }
   @media(max-width:720px){
-    .wrap{padding:0 20px;}
+    .wrap{padding-left:20px;padding-right:20px;}
     .nav-links{display:none;}
     .head-inner{padding:38px 0 32px;}
     .endpoint .url{font-size:13px;}
