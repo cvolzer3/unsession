@@ -116,11 +116,30 @@ async function enterAs(c: Context<Ctx>, sb: Sandbox, key: SandboxPersonaKey): Pr
 
 /* ------------------------------------------------------------------ routes */
 
+/**
+ * The seat row is avatar · title+blurb · persona name. Below the breakpoint
+ * there is no room for all three side by side, so the name drops to its own
+ * line under the blurb. `margin-left:auto` has to live here rather than
+ * inline, or the media query could not undo it.
+ */
+const CSS = `
+  .sb-seat{display:flex;align-items:center;gap:12px;}
+  .sb-text{flex:0 1 auto;min-width:0;}
+  .sb-who{margin-left:auto;flex:none;}
+  @media(max-width:768px){
+    .sb-seat{flex-wrap:wrap;}
+    /* flex:1 1 0 keeps the title+blurb beside the avatar and wraps its text
+       inside; an auto basis would send the whole block to its own line */
+    .sb-text{flex:1 1 0;}
+    .sb-who{margin-left:42px;flex:1 0 100%;}
+  }
+`;
+
 app.get('/sandbox/:org', async (c) => {
   const sb = await loadSandbox(c.env.DB, c.req.param('org'));
   if (!sb) return c.notFound();
   return c.html(
-    <Shell title="Sandbox — choose your seat" width={440} toast={c.req.query('ok') ?? null}>
+    <Shell title="Sandbox — choose your seat" width={440} css={CSS} toast={c.req.query('ok') ?? null}>
       <div style="background:#fff;border:1px solid #e2e3e8;padding:28px;">
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.14em;color:#e8590c;margin-bottom:8px;`}>
           DEVCONF 2027 · SANDBOX
@@ -137,18 +156,19 @@ app.get('/sandbox/:org', async (c) => {
                 <input type="hidden" name="persona" value={key} />
                 <button
                   type="submit"
-                  style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#fff;border:1px solid #d4d5db;cursor:pointer;text-align:left;"
+                  class="sb-seat"
+                  style="width:100%;padding:13px 14px;background:#fff;border:1px solid #d4d5db;cursor:pointer;text-align:left;"
                 >
                   <span
                     style={`width:30px;height:30px;border-radius:50%;background:${p.color};color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:11px;font-weight:600;flex:none;`}
                   >
                     {initials(p.name)}
                   </span>
-                  <span style="min-width:0;">
+                  <span class="sb-text">
                     <span style="display:block;font-size:13.5px;font-weight:600;">{p.title}</span>
                     <span style="display:block;font-size:12px;color:#686b74;">{p.blurb}</span>
                   </span>
-                  <span style={`margin-left:auto;font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;flex:none;`}>
+                  <span class="sb-who" style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>
                     {`${p.name.toUpperCase()} →`}
                   </span>
                 </button>

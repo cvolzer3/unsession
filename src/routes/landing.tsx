@@ -43,15 +43,23 @@ const CSS = `
   .btn-ghost{background:#fff;border:1px solid #ded8cd;color:var(--ink);}
   .btn-amber{background:var(--amber);color:var(--ink);box-shadow:0 2px 0 #d4ac00;}
   .btn-outline-light{background:transparent;border:1px solid rgba(255,255,255,0.35);color:#fff;}
+  /* the nav CTA carries a short label on a phone — see the 720px block */
+  .cta-mini{display:none;}
 
   /* ------------------------------------------------------------- nav */
   .nav{position:sticky;top:0;z-index:50;background:rgba(250,248,245,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
   /* section "-inner" classes share their element with .wrap, so they may only
      set vertical padding — a "Npx 0" shorthand would zero .wrap's side padding */
   .nav-inner{display:flex;align-items:center;gap:12px;padding-top:14px;padding-bottom:14px;}
+  /* The wordmark is 143px wide — more than half a 320px bar. Rather than hide
+     it on a phone, let it shrink: a flex basis of its natural width that is
+     allowed to shrink to nothing, with the <img> at width:100%;height:auto so
+     it scales instead of squashing. (A percentage max-width on the image alone
+     collapses to 0 — the image would be sizing the box that sizes it.) */
+  .nav-brand{display:block;flex:0 1 143px;min-width:0;}
   .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
   .nav-links a{color:var(--ink2);}
-  .nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .nav-cta{margin-left:auto;flex:none;display:flex;gap:10px;align-items:center;}
   .nav-cta .signin{font-size:14px;font-weight:600;color:var(--ink);padding:9px 14px;}
   .nav-cta .btn{padding:9px 16px;font-size:13.5px;}
 
@@ -115,7 +123,9 @@ const CSS = `
   /* -------------------------------------------------------- features */
   .feature{padding:96px 0;}
   .feature + .feature{border-top:1px solid var(--line);}
-  .f-grid{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;}
+  /* minmax(0,…) not 1fr: a wide child (the terminal, the scoring card) must
+     scroll or wrap inside its column, never stretch the grid past the page */
+  .f-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:72px;align-items:center;}
   .f-grid.rev .f-copy{order:2;} .f-grid.rev .f-vis{order:1;}
   .feature h2{margin:14px 0 14px;font-size:34px;line-height:1.12;letter-spacing:-0.025em;}
   .feature .lede{margin:0 0 24px;font-size:16px;line-height:1.65;color:var(--ink2);}
@@ -226,7 +236,7 @@ const CSS = `
     .float-agenda{right:-8px;} .float-mail{left:-8px;}
   }
   @media(max-width:900px){
-    .f-grid{grid-template-columns:1fr;gap:40px;}
+    .f-grid{grid-template-columns:minmax(0,1fr);gap:40px;}
     .f-grid.rev .f-copy{order:1;} .f-grid.rev .f-vis{order:2;}
     .stats{grid-template-columns:1fr;gap:26px;}
     .qrow{grid-template-columns:1fr 92px;} .qrow .barcell,.qrow .score{display:none;}
@@ -234,7 +244,13 @@ const CSS = `
   @media(max-width:720px){
     .wrap{padding-left:20px;padding-right:20px;}
     .nav-links{display:none;}
-    .nav-cta .signin{padding:9px 8px;white-space:nowrap;}
+    /* the whole bar has to survive 320px: logo + Sign in + CTA */
+    .nav-inner{gap:8px;}
+    .nav-cta{gap:6px;}
+    .nav-cta .signin{padding:11px 4px;white-space:nowrap;}
+    .nav-cta .btn{padding:11px 10px;white-space:nowrap;}
+    .cta-full{display:none;}
+    .cta-mini{display:inline;}
     .hero-inner{padding-top:56px;}
     .hero h1{font-size:clamp(32px,9vw,44px);}
     .hero p{font-size:16px;}
@@ -247,6 +263,14 @@ const CSS = `
     .pipeline-inner{padding-top:16px;padding-bottom:16px;}
     .pstep span{font-size:9.5px;letter-spacing:0.1em;padding:5px 2px;}
     .pstep .arr{padding:0 7px;}
+    /* footer links are 14px tall by default — too small to tap reliably */
+    .footer-inner .right{gap:4px;}
+    .footer-inner a{padding:12px 7px;}
+    /* scoring vignette: the fixed criterion column plus five keys is wider
+       than a 320px card, so let the label take whatever is left */
+    .crit .cname{width:auto;flex:1 1 auto;min-width:0;}
+    .keys{flex:none;}
+    .term-body{font-size:11px;}
   }
   @media(max-width:640px){
     /* collage: floating cards become stacked cards instead of overlapping */
@@ -262,10 +286,20 @@ const CSS = `
 
 function SandboxForm(props: { variant: 'nav' | 'primary' | 'amber' }) {
   const cls = props.variant === 'amber' ? 'btn btn-amber' : 'btn btn-primary';
+  // The nav bar has ~280px to hold logo + Sign in + this button at 320px wide,
+  // so the nav copy shortens below the breakpoint. The page CTAs keep the
+  // full label — they have a whole row to themselves.
   return (
     <form method="post" action="/sandbox" style="margin:0;display:inline-block;">
       <button type="submit" class={cls}>
-        Try the sandbox →
+        {props.variant === 'nav' ? (
+          <>
+            <span class="cta-full">Try the sandbox →</span>
+            <span class="cta-mini">Sandbox →</span>
+          </>
+        ) : (
+          'Try the sandbox →'
+        )}
       </button>
     </form>
   );
@@ -546,8 +580,8 @@ app.get('/', (c) => {
         {/* ---------------------------------------------------------- nav */}
         <div class="nav">
           <div class="wrap nav-inner">
-            <a href="/" aria-label="Unsession home" style="color:var(--ink);text-decoration:none;">
-              <ProductLogo height={22} />
+            <a href="/" aria-label="Unsession home" class="nav-brand" style="color:var(--ink);text-decoration:none;">
+              <ProductLogo height={22} style="width:100%;height:auto;" />
             </a>
             <div class="nav-links">
               <a href="#how">How it works</a>
@@ -839,16 +873,24 @@ const EVENTS_CSS = `
   .wrap{max-width:760px;margin:0 auto;padding:0 24px;}
   .nav{border-bottom:1px solid var(--line);background:#fff;}
   .nav-inner{display:flex;align-items:center;gap:12px;padding-top:14px;padding-bottom:14px;}
+  .nav-brand{display:block;flex:0 1 143px;min-width:0;}
   .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
   .nav-links a{color:var(--ink2);}
   .nav-links a:hover{text-decoration:none;color:var(--ink);}
-  .nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .nav-cta{margin-left:auto;flex:none;display:flex;gap:10px;align-items:center;}
   .nav-cta .signin{font-size:14px;font-weight:600;color:var(--ink);padding:9px 14px;}
   .nav-cta .btn{display:inline-block;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;border:none;font-family:inherit;line-height:normal;}
   .nav-cta .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 2px 0 #3a4ab8;}
+  .cta-mini{display:none;}
   @media(max-width:720px){
+    .wrap{padding-left:20px;padding-right:20px;}
     .nav-links{display:none;}
-    .nav-cta .signin{padding:9px 8px;}
+    .nav-inner{gap:8px;}
+    .nav-cta{gap:6px;}
+    .nav-cta .signin{padding:11px 4px;white-space:nowrap;}
+    .nav-cta .btn{padding:11px 10px;white-space:nowrap;}
+    .cta-full{display:none;}
+    .cta-mini{display:inline;}
   }
   .card{display:block;background:#fff;border:1px solid var(--line);padding:18px 20px;color:var(--ink);}
   .card:hover{border-color:var(--indigo);text-decoration:none;}
@@ -904,8 +946,8 @@ app.get('/events', async (c) => {
       <body>
         <div class="nav">
           <div class="wrap nav-inner">
-            <a href="/" aria-label="Unsession home" style="display:block;color:var(--ink);text-decoration:none;">
-              <ProductLogo height={22} />
+            <a href="/" aria-label="Unsession home" class="nav-brand" style="color:var(--ink);text-decoration:none;">
+              <ProductLogo height={22} style="width:100%;height:auto;" />
             </a>
             <div class="nav-links">
               <a href="/#how">How it works</a>

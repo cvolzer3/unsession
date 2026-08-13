@@ -50,8 +50,11 @@ const Shell = (props: { theme: ReturnType<typeof parseTheme>; eventName: string;
       <style>{raw(`html,body{margin:0;padding:0;background:${props.theme.bg};color:#1a1a2e;font-family:'Space Grotesk',sans-serif;}`)}</style>
     </head>
     <body>
-      <div style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;">
-        <div style="width:460px;max-width:100%;text-align:center;">{props.children}</div>
+      {/* minmax(0,1fr): an `auto` track takes the card's 460px width as its
+          minimum and overflows a phone; a 1fr track caps at the viewport and
+          lets the card's max-width take over. */}
+      <div style="min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;padding:32px 20px;">
+        <div style="width:460px;max-width:100%;text-align:center;overflow-wrap:anywhere;">{props.children}</div>
       </div>
     </body>
   </html>

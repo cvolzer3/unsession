@@ -47,11 +47,14 @@ const CSS = `
   /* ------------------------------------------------------------- nav */
   .nav{position:sticky;top:0;z-index:50;background:rgba(250,248,245,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
   .nav-inner{display:flex;align-items:center;gap:12px;padding-top:14px;padding-bottom:14px;}
+  /* the wordmark shrinks instead of pushing the bar past a 320px viewport */
+  .nav-brand{display:block;flex:0 1 143px;min-width:0;}
   .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
   .nav-links a{color:var(--ink2);}
   .nav-links a.on{color:var(--ink);font-weight:600;}
-  .nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .nav-cta{margin-left:auto;flex:none;display:flex;gap:10px;align-items:center;}
   .nav-cta .signin{font-size:14px;font-weight:600;color:var(--ink);padding:9px 14px;}
+  .cta-mini{display:none;}
 
   /* ---------------------------------------------------------- header */
   .head{border-bottom:1px solid var(--line);
@@ -59,7 +62,9 @@ const CSS = `
       radial-gradient(ellipse 900px 380px at 76% -20%, rgba(76,95,213,0.10), transparent 60%),
       radial-gradient(circle at 1px 1px, #e4ded2 1px, transparent 0);
     background-size:auto, 26px 26px;}
-  .head-inner{padding:56px 0 44px;}
+  /* like .nav-inner: shares its element with .wrap, so vertical padding only
+     — a "Npx 0" shorthand would zero .wrap's side gutters */
+  .head-inner{padding-top:56px;padding-bottom:44px;}
   .head h1{margin:14px 0 16px;font-size:clamp(30px,4.4vw,46px);line-height:1.06;letter-spacing:-0.03em;max-width:20ch;}
   .head p{margin:0;font-size:17px;line-height:1.62;color:var(--ink2);max-width:64ch;}
   .endpoint{margin-top:28px;background:var(--ink);color:#fff;padding:18px 22px;max-width:640px;box-shadow:0 16px 40px rgba(22,23,29,0.16);}
@@ -68,7 +73,7 @@ const CSS = `
   .endpoint .sub{font-family:var(--mono);font-size:11px;color:#9a9daa;margin-top:10px;line-height:1.6;}
 
   /* ---------------------------------------------------------- layout */
-  .docs{display:grid;grid-template-columns:212px 1fr;gap:56px;padding:52px 0 96px;align-items:start;}
+  .docs{display:grid;grid-template-columns:212px 1fr;gap:56px;padding-top:52px;padding-bottom:96px;align-items:start;}
   .toc{position:sticky;top:76px;}
   .toc-label{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;color:var(--ink3);margin-bottom:12px;}
   .toc a{display:block;font-size:13.5px;color:var(--ink2);padding:4px 0;line-height:1.4;}
@@ -111,15 +116,41 @@ const CSS = `
 
   @media(max-width:900px){
     .docs{grid-template-columns:1fr;gap:0;padding-top:34px;}
-    .toc{position:static;border:1px solid var(--line);background:#fff;padding:16px 18px;margin-bottom:34px;}
+    .toc{position:static;border:1px solid var(--line);background:#fff;padding:10px 18px;margin-bottom:34px;}
+    /* the collapsed ToC is the page's nav on a phone — give each row a tappable row height */
+    .toc a{padding:9px 0;}
     .toc a.sub{display:none;}
   }
   @media(max-width:720px){
     .wrap{padding-left:20px;padding-right:20px;}
     .nav-links{display:none;}
-    .head-inner{padding:38px 0 32px;}
+    /* the whole bar has to survive 320px: logo + Sign in + CTA */
+    .nav-inner{gap:8px;}
+    .nav-cta{gap:6px;}
+    .nav-cta .signin{padding:11px 4px;white-space:nowrap;}
+    .nav-cta .btn{padding:11px 10px;white-space:nowrap;}
+    .cta-full{display:none;}
+    .cta-mini{display:inline;}
+    .head-inner{padding-top:38px;padding-bottom:32px;}
     .endpoint .url{font-size:13px;}
     article h2{font-size:22px;margin-top:40px;}
+    /* footer links are 14px tall by default — too small to tap reliably */
+    .footer-inner .right{gap:4px;}
+    .footer-inner a{padding:12px 7px;}
+    /* inline code keeps short tokens on one line on desktop; on a phone a long
+       one (a curl header, a JSON blob) has to wrap instead of widening the page */
+    code{white-space:normal;overflow-wrap:anywhere;}
+    /* Every table here is name + description. Side-scrolling one on a phone
+       clips the description mid-word, so the pair stacks instead: name on its
+       own line, description under it. The header row is the column names,
+       which the surrounding heading already says. */
+    thead{display:none;}
+    tbody,tr,td{display:block;}
+    tr{border-bottom:1px solid var(--line);}
+    tr:last-child{border-bottom:none;}
+    td{border-bottom:none;padding:0 14px;}
+    td:first-child{padding-top:12px;padding-bottom:3px;white-space:normal;overflow-wrap:anywhere;}
+    td:last-child{padding-bottom:12px;}
   }
 `;
 
@@ -257,8 +288,8 @@ app.get('/docs/mcp', (c) => {
         {/* ---------------------------------------------------------- nav */}
         <div class="nav">
           <div class="wrap nav-inner">
-            <a href="/" aria-label="Unsession home" style="display:block;color:var(--ink);text-decoration:none;">
-              <ProductLogo height={22} />
+            <a href="/" aria-label="Unsession home" class="nav-brand" style="color:var(--ink);text-decoration:none;">
+              <ProductLogo height={22} style="width:100%;height:auto;" />
             </a>
             <div class="nav-links">
               <a href="/#how">How it works</a>
@@ -273,7 +304,8 @@ app.get('/docs/mcp', (c) => {
               </a>
               <form method="post" action="/sandbox" style="margin:0;">
                 <button type="submit" class="btn btn-primary">
-                  Try the sandbox →
+                  <span class="cta-full">Try the sandbox →</span>
+                  <span class="cta-mini">Sandbox →</span>
                 </button>
               </form>
             </div>

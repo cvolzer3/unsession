@@ -32,8 +32,26 @@ import { SANDBOX_COOKIE } from '../lib/seed-data';
 
 const app = new Hono<Ctx>();
 
-/** Centered auth-page frame — also used by the sandbox role picker (routes/sandbox.tsx). */
-export const Shell: FC<{ title: string; toast?: string | null; width?: number; children?: unknown }> = (props) => (
+/**
+ * Centered auth-page frame — also used by the sandbox role picker
+ * (routes/sandbox.tsx), the OAuth consent screen (routes/oauth.tsx) and every
+ * password page here.
+ *
+ * `grid-template-columns:minmax(0,1fr)` is load-bearing: an `auto` track is
+ * sized from the card's `width:<N>px`, so on a phone the card kept its desktop
+ * width and pushed the page wider than the viewport. A `minmax(0,1fr)` track
+ * caps at the container, and the card's `max-width:100%` finally bites.
+ *
+ * `css` appends a page's own rules — the pattern for anything (a media query,
+ * a hover) that an inline `style` attribute cannot express.
+ */
+export const Shell: FC<{
+  title: string;
+  toast?: string | null;
+  width?: number;
+  css?: string;
+  children?: unknown;
+}> = (props) => (
   <html>
     <head>
       <meta charset="utf-8" />
@@ -43,9 +61,10 @@ export const Shell: FC<{ title: string; toast?: string | null; width?: number; c
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href={GOOGLE_FONTS} rel="stylesheet" />
       <style>{raw(ADMIN_BASE_CSS)}</style>
+      {props.css ? <style>{raw(props.css)}</style> : null}
     </head>
     <body>
-      <div style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;">
+      <div style="min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;padding:32px 20px;">
         <div style={`width:${props.width ?? 400}px;max-width:100%;`}>
           <a href="/" aria-label="Unsession home" style="display:flex;justify-content:center;margin-bottom:26px;text-decoration:none;">
             <ProductLogo height={28} />
@@ -133,7 +152,7 @@ app.get('/signin', (c) => {
             Sign in
           </button>
         </form>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;font-size:12.5px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin-top:14px;font-size:12.5px;">
           <a href={next ? `/auth/forgot?next=${encodeURIComponent(next)}` : '/auth/forgot'}>Forgot password?</a>
           <a href={next ? `/signup?next=${encodeURIComponent(next)}` : '/signup'}>New here? Create an account</a>
         </div>
@@ -148,7 +167,7 @@ app.get('/signin', (c) => {
             <button
               type="submit"
               data-busy="Opening the sandbox…"
-              style="display:flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:center;"
+              style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:center;"
             >
               <span style={`width:26px;height:26px;border-radius:50%;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}>
                 DC
