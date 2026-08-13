@@ -98,6 +98,8 @@ const PAGE_CSS = `
   .sb-row{display:grid;grid-template-columns:18px minmax(0,1fr) 150px;gap:10px;align-items:center;padding:8px 12px;cursor:pointer;}
   @media (max-width:768px){
     .dir-page{padding:14px 14px 28px;}
+    /* Negative margin cancels the padding visually; only the hit box grows. */
+    .dir-c-name{display:inline-block;padding:8px 8px 8px 0;margin:-8px -8px -8px 0;}
     /* Full width, so the Filter button below always starts at the left edge and
        its 340px panel drops inside the screen. */
     .dir-searchform{flex:1 0 100%;}

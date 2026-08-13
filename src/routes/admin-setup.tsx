@@ -58,6 +58,7 @@ const PAGE_CSS = `
   .st-chip-x{padding:7px 8px 7px 4px;}
   .st-opt{padding:4px 10px;font-size:12px;}
   .st-optadd{padding:4px 9px;font-size:11.5px;}
+  .st-sluginfo{width:15px;height:15px;padding:0;}
   .st-dashed{padding:7px 12px;}
   .st-cancel{padding:8px 14px;}
   .st-create{padding:8px 16px;}
@@ -67,6 +68,8 @@ const PAGE_CSS = `
   .st-reset{padding:0;}
   .st-logo{padding:7px 14px;}
   @media (max-width:768px){
+    /* Padding grows the hit box; content-box keeps the visible circle 15px. */
+    .st-sluginfo{width:33px;height:33px;padding:9px;background-clip:content-box;}
     .st-reset{padding:9px 0 9px 12px;margin-top:-9px;margin-bottom:-9px;}
     .st-logo{padding:11px 16px;}
     .st-save{padding:11px 18px;}
@@ -161,7 +164,8 @@ app.get('/app/setup', async (c) => {
                         type="button"
                         data-toggle="#slug-info"
                         aria-label="About the slug"
-                        style={`width:15px;height:15px;padding:0;background:#eef0fb;border:none;border-radius:50%;color:#4c5fd5;font-family:${MONO};font-size:9px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;`}
+                        class="st-sluginfo"
+                        style={`background:#eef0fb;border:none;border-radius:50%;color:#4c5fd5;font-family:${MONO};font-size:9px;font-weight:700;line-height:1;display:grid;place-items:center;cursor:pointer;`}
                       >
                         i
                       </button>

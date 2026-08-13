@@ -14,7 +14,7 @@ import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import { getCookie, setCookie } from 'hono/cookie';
 import type { Ctx, Event, Theme, User } from '../types';
-import { MOBILE_MAX, PublicLayout } from '../views/layout';
+import { PublicLayout } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, jsonParse, now, one, run } from '../lib/db';
 import { newId, nextSeq } from '../lib/ids';
@@ -93,9 +93,10 @@ const FORM_CSS =
      reach a flex child — so the save indicator truncates its own text. */
   '.pf-kick{display:flex;align-items:center;gap:6px;min-width:0;max-width:100%;}' +
   '.pf-kick #pf-save{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
-  `@media (max-width:${MOBILE_MAX}px){` +
+  `@media (max-width:768px){` +
   '.pf-2col{grid-template-columns:1fr;}' +
   '.pf-meta{flex-wrap:wrap;gap:6px;}' +
+  '[data-err]{font-size:13px !important;}' +
   /* ~40px hit areas; negative margins keep the surrounding rhythm. */
   '.pf-remove{padding:11px 0 11px 14px;margin:-11px 0;}' +
   '.pf-back{padding:11px 0;margin:-11px 0 7px;}' +

@@ -20,7 +20,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event, Theme } from '../types';
-import { PublicLayout, MONO, fmtDateRange, publicNav, PUBLIC_PAGE_MAX, MOBILE_MAX } from '../views/layout';
+import { PublicLayout, MONO, fmtDateRange, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one } from '../lib/db';
 import {
@@ -120,7 +120,7 @@ function notPublished(event: { name: string; slug: string }, theme: Theme) {
  * Below this width the list becomes cards and the detail popover a bottom
  * sheet. It is the one breakpoint the whole app uses (SPECS/M-mobile.md).
  */
-const AGENDA_BREAK = MOBILE_MAX;
+const AGENDA_BREAK = 768;
 
 /**
  * Responsive rules for the agenda page. Mirrored by `public/js/public-agenda.js`,

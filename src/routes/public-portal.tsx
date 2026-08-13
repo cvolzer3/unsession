@@ -12,7 +12,7 @@ import type { Context } from 'hono';
 import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx, Event, Theme, User } from '../types';
-import { MOBILE_MAX, PublicLayout, fmtDate } from '../views/layout';
+import { PublicLayout, fmtDate } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { all, one, run, now, jsonParse } from '../lib/db';
 import { createSession, verifyPassword } from '../lib/auth';
@@ -64,7 +64,7 @@ const PORTAL_CSS =
      panel itself scrolls, so its buttons stay reachable. */
   '.pt-dlgbox{width:min(var(--dlg-w),calc(100vw - 40px));max-height:calc(100vh - 40px);' +
   'max-height:calc(100dvh - 40px);overflow-y:auto;}' +
-  `@media (max-width:${MOBILE_MAX}px){` +
+  `@media (max-width:768px){` +
   '.pt-2col{grid-template-columns:1fr;}' +
   /* The row actions drop under the task text, indented to line up with it, so
      neither the task name nor the button is squeezed into a sliver. */

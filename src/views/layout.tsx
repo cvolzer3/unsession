@@ -55,6 +55,11 @@ const SHARED_BASE_CSS = `
        declares its own .drawer-* width later in the document, hence the
        !important rather than more specificity. */
     .us-drawer-panel{width:100vw !important;max-width:100vw !important;--band-x:16px;}
+    /* On a phone the chip must sit under every overlay surface (drawers are
+       z 50, dialogs 60+, sheets 72+): at its desktop z 70 it covered drawer
+       action footers, leaving Done/Save unreachable. 40 keeps it above plain
+       page content only. !important beats the element's inline z-index. */
+    #sandbox-switcher{z-index:40 !important;}
   }
 `;
 
@@ -103,6 +108,7 @@ export const ADMIN_BASE_CSS = `
        scrim; ui.js flips [data-nav-open] on the shell. visibility:hidden while
        closed keeps the off-screen links out of the tab order. */
     .us-shell{grid-template-columns:1fr;}
+    .us-signout{display:inline-block;padding:9px 12px 9px 0;}
     .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:min(80vw,300px);height:100vh;height:100dvh;
       border-right:none;box-shadow:6px 0 28px rgba(22,23,29,0.22);
       transform:translateX(-100%);visibility:hidden;transition:transform 0.18s ease,visibility 0s linear 0.18s;}
@@ -394,7 +400,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
                 </div>
                 <div style="min-width:0;">
                   <div style="font-size:12.5px;font-weight:600;">{user?.name || user?.email || 'Signed out'}</div>
-                  <a href="/auth/signout" style="font-size:11px;color:#9a9da6;text-decoration:none;">
+                  <a href="/auth/signout" class="us-signout" style="font-size:11px;color:#9a9da6;text-decoration:none;">
                     Sign out
                   </a>
                 </div>

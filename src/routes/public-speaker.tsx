@@ -11,7 +11,7 @@
 import { Hono } from 'hono';
 import { raw } from 'hono/html';
 import type { Ctx, Event } from '../types';
-import { PublicLayout, publicNav, PUBLIC_PAGE_MAX, MOBILE_MAX } from '../views/layout';
+import { PublicLayout, publicNav, PUBLIC_PAGE_MAX } from '../views/layout';
 import { loadPublicEvent } from '../lib/public';
 import { one, jsonParse } from '../lib/db';
 import { eventDays, fmtSpan, loadAgenda, roomNamer, speakerAffiliation, type SessionRow } from '../lib/agenda';
@@ -72,7 +72,7 @@ const speakerCss = () => `
 .sp-card{padding:16px 20px;display:grid;grid-template-columns:130px 1fr;gap:18px;}
 .sp-when-b{margin-top:3px;}
 .sp-when-c{margin-top:2px;}
-@media (max-width:${MOBILE_MAX}px){
+@media (max-width:768px){
   .sp-page{padding:16px 14px 48px;}
   .sp-hero{gap:16px;margin-top:20px;}
   .sp-shot{width:120px;height:120px;}
