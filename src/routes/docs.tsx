@@ -235,9 +235,8 @@ app.get('/docs/mcp', (c) => {
             </a>
             <div class="nav-links">
               <a href="/#how">How it works</a>
-              <a href="/events">Events</a>
-              <a class="on" href="/docs/mcp">
-                MCP &amp; API
+              <a class="on" href="/docs">
+                Docs
               </a>
               <a href={GITHUB_URL}>GitHub</a>
             </div>

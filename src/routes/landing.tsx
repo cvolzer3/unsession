@@ -547,9 +547,8 @@ app.get('/', (c) => {
             <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">Unsession</div>
             <div class="nav-links">
               <a href="#how">How it works</a>
-              <a href="/events">Events</a>
-              <a href="/docs/mcp">MCP &amp; API</a>
-              <a href="#oss">Open source</a>
+              <a href="/docs">Docs</a>
+              <a href={GITHUB}>GitHub</a>
             </div>
             <div class="nav-cta">
               <a class="signin" href="/signin">
@@ -815,7 +814,7 @@ app.get('/', (c) => {
             <span>UNSESSION</span>
             <span class="right">
               <a href="/events">EVENTS</a>
-              <a href="/docs/mcp">MCP &amp; API</a>
+              <a href="/docs">DOCS</a>
               <a href={GITHUB}>SOURCE</a>
               <span>AGPL-3.0</span>
             </span>
@@ -836,6 +835,17 @@ const EVENTS_CSS = `
   .wrap{max-width:760px;margin:0 auto;padding:0 24px;}
   .nav{border-bottom:1px solid var(--line);background:#fff;}
   .nav-inner{display:flex;align-items:center;gap:12px;padding:14px 0;}
+  .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
+  .nav-links a{color:var(--ink2);}
+  .nav-links a:hover{text-decoration:none;color:var(--ink);}
+  .nav-cta{margin-left:auto;display:flex;gap:10px;align-items:center;}
+  .nav-cta .signin{font-size:14px;font-weight:600;color:var(--ink);padding:9px 14px;}
+  .nav-cta .btn{display:inline-block;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;border:none;font-family:inherit;line-height:normal;}
+  .nav-cta .btn-primary{background:var(--indigo);color:#fff;box-shadow:0 2px 0 #3a4ab8;}
+  @media(max-width:720px){
+    .nav-links{display:none;}
+    .nav-cta .signin{padding:9px 8px;}
+  }
   .logo-mark{width:26px;height:26px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:12px;font-weight:600;}
   .card{display:block;background:#fff;border:1px solid var(--line);padding:18px 20px;color:var(--ink);}
   .card:hover{border-color:var(--indigo);text-decoration:none;}
@@ -891,9 +901,17 @@ app.get('/events', async (c) => {
               <span class="logo-mark">U</span>
               <span style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Unsession</span>
             </a>
-            <a href="/signin" style="margin-left:auto;font-size:13.5px;font-weight:600;color:var(--ink);">
-              Sign in
-            </a>
+            <div class="nav-links">
+              <a href="/#how">How it works</a>
+              <a href="/docs">Docs</a>
+              <a href={GITHUB}>GitHub</a>
+            </div>
+            <div class="nav-cta">
+              <a class="signin" href="/signin">
+                Sign in
+              </a>
+              <SandboxForm variant="nav" />
+            </div>
           </div>
         </div>
         <div class="wrap" style="padding-top:44px;padding-bottom:80px;">
