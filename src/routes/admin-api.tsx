@@ -27,6 +27,8 @@ const BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
 const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
 const GRID = 'grid-template-columns:minmax(180px,1fr) 120px 170px 110px 110px 80px;';
+const CODE = `font-family:${MONO};font-size:12px;background:#f8f8fa;border:1px solid #eceded;padding:10px 12px;overflow-x:auto;white-space:pre;line-height:1.6;`;
+const CHIP = `flex:none;font-family:${MONO};font-size:9.5px;letter-spacing:0.08em;padding:2px 6px;font-weight:600;`;
 
 const SCOPE_LABEL: Record<string, string> = { read: 'READ', 'read,write': 'READ · WRITE' };
 
@@ -174,45 +176,72 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
           ) : null}
         </div>
 
-        <div style="background:#fff;border:1px solid #e2e3e8;padding:18px 20px;">
-          <div style={`${MICRO}margin-bottom:12px;`}>USING THE API</div>
-          <div style="display:grid;gap:10px;font-size:13px;color:#33343c;line-height:1.55;">
-            <div>
-              <span style={MICRO}>BASE URL&ensp;</span>
-              <span style={`font-family:${MONO};font-size:12.5px;`}>{`${origin}/api/v1`}</span>
-              &ensp;·&ensp;authenticate every request with{' '}
-              <span style={`font-family:${MONO};font-size:12px;background:#f4f4f6;padding:1px 5px;`}>
-                Authorization: Bearer uns_…
+        <div style="background:#fff;border:1px solid #e2e3e8;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid #e2e3e8;">
+            <div style={MICRO}>USING THE API</div>
+            <a href="/docs/mcp" style="margin-left:auto;color:#4c5fd5;font-weight:600;font-size:12.5px;">
+              Setup guide, tool reference and connection snippets →
+            </a>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;">
+            <div style="padding:16px 20px;border-right:1px solid #f2f3f5;display:grid;gap:10px;align-content:start;">
+              <div style={MICRO}>REST API</div>
+              <div style={`font-family:${MONO};font-size:13px;color:#16171d;`}>{`${origin}/api/v1`}</div>
+              <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
+                For scripts and integrations. Authenticate every request with{' '}
+                <span style={`font-family:${MONO};font-size:11.5px;background:#f4f4f6;padding:1px 5px;`}>
+                  Authorization: Bearer uns_…
+                </span>
+              </div>
+              <div style={CODE}>{`curl -H "Authorization: Bearer <token>" \\\n  ${origin}/api/v1/events`}</div>
+              <div style="font-size:12.5px;">
+                <a href="/docs/mcp#rest" style="color:#4c5fd5;font-weight:600;">
+                  Every endpoint you can call →
+                </a>
+              </div>
+            </div>
+            <div style="padding:16px 20px;display:grid;gap:10px;align-content:start;">
+              <div style={MICRO}>MCP ENDPOINT — FOR AGENTS</div>
+              <div style={`font-family:${MONO};font-size:13px;color:#16171d;`}>{`${origin}/api/mcp`}</div>
+              <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
+                No token needed: MCP clients (Claude Code, claude.ai connectors, Cursor, VS Code) register
+                themselves with OAuth. Add the endpoint URL, sign in on the consent page, and the connection
+                appears in the list above tagged OAUTH — revoke it like any other token.
+              </div>
+              <div style={CODE}>
+                {`claude mcp add --transport http unsession \\\n  ${origin}/api/mcp\n# then run /mcp inside Claude Code and sign in`}
+              </div>
+              <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
+                Clients without OAuth can still send the Bearer header instead.{' '}
+                <a href="/docs/mcp#tools" style="color:#4c5fd5;font-weight:600;white-space:nowrap;">
+                  All 19 tools →
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #f2f3f5;">
+            <div style="padding:14px 20px;border-right:1px solid #f2f3f5;display:flex;gap:10px;align-items:baseline;">
+              <span style={`${CHIP}color:#1c7ed6;background:#e7f1fb;`}>READ</span>
+              <span style="font-size:12.5px;color:#686b74;line-height:1.5;">
+                Events, forms, submissions, sessions, speakers, tasks and the published agenda. Read-only tokens
+                see only the read MCP tools.
               </span>
             </div>
-            <div style={`font-family:${MONO};font-size:12px;background:#f8f8fa;border:1px solid #eceded;padding:10px 12px;overflow-x:auto;white-space:nowrap;`}>
-              {`curl -H "Authorization: Bearer <token>" ${origin}/api/v1/events`}
+            <div style="padding:14px 20px;display:flex;gap:10px;align-items:baseline;">
+              <span style={`${CHIP}color:#9c36b5;background:#f6e8f9;`}>WRITE</span>
+              <span style="font-size:12.5px;color:#686b74;line-height:1.5;">
+                Adds submission create/update, decisions, session create/edit/schedule, speaker profile edits and
+                task assignment. Every write lands in the activity log as{' '}
+                <span style={`font-family:${MONO};font-size:11.5px;`}>api:&lt;token name&gt;</span>.
+              </span>
             </div>
-            <div>
-              Read scope covers events, forms, submissions, sessions, speakers, tasks and the published agenda
-              (<span style={`font-family:${MONO};font-size:12px;`}>{`GET ${origin}/api/v1/events/{event}/agenda`}</span>).
-              Write scope adds submission create/update, decisions, session create/edit/schedule, speaker profile
-              edits and task assignment — every write lands in the activity log as{' '}
-              <span style={`font-family:${MONO};font-size:12px;`}>api:&lt;token name&gt;</span>.
-            </div>
-            <div>
-              <span style={MICRO}>MCP ENDPOINT&ensp;</span>
-              <span style={`font-family:${MONO};font-size:12.5px;`}>{`${origin}/api/mcp`}</span>
-              &ensp;The same tokens drive agents (Claude Code, Claude connectors, Cursor, VS Code) over stateless
-              Streamable HTTP. Read-only tokens see only the read tools. Clients that speak OAuth can skip the
-              token entirely: add the endpoint URL, sign in on the consent page, and the connection appears in
-              the list above tagged OAUTH — revoke it like any other token.{' '}
-              <a href="/docs/mcp" style="color:#4c5fd5;font-weight:600;">
-                Setup guide, tool reference and connection snippets →
-              </a>
-            </div>
-            <div style={`font-family:${MONO};font-size:12px;background:#f8f8fa;border:1px solid #eceded;padding:10px 12px;overflow-x:auto;white-space:nowrap;`}>
-              {`claude mcp add --transport http unsession ${origin}/api/mcp --header "Authorization: Bearer <token>"`}
-            </div>
-            <div style="font-size:12.5px;color:#9a9da6;">
-              Deliberately out of scope in v1: form/schema editing, event creation, team management, email template
-              CRUD.
-            </div>
+          </div>
+
+          <div style="border-top:1px solid #f2f3f5;padding:10px 20px;font-size:12px;color:#9a9da6;">
+            Deliberately out of scope in v1: form/schema editing, event creation, team management, email template
+            CRUD.
           </div>
         </div>
       </div>

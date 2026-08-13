@@ -197,6 +197,36 @@ const WRITE_TOOLS: [string, string, boolean][] = [
   ['complete_task', 'Mark a task instance done as an organizer override. Idempotent.', false],
 ];
 
+const REST_READ: [string, string][] = [
+  ['GET /events', 'Events this token can see — id, name, slug, dates, timezone, venue, published.'],
+  ['GET /events/:event', 'One event with its rooms and taxonomies (Track / Format / Level options).'],
+  ['GET /events/:event/forms', 'Submission forms — id, name, slug, status, open/close dates, public URL.'],
+  [
+    'GET /events/:event/submissions',
+    'Submissions with answers and speakers. Filters: status, form, track, free-text q. Cursor-paginated.',
+  ],
+  ['GET /submissions/:id', 'One submission in full: answers, speakers, status, score summary, recent activity.'],
+  ['GET /events/:event/sessions', 'Sessions including schedule (day / start / end / room), type and publish flag.'],
+  ['GET /sessions/:id', 'One session.'],
+  ['GET /events/:event/speakers', 'Speaker profiles — bio, pronouns, links, headshot — with task progress counts.'],
+  ['GET /events/:event/agenda', 'The published agenda, same shape as /{slug}/agenda.json.'],
+  ['GET /events/:event/tasks', 'Task instances with status, due date and speaker/session target.'],
+];
+
+const REST_WRITE: [string, string][] = [
+  ['POST /events/:event/submissions', 'Create a submission on a form on a speaker’s behalf.'],
+  ['PATCH /submissions/:id', 'Update title, abstract and/or answers. Answers merge; null removes a key.'],
+  [
+    'POST /submissions/:id/decision',
+    'Accept, decline or waitlist. Runs the real decision engine and emails the speaker unless sendEmail is false.',
+  ],
+  ['POST /events/:event/sessions', 'Create a sponsor or service session.'],
+  ['PATCH /sessions/:id', 'Edit fields. { day, startMin, roomId } schedules; nulls unschedule; published toggles.'],
+  ['PATCH /speakers/:id', 'Update a speaker profile — name, bio, pronouns, links.'],
+  ['POST /tasks', 'Assign a template or one-off task to a speaker or session.'],
+  ['POST /tasks/:id/complete', 'Mark a task done as an organizer override. Idempotent.'],
+];
+
 const METHODS: [string, string][] = [
   ['initialize', 'Negotiates the protocol version (2025-06-18 or 2025-03-26) and returns capabilities { tools: {} } and serverInfo unsession/<version>.'],
   ['notifications/*', 'Any notification (no id) — including notifications/initialized — gets 202 with an empty body.'],
@@ -265,7 +295,7 @@ app.get('/docs/mcp', (c) => {
               <div class="lbl">MCP ENDPOINT</div>
               <div class="url">POST {endpoint}</div>
               <div class="sub">
-                Authorization: Bearer uns_…
+                OAuth 2.1 · dynamic client registration — no token needed
                 <br />
                 Streamable HTTP · stateless JSON-RPC 2.0 · 19 tools
               </div>
@@ -314,7 +344,13 @@ app.get('/docs/mcp', (c) => {
 
             {/* ------------------------------------------------- token */}
             <h2 id="token">1 · Create an API token</h2>
-            <p>The MCP server and the REST API share one credential. Mint one in the admin:</p>
+            <div class="note">
+              <b>Connecting an MCP client? Skip this step.</b> Clients that speak OAuth — claude.ai, Claude Code,
+              Cursor, VS Code and most modern MCP clients — register themselves via dynamic client registration.
+              You sign in on a consent page and never handle a token. Tokens are for the REST API and for clients
+              without OAuth support.
+            </div>
+            <p>When you do need one, mint it in the admin:</p>
             <ol>
               <li>
                 Sign in and open <b>Workspace → API</b> (<code>/app/api</code>). Owners and admins only.
@@ -344,24 +380,23 @@ app.get('/docs/mcp', (c) => {
             {/* ----------------------------------------------- connect */}
             <h2 id="connect">2 · Connect your agent</h2>
             <p>
-              Two ways in. Clients that speak <b>OAuth</b> (claude.ai connectors, VS Code, Cursor and most modern
-              MCP clients) need only the endpoint URL — the server supports OAuth 2.1 with dynamic client
-              registration, so the client sends you to a consent page where you sign in, pick a workspace and a
-              scope, and the connection appears under <b>API access</b> like any other token. Everything else
-              takes a remote HTTP server with a custom header; the pattern is always the same — the URL above,
-              plus <code>Authorization: Bearer uns_…</code>.
+              Most clients need only the endpoint URL. The server supports OAuth 2.1 with dynamic client
+              registration, so an OAuth-capable client (claude.ai connectors, Claude Code, VS Code, Cursor and
+              most modern MCP clients) registers itself and sends you to a consent page — sign in, pick a
+              workspace and a scope, and the connection appears under <b>API access</b> like any other token.
+              Only a client without OAuth support needs the fallback: a remote HTTP server with a custom header,
+              the URL above plus <code>Authorization: Bearer uns_…</code>.
             </p>
 
             <h3 id="claude-code">Claude Code</h3>
-            <p>One command:</p>
-            <Code
-              cap="TERMINAL"
-              text={`claude mcp add --transport http unsession ${endpoint} \\\n  --header "Authorization: Bearer uns_your_token_here"`}
-            />
+            <p>One command — no token:</p>
+            <Code cap="TERMINAL" text={`claude mcp add --transport http unsession ${endpoint}`} />
             <p>
-              Run <code>/mcp</code> inside Claude Code to confirm it connected and to browse the tools. Add{' '}
-              <code>--scope user</code> to make the server available in every project on your machine instead of
-              just the current one.
+              Run <code>/mcp</code> inside Claude Code, pick <b>unsession</b> and choose <b>Authenticate</b> — it
+              registers via OAuth and opens the consent page. Add <code>--scope user</code> to make the server
+              available in every project on your machine instead of just the current one. On a headless machine or
+              in CI, use a static token instead: append{' '}
+              <code>--header "Authorization: Bearer uns_your_token_here"</code>.
             </p>
 
             <h3 id="project">Check it into a repo</h3>
@@ -720,13 +755,54 @@ npx wrangler deploy`}
             {/* ------------------------------------------------- rest */}
             <h2 id="rest">The REST API</h2>
             <p>
-              Same tokens, same operations, for anything that isn’t an agent — scripts, integrations, a scheduled
-              export. Base URL <code>{origin}/api/v1</code>:
+              The same operations, for anything that isn’t an agent — scripts, integrations, a scheduled export.
+              Unlike MCP, REST always authenticates with a <a href="#token">token</a>. Base URL{' '}
+              <code>{origin}/api/v1</code>:
             </p>
             <Code cap="TERMINAL" text={`curl -H "Authorization: Bearer uns_your_token_here" ${origin}/api/v1/events`} />
             <p>
-              Responses are <code>{'{ ok: true, data }'}</code> or <code>{'{ ok: false, error }'}</code>. The full
-              route table lives on the <code>/app/api</code> page in the admin and in{' '}
+              Responses are <code>{'{ ok: true, data }'}</code> or <code>{'{ ok: false, error }'}</code>.
+            </p>
+
+            <h3>Read — any token</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>What it returns</th>
+                </tr>
+              </thead>
+              <tbody>
+                {REST_READ.map(([route, desc]) => (
+                  <tr>
+                    <td>{route}</td>
+                    <td>{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <h3>
+              Write — <span class="tag w">READ · WRITE</span> tokens only
+            </h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Route</th>
+                  <th>What it does</th>
+                </tr>
+              </thead>
+              <tbody>
+                {REST_WRITE.map(([route, desc]) => (
+                  <tr>
+                    <td>{route}</td>
+                    <td>{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p>
+              Full request and response shapes live in{' '}
               <a href={`${GITHUB_URL}/blob/main/SPECS/C-api-mcp.md`}>SPECS/C-api-mcp.md</a>.
             </p>
           </article>
