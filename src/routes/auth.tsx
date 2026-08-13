@@ -130,13 +130,13 @@ app.get('/signin', (c) => {
           <form method="post" action="/sandbox">
             <button
               type="submit"
-              style="display:flex;align-items:center;gap:10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:left;"
+              style="display:flex;align-items:center;justify-content:center;gap:10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:center;"
             >
               <span style={`width:26px;height:26px;border-radius:50%;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}>
                 DC
               </span>
               <span style="font-size:13.5px;font-weight:600;">Open the DevConf 2027 sandbox</span>
-              <span style={`margin-left:auto;font-family:${MONO};font-size:10px;color:#9a9da6;`}>TRY IT →</span>
+              <span style={`font-family:${MONO};font-size:10px;color:#9a9da6;`}>TRY IT →</span>
             </button>
           </form>
         </div>
