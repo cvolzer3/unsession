@@ -241,7 +241,15 @@ function planEditor() {
     draft.reviewers.forEach((r, i) => {
       const row = el('div', 'display:grid;grid-template-columns:1fr 110px 30px;gap:10px;align-items:center;border:1px solid #eceded;padding:7px 12px;');
       const who = el('div', 'min-width:0;');
-      who.appendChild(el('div', 'font-size:13px;font-weight:600;', r.name));
+      const nameLine = el('div', 'font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;');
+      nameLine.appendChild(document.createTextNode(r.name));
+      if (!r.userId) {
+        // Invited by email, not yet accepted — assignment activates on accept.
+        nameLine.appendChild(
+          el('span', `font-family:${MONO};font-size:9px;letter-spacing:0.08em;padding:2px 6px;background:#fdf3e0;color:#a8700d;`, 'PENDING INVITE')
+        );
+      }
+      who.appendChild(nameLine);
       who.appendChild(el('div', `font-family:${MONO};font-size:10px;color:#9a9da6;`, r.email));
       const role = el('select', 'padding:6px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
       role.appendChild(new Option('Member', 'member'));
@@ -271,13 +279,21 @@ function planEditor() {
     DATA.people
       .filter((p) => !draft.reviewers.some((r) => r.userId === p.id))
       .forEach((p) => addReviewer.appendChild(new Option(`${p.name} · ${p.email}`, p.id)));
+    (DATA.pendingInvites || [])
+      .filter((p) => !draft.reviewers.some((r) => r.email === p.email))
+      .forEach((p) => addReviewer.appendChild(new Option(`${p.email} · pending invite`, 'invite:' + p.email)));
     addReviewer.value = '';
   }
   addReviewer.addEventListener('change', () => {
     const id = addReviewer.value;
     if (!id) return;
-    const p = DATA.people.find((x) => x.id === id);
-    if (p) draft.reviewers.push({ userId: p.id, role: 'member', name: p.name, email: p.email });
+    if (id.startsWith('invite:')) {
+      const inv = (DATA.pendingInvites || []).find((x) => 'invite:' + x.email === id);
+      if (inv) draft.reviewers.push({ userId: '', role: 'member', name: inv.name, email: inv.email });
+    } else {
+      const p = DATA.people.find((x) => x.id === id);
+      if (p) draft.reviewers.push({ userId: p.id, role: 'member', name: p.name, email: p.email });
+    }
     renderReviewers();
     renderAddOptions();
     renderPreview();
@@ -427,7 +443,7 @@ function planEditor() {
         instructions: instructions.value,
         reviewsPer: Number(reviewsPer.value) || 3,
         criteria: named,
-        reviewers: draft.reviewers.map((r) => ({ userId: r.userId, role: r.role })),
+        reviewers: draft.reviewers.map((r) => ({ userId: r.userId, email: r.email, role: r.role })),
         rules: draft.rules,
       });
       if (res.links && res.links.length) {

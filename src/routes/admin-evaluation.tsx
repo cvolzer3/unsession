@@ -20,7 +20,7 @@ import { all, now, one, run } from '../lib/db';
 import { csvHeaders, toCsv, type CsvRow } from '../lib/csv';
 import { toXlsx, xlsxHeaders } from '../lib/xlsx';
 import { newId } from '../lib/ids';
-import { requireOrgRole, requestPasswordReset } from '../lib/auth';
+import { findOrCreateUserByEmail, requireOrgRole, requestPasswordReset } from '../lib/auth';
 import { logActivity } from '../lib/activity';
 import { sendEmail } from '../lib/email';
 import {
@@ -209,6 +209,16 @@ app.get('/app/evaluation', async (c) => {
     ...base,
     peopleById: new Map(people.map((p) => [p.id, { id: p.id, name: p.name || p.email.split('@')[0], email: p.email }])),
   };
+  // Pending team invites are assignable too — the picker offers them and the
+  // save endpoint resolves each email to a user row (see plan POST below).
+  const knownEmails = new Set(people.map((p) => p.email));
+  const pendingInvites = (
+    await all<{ email: string }>(
+      db,
+      `SELECT email FROM invites WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC`,
+      event.org_id
+    )
+  ).filter((i) => !knownEmails.has(i.email));
 
   const iAmReviewer = ctx.plans.some((p) => p.reviewers.some((r) => r.userId === user.id));
 
@@ -301,6 +311,7 @@ app.get('/app/evaluation', async (c) => {
     formats: ctx.formats,
     levels: ctx.levels,
     people: [...ctx.peopleById.values()],
+    pendingInvites: pendingInvites.map((i) => ({ email: i.email, name: i.email.split('@')[0] })),
     reminders,
   };
 
@@ -1707,7 +1718,7 @@ type PlanBody = {
   instructions?: string;
   reviewsPer?: number;
   criteria?: Criterion[];
-  reviewers?: { userId: string; role: string }[];
+  reviewers?: { userId?: string; email?: string; role: string }[];
   rules?: Rules;
 };
 
@@ -1727,8 +1738,8 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
       weight: Number.isFinite(Number(cr.weight)) && Number(cr.weight) > 0 ? Number(cr.weight) : 1,
     }))
     .filter((cr) => !!cr.name);
-  const reviewers = (body.reviewers ?? []).filter((r) => !!r.userId);
-  const memberCount = reviewers.filter((r) => r.role !== 'chair').length;
+  const draftReviewers = (body.reviewers ?? []).filter((r) => !!r.userId || !!(r.email ?? '').trim());
+  const memberCount = draftReviewers.filter((r) => r.role !== 'chair').length;
   const rules: Rules = { ...DEFAULT_RULES, ...(body.rules ?? {}) };
 
   if (!name) return c.json({ ok: false, error: 'Name the plan first' }, 400);
@@ -1751,6 +1762,29 @@ app.post('/app/api/evaluation/plan', requireOrgRole('admin'), async (c) => {
     return c.json({ ok: false, error: 'Open date must be on or before the close date' }, 400);
   const anonymized = body.anonymized !== false;
   const reminders = body.reminders !== false;
+
+  // Email-only entries are pending team invitees. Resolve each to a user row
+  // now — /auth/verify finds the same row by email when the invite is
+  // accepted, so the assignment is already live the moment they join.
+  const reviewers: { userId: string; role: string }[] = [];
+  const seenIds = new Set<string>();
+  for (const r of draftReviewers) {
+    let userId = r.userId ?? '';
+    if (!userId) {
+      const email = String(r.email ?? '').trim();
+      const invite = await one<{ id: string }>(
+        c.env.DB,
+        `SELECT id FROM invites WHERE org_id = ? AND email = ? AND status = 'pending'`,
+        event.org_id,
+        email
+      );
+      if (!invite) return c.json({ ok: false, error: `${email} has no pending invite on this team` }, 400);
+      userId = (await findOrCreateUserByEmail(c.env.DB, email)).id;
+    }
+    if (seenIds.has(userId)) continue;
+    seenIds.add(userId);
+    reviewers.push({ userId, role: r.role === 'chair' ? 'chair' : 'member' });
+  }
 
   const existing = body.id
     ? await one<{ id: string; automation_json: string | null }>(
