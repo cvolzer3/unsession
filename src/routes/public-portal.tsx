@@ -621,20 +621,15 @@ app.get('/:event/portal', async (c) => {
               </div>
             ) : null}
             {s.confirmed && s.slot ? (
-              <>
-                <div style="margin-top:18px;border:1px solid var(--border);background:var(--bg);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-                  <div>
-                    <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:var(--muted);`}>YOUR SLOT</div>
-                    <div style="font-size:14px;font-weight:600;margin-top:2px;">{s.slot}</div>
-                  </div>
-                  <a href={`/${event.slug}/portal/session/${s.session?.id}.ics`} style={`${DARK_BTN}margin-left:auto;`}>
-                    ＋ Add to calendar (.ics)
-                  </a>
+              <div style="margin-top:18px;border:1px solid var(--border);background:var(--bg);padding:16px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+                <div>
+                  <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:var(--muted);`}>YOUR SLOT</div>
+                  <div style="font-size:14px;font-weight:600;margin-top:2px;">{s.slot}</div>
                 </div>
-                <div style="font-size:12px;color:var(--muted);margin-top:8px;">
-                  If your time or room changes, you’ll get an updated calendar invite automatically.
-                </div>
-              </>
+                <a href={`/${event.slug}/portal/session/${s.session?.id}.ics`} style={`${DARK_BTN}margin-left:auto;`}>
+                  ＋ Add to calendar (.ics)
+                </a>
+              </div>
             ) : null}
             {s.confirmed && !s.slot ? (
               <div style="font-size:12.5px;color:var(--muted);margin-top:10px;">
