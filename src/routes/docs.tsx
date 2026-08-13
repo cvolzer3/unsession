@@ -18,6 +18,7 @@ import type { Ctx } from '../types';
 import { GOOGLE_FONTS } from '../views/layout';
 import { SocialMeta } from '../views/meta';
 import { GITHUB_URL } from '../lib/defaults';
+import { ProductLogo } from '../views/brand';
 
 const app = new Hono<Ctx>();
 
@@ -46,7 +47,6 @@ const CSS = `
   /* ------------------------------------------------------------- nav */
   .nav{position:sticky;top:0;z-index:50;background:rgba(250,248,245,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
   .nav-inner{display:flex;align-items:center;gap:12px;padding:14px 0;}
-  .logo-mark{width:28px;height:28px;background:var(--indigo);color:#fff;display:grid;place-items:center;font-family:var(--mono);font-size:13px;font-weight:600;}
   .nav-links{margin-left:36px;display:flex;gap:24px;font-size:14px;}
   .nav-links a{color:var(--ink2);}
   .nav-links a.on{color:var(--ink);font-weight:600;}
@@ -105,7 +105,7 @@ const CSS = `
 
   /* ---------------------------------------------------------- footer */
   .footer{border-top:1px solid var(--line);padding:26px 0;}
-  .footer-inner{display:flex;flex-wrap:wrap;gap:14px;align-items:baseline;font-family:var(--mono);font-size:10.5px;letter-spacing:0.12em;color:var(--ink3);}
+  .footer-inner{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-family:var(--mono);font-size:10.5px;letter-spacing:0.12em;color:var(--ink3);}
   .footer-inner .right{margin-left:auto;display:flex;gap:18px;}
   .footer-inner a{color:var(--ink3);}
 
@@ -227,9 +227,8 @@ app.get('/docs/mcp', (c) => {
         {/* ---------------------------------------------------------- nav */}
         <div class="nav">
           <div class="wrap nav-inner">
-            <a href="/" style="display:flex;align-items:center;gap:10px;color:var(--ink);">
-              <span class="logo-mark">U</span>
-              <span style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">Unsession</span>
+            <a href="/" aria-label="Unsession home" style="display:block;color:var(--ink);text-decoration:none;">
+              <ProductLogo height={22} />
             </a>
             <div class="nav-links">
               <a href="/#how">How it works</a>
@@ -734,7 +733,7 @@ npx wrangler deploy`}
         {/* ------------------------------------------------------- footer */}
         <div class="footer">
           <div class="wrap footer-inner">
-            <span>UNSESSION</span>
+            <ProductLogo height={16} />
             <span class="right">
               <a href="/">HOME</a>
               <a href="/events">EVENTS</a>

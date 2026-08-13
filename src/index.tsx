@@ -9,6 +9,8 @@ import { Hono } from 'hono';
 import type { Ctx } from './types';
 import { getSession, requireUser } from './lib/auth';
 import { runScheduledJobs } from './lib/jobs';
+import { ProductLogo } from './views/brand';
+import { Favicons } from './views/meta';
 
 import api from './routes/api';
 import mcp from './routes/mcp';
@@ -99,11 +101,16 @@ app.notFound((c) =>
     <html>
       <head>
         <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Unsession — not found</title>
+        <Favicons />
       </head>
       <body style="margin:0;background:#f4f4f6;color:#16171d;font-family:system-ui,sans-serif;">
         <div style="min-height:100vh;display:grid;place-items:center;">
           <div style="text-align:center;">
+            <a href="/" aria-label="Unsession home" style="display:flex;justify-content:center;margin-bottom:28px;">
+              <ProductLogo height={24} />
+            </a>
             <div style="font-family:ui-monospace,monospace;font-size:11px;letter-spacing:0.14em;color:#9a9da6;">404</div>
             <div style="font-size:18px;font-weight:700;margin-top:6px;">Nothing here</div>
             <div style="margin-top:10px;font-size:13px;">

@@ -2,13 +2,14 @@
  * Layout primitives. Markup + inline styles are ported verbatim from the
  * prototype (`Dashboard.dc.html`, `Event Setup.dc.html`, `Forms.dc.html`
  * picker, `Submit.dc.html` public header). Square corners, admin indigo,
- * Space Grotesk + IBM Plex Mono. Product name "Unsession", logo letter "U".
+ * Space Grotesk + IBM Plex Mono. Product name "Unsession", modular open-U mark.
  */
 import type { FC, PropsWithChildren } from 'hono/jsx';
 import { raw } from 'hono/html';
 import type { Event, Theme, User } from '../types';
 import { pairingFor, themeStyleVars, initialsOf } from '../lib/theme';
 import { Favicons, SocialMeta } from './meta';
+import { ProductLogo } from './brand';
 import { SANDBOX_PERSONAS, SANDBOX_PERSONA_KEYS, type SandboxPersonaKey } from '../lib/seed-data';
 
 export const MONO = "'IBM Plex Mono',monospace";
@@ -260,12 +261,13 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
           {/* Three fixed-height zones: logo header and user footer never scroll;
               only the link list between them does. */}
           <nav style="background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;">
-            <div style="flex-shrink:0;padding:20px 20px 18px;display:flex;align-items:center;gap:8px;">
-              <div style={`width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:12px;font-weight:600;`}>
-                U
-              </div>
-              <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Unsession</div>
-            </div>
+            <a
+              href="/app"
+              aria-label="Unsession dashboard"
+              style="flex-shrink:0;padding:20px 20px 18px;display:block;text-decoration:none;"
+            >
+              <ProductLogo height={22} />
+            </a>
             <div style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px;padding-bottom:14px;">
             {navLink('/app', 'Dashboard', path === '/app')}
             <div style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>

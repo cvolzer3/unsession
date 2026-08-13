@@ -18,6 +18,7 @@ import { raw } from 'hono/html';
 import type { Ctx } from '../types';
 import { ADMIN_BASE_CSS, GOOGLE_FONTS, MONO, SandboxCookieFallback, Toast, initials } from '../views/layout';
 import { Favicons } from '../views/meta';
+import { ProductLogo } from '../views/brand';
 import { EVAL_QUEUE_CSS, EvalQueue } from '../views/eval-queue';
 import { loadPublicEvent } from '../lib/public';
 import { now, run } from '../lib/db';
@@ -58,12 +59,9 @@ const Shell: FC<
     <body>
       <div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
         <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
-          <div style="padding:0 20px 18px;display:flex;align-items:center;gap:8px;">
-            <div style={`width:22px;height:22px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:12px;font-weight:600;`}>
-              U
-            </div>
-            <div style="font-weight:700;font-size:15px;letter-spacing:-0.01em;">Unsession</div>
-          </div>
+          <a href="/" aria-label="Unsession home" style="padding:0 20px 18px;display:block;text-decoration:none;">
+            <ProductLogo height={22} />
+          </a>
           <div style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>
             PROGRAM
           </div>

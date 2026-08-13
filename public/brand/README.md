@@ -10,6 +10,7 @@ unfinished program, and the “un-” in Unsession without adding a second symbo
 - `unsession-mark.svg` — icon-only mark on a transparent background.
 - `unsession-watermark.svg` — single-color lockup at 8% opacity for overlays.
 - Matching PNG exports are included for tools that cannot use SVG.
+- `unsession-readme.png` — warm-paper lockup card used by the GitHub README.
 
 ## Usage
 

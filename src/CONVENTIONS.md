@@ -41,8 +41,10 @@ only what templating requires. Do not "improve" spacing, colors, or copy.
   `var(--font-ui)`, `var(--font-mono)`, …) — never a hard-coded orange.
 - Two fonts: Space Grotesk for language, IBM Plex Mono (`MONO` from
   `views/layout`) for microlabels, ids, timestamps, counts and KPI numerals.
-- Product name is **Unsession**, logo letter **U** (the prototype's
-  "Program"/"P" is gone). Public logo blocks use `initialsOf(event.name)`.
+- Product name is **Unsession**. Product-owned surfaces use `ProductLogo` or
+  `ProductMark` from `views/brand`; the mark is an open **U** assembled from
+  square agenda blocks. Public event logo blocks use `initialsOf(event.name)`
+  (or the event's uploaded logo) so event branding remains independent.
 
 ## 3. Page shape
 

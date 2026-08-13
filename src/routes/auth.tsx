@@ -13,6 +13,7 @@ import type { FC } from 'hono/jsx';
 import type { Ctx, User } from '../types';
 import { MONO, GOOGLE_FONTS, ADMIN_BASE_CSS, Toast } from '../views/layout';
 import { Favicons } from '../views/meta';
+import { ProductLogo } from '../views/brand';
 import {
   createSession,
   destroySession,
@@ -45,12 +46,9 @@ export const Shell: FC<{ title: string; toast?: string | null; width?: number; c
     <body>
       <div style="min-height:100vh;display:grid;place-items:center;padding:32px 20px;">
         <div style={`width:${props.width ?? 400}px;max-width:100%;`}>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:26px;justify-content:center;">
-            <div style={`width:30px;height:30px;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:15px;font-weight:600;`}>
-              U
-            </div>
-            <div style="font-weight:700;font-size:19px;letter-spacing:-0.01em;">Unsession</div>
-          </div>
+          <a href="/" aria-label="Unsession home" style="display:flex;justify-content:center;margin-bottom:26px;text-decoration:none;">
+            <ProductLogo height={28} />
+          </a>
           {props.children as never}
         </div>
       </div>

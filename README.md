@@ -1,6 +1,8 @@
-# Unsession
+<p align="center">
+  <img src="public/brand/unsession-readme.png" alt="Unsession" width="600">
+</p>
 
-**Run your call for speakers without the bloat.**
+<p align="center"><strong>Run your call for speakers without the bloat.</strong></p>
 
 Unsession is open-source speaker & session management for conferences. It covers the whole speaker pipeline — call for speakers → evaluation → decisions → speaker onboarding → agenda → publish — and deliberately nothing else: no CRM, no marketing suite, no media library. It ships as a single Cloudflare Worker with server-rendered pages and no client build step, built on three bets: speed, focus, and instant self-serve. The [sandbox](https://unsession.dev) provisions a real, pre-filled event in seconds, no account needed.
 

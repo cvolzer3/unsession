@@ -12,7 +12,8 @@ export const SITE_NAME = 'Unsession';
 /** Favicon links only — for chrome-less shells (admin, auth) that don't need share tags. */
 export const Favicons: FC = () => (
   <>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <meta name="theme-color" content="#4c5fd5" />
   </>
 );
