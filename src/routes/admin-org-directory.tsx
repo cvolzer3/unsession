@@ -134,8 +134,10 @@ function buildWhere(orgId: string, f: Filters, memberIds: string[] | null): { sq
   if (memberIds) {
     if (!memberIds.length) where.push('0');
     else {
-      where.push(`id IN (${memberIds.map(() => '?').join(',')})`);
-      params.push(...memberIds);
+      // One bound parameter whatever the list length — D1 allows 100 per
+      // statement, and a curated segment can hold more members than that.
+      where.push('id IN (SELECT value FROM json_each(?))');
+      params.push(JSON.stringify(memberIds));
     }
   }
   return { sql: where.join(' AND '), params };
@@ -1383,9 +1385,9 @@ app.post('/app/org/contacts/communicate', requireOrgRole('admin'), async (c) => 
   const recipients = await all<{ id: string; email: string; name: string; company: string }>(
     c.env.DB,
     `SELECT id, email, name, company FROM org_contacts
-      WHERE org_id = ? AND id IN (${ids.map(() => '?').join(',')})`,
+      WHERE org_id = ? AND id IN (SELECT value FROM json_each(?))`,
     orgId,
-    ...ids
+    JSON.stringify(ids)
   );
   if (!recipients.length) return redirectWithToast(c, '/app/org/contacts', 'Those contacts are no longer here');
 
@@ -1459,9 +1461,9 @@ app.post('/app/org/contacts/add-to-event', requireOrgRole('admin'), async (c) =>
 
   const valid = await all<{ id: string }>(
     c.env.DB,
-    `SELECT id FROM org_contacts WHERE org_id = ? AND id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT id FROM org_contacts WHERE org_id = ? AND id IN (SELECT value FROM json_each(?))`,
     orgId,
-    ...ids
+    JSON.stringify(ids)
   );
 
   let added = 0;

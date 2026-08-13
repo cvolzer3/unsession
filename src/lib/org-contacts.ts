@@ -165,10 +165,14 @@ export async function addContactToEvent(
     slug = `${base}-${n++}`;
   }
   const id = newId('spk');
+  // `imported_at` is what makes an organizer-added profile visible on
+  // /app/speakers — that grid hides profiles with no task and no submission
+  // behind them (migration 0019).
+  const stamp = now();
   await run(
     db,
-    `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, job_title, company, tagline, links_json, headshot_file_id, slug, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO speaker_profiles (id, event_id, user_id, email, name, bio, job_title, company, tagline, links_json, headshot_file_id, slug, created_at, imported_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     id,
     eventId,
     null,
@@ -181,7 +185,8 @@ export async function addContactToEvent(
     contact.links_json,
     contact.headshot_file_id,
     slug,
-    now()
+    stamp,
+    stamp
   );
   return { profileId: id, created: true };
 }

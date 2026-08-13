@@ -12,7 +12,7 @@ import { raw } from 'hono/html';
 import type { FC } from 'hono/jsx';
 import type { Ctx } from '../types';
 import { AdminLayout, DrawerExpandButton, MONO, STATUS_COLORS } from '../views/layout';
-import { adminProps } from '../views/chrome';
+import { adminProps, redirectWithToast } from '../views/chrome';
 import { all, one, run, batch, now, jsonParse } from '../lib/db';
 import { newId } from '../lib/ids';
 import { slugify } from '../lib/slugify';
@@ -36,7 +36,7 @@ import { listReminderQueue, queueTaskReminder } from '../lib/reminder-queue';
 import { OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import * as T from '../lib/tasks';
 import { speakerAffiliation } from '../lib/agenda';
-import { upsertOrgContact } from '../lib/org-contacts';
+import { addContactToEvent, upsertOrgContact } from '../lib/org-contacts';
 
 const app = new Hono<Ctx>();
 
@@ -501,7 +501,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
               <option value="__new">＋ New mini-form…</option>
             </select>
             <div style="font-size:11px;color:#9a9da6;margin-top:4px;">
-              Reuses the form engine — fields, validation, conditional logic.
+              Fields, validation, conditional logic.
             </div>
             <div id="ed-formbuilder" hidden style="margin-top:10px;border:1px solid #e2e3e8;padding:10px 12px;display:grid;gap:8px;">
               <div style={LABEL}>NEW MINI-FORM · UP TO 3 FIELDS</div>
@@ -532,13 +532,13 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
             <button type="button" data-seg="target" data-value="speaker" style="padding:9px 10px;text-align:left;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#16171d;">
               <div style="font-weight:600;font-size:12.5px;">Speaker</div>
               <div style="font-size:10.5px;color:#9a9da6;margin-top:2px;line-height:1.35;">
-                One instance per speaker — profile, travel, bio.
+                One instance per speaker.
               </div>
             </button>
             <button type="button" data-seg="target" data-value="session" style="padding:9px 10px;text-align:left;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#16171d;">
               <div style="font-weight:600;font-size:12.5px;">Session</div>
               <div style="font-size:10.5px;color:#9a9da6;margin-top:2px;line-height:1.35;">
-                One per session — any co-speaker completes it, once.
+                One per session; any co-speaker completes it.
               </div>
             </button>
           </div>
@@ -612,8 +612,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
             <div>
               <div style="font-size:13px;font-weight:600;">Email speakers before the due date</div>
               <div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">
-                Sends only while the task is open — reminders stop the moment it’s completed. Every send lands in the
-                email log.
+                Sends only while the task is open. Every send lands in the email log.
               </div>
             </div>
           </div>
@@ -625,7 +624,7 @@ const EditorDrawer: FC<{ files: boolean }> = ({ files }) => (
               </select>
               <div id="ed-rem-days" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;"></div>
               <div id="ed-rem-none" hidden style="font-size:11.5px;color:#b08800;margin-top:6px;">
-                No reminders scheduled — add at least one, or turn reminders off.
+                Add a reminder, or turn reminders off.
               </div>
             </div>
             <div>
@@ -707,6 +706,122 @@ const ImportDialog: FC = () => (
         </button>
       </div>
     </div>
+  </div>
+);
+
+/* ------------------------------------------------- add from directory */
+
+/** Rows listed in the picker. Longer directories are cut off with a note. */
+const DIRECTORY_LIST_LIMIT = 200;
+/** Contacts added per request, to stay inside the subrequest budget. */
+const DIRECTORY_ADD_MAX = 100;
+
+type DirectoryCandidate = { id: string; name: string; email: string; company: string };
+
+/**
+ * Org contacts who are not speakers in this event yet. Matched by email,
+ * case-insensitive, the same natural key `speaker_profiles` uses.
+ */
+async function directoryCandidates(
+  db: D1Database,
+  orgId: string,
+  eventId: string
+): Promise<{ rows: DirectoryCandidate[]; more: boolean }> {
+  const rows = await all<DirectoryCandidate>(
+    db,
+    `SELECT id, name, email, company FROM org_contacts
+      WHERE org_id = ?
+        AND lower(email) NOT IN (SELECT lower(email) FROM speaker_profiles WHERE event_id = ?)
+      ORDER BY name COLLATE NOCASE
+      LIMIT ?`,
+    orgId,
+    eventId,
+    DIRECTORY_LIST_LIMIT + 1
+  );
+  return { rows: rows.slice(0, DIRECTORY_LIST_LIMIT), more: rows.length > DIRECTORY_LIST_LIMIT };
+}
+
+/**
+ * Pick contacts from the org directory and add them to this event as speaker
+ * profiles. A plain form POST, so it works without JavaScript; speakers.js only
+ * adds the filter box.
+ */
+const DirectoryDialog: FC<{ rows: DirectoryCandidate[]; more: boolean }> = ({ rows, more }) => (
+  <div id="dlg-directory" data-dialog hidden style={DIALOG}>
+    <form
+      method="post"
+      action="/app/speakers/add-from-directory"
+      style="background:#fff;width:560px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;"
+    >
+      <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+        <div style="font-size:16px;font-weight:700;">Add from directory</div>
+        <button
+          type="button"
+          data-dialog-close="#dlg-directory"
+          style="margin-left:auto;background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:0;"
+        >
+          ×
+        </button>
+      </div>
+      <div style="padding:20px 24px;display:grid;gap:12px;overflow-y:auto;">
+        {rows.length ? (
+          <>
+            <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
+              Contacts in your organization who are not speakers in this event yet.
+            </div>
+            <input id="dir-q" type="search" placeholder="Filter by name, email or company…" style={INPUT} />
+            <div style="border:1px solid #e2e3e8;max-height:300px;overflow-y:auto;">
+              {rows.map((r) => (
+                <label
+                  data-dir-row
+                  data-search={`${r.name} ${r.email} ${r.company}`.toLowerCase()}
+                  style="display:grid;grid-template-columns:18px minmax(0,1fr) 140px;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid #f2f3f5;cursor:pointer;"
+                >
+                  <input type="checkbox" name="ids" value={r.id} style="cursor:pointer;" />
+                  <div style="min-width:0;">
+                    <div style="font-size:13px;color:#16171d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                      {r.name}
+                    </div>
+                    <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                      {r.email}
+                    </div>
+                  </div>
+                  <div style="font-size:12px;color:#686b74;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    {r.company}
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div id="dir-empty" hidden style="font-size:12.5px;color:#9a9da6;">
+              No contact matches that filter.
+            </div>
+            {more ? (
+              <div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">
+                {`Showing the first ${DIRECTORY_LIST_LIMIT} contacts. Use the directory to add the rest.`}
+              </div>
+            ) : null}
+            <div style="font-size:11.5px;color:#9a9da6;line-height:1.45;">
+              {`Up to ${DIRECTORY_ADD_MAX} contacts per add.`}
+            </div>
+          </>
+        ) : (
+          <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
+            Every contact in the directory is already a speaker in this event.
+          </div>
+        )}
+      </div>
+      <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;align-items:center;">
+        <a href="/app/org/contacts" style="margin-right:auto;font-size:12px;color:#4c5fd5;">
+          Open the directory
+        </a>
+        <button type="button" data-dialog-close="#dlg-directory" style={BTN}>
+          Cancel
+        </button>
+        <button type="submit" disabled={!rows.length} style={PRIMARY}>
+          Add selected
+        </button>
+      </div>
+    </form>
   </div>
 );
 
@@ -957,6 +1072,9 @@ app.get('/app/speakers', async (c) => {
     }
   }
   const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
+  const directory = canWrite
+    ? await directoryCandidates(c.env.DB, event.org_id, event.id)
+    : { rows: [] as DirectoryCandidate[], more: false };
 
   const zipBtn = (href: string, label: string) =>
     files ? (
@@ -1142,6 +1260,15 @@ app.get('/app/speakers', async (c) => {
               Assign task
             </button>
             {canWrite ? (
+              <button
+                type="button"
+                data-dialog-open="#dlg-directory"
+                style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;"
+              >
+                Add from directory
+              </button>
+            ) : null}
+            {canWrite ? (
               <button id="btn-import" style="padding:6px 11px;font-size:12.5px;cursor:pointer;border:1px solid #e2e3e8;background:#fff;color:#33343c;">
                 Import CSV
               </button>
@@ -1183,6 +1310,7 @@ app.get('/app/speakers', async (c) => {
       <EditorDrawer files={files} />
       <Dialogs eventName={event.name} userEmail={c.var.user?.email ?? ''} />
       {canWrite ? <ImportDialog /> : null}
+      {canWrite ? <DirectoryDialog rows={directory.rows} more={directory.more} /> : null}
       <script type="application/json" id="data-speakers">
         {raw(JSON.stringify(payload).replace(/</g, '\\u003c'))}
       </script>
@@ -1941,8 +2069,8 @@ app.post('/app/api/speakers/template', requireOrgRole('admin'), async (c) => {
       id: body.id,
       message:
         body.applyMode === 'open'
-          ? `Saved — ${updated} open instances updated, completed ones untouched · logged`
-          : 'Saved — future assignments only; open instances keep what speakers saw · logged',
+          ? `Saved · ${updated} open instances updated · logged`
+          : 'Saved · future assignments only · logged',
     });
   }
 
@@ -1970,8 +2098,8 @@ app.post('/app/api/speakers/template', requireOrgRole('admin'), async (c) => {
     id,
     message:
       body.trigger === 'manual'
-        ? `“${name}” created — assign it from a speaker profile or “Assign task”`
-        : `“${name}” created — assigns on ${body.trigger} from now on. Not retroactive: use “Assign task” for existing speakers`,
+        ? `“${name}” created. Assign it from a speaker profile.`
+        : `“${name}” created — assigns on ${body.trigger}. Not retroactive.`,
   });
 });
 
@@ -2009,7 +2137,7 @@ app.post('/app/api/speakers/template/archive', requireOrgRole('admin'), async (c
     id
   );
   const message = next
-    ? `“${tpl.name}” archived — no new assignments; ${open?.n ?? 0} open instances and history intact`
+    ? `“${tpl.name}” archived. ${open?.n ?? 0} open instances kept.`
     : `“${tpl.name}” restored — assigns again per its rule`;
   await logActivity(c.env.DB, {
     eventId: event.id,
@@ -2403,10 +2531,63 @@ app.post('/app/api/speakers/test-email', requireOrgRole('collaborator'), async (
   });
   return c.json({
     ok: true,
-    message: `Test sent to ${user.email} (you) — variables filled with sample data, [TEST] prefixed to the subject${
+    message: `Test sent to ${user.email}.${
       res.status === 'simulated' ? ' · simulated, see the email log' : ''
     }`,
   });
+});
+
+/* --------------------------------------------------- add from directory */
+
+/**
+ * Add picked org contacts to this event as speaker profiles. `addContactToEvent`
+ * is idempotent by email, so a contact who is already here is counted, not
+ * duplicated.
+ */
+app.post('/app/speakers/add-from-directory', requireOrgRole('admin'), async (c) => {
+  const event = c.var.event;
+  if (!event) return c.redirect('/app/events/new');
+  const form = await c.req.parseBody({ all: true });
+  const raw = form.ids;
+  const ids = (Array.isArray(raw) ? raw : raw == null ? [] : [raw])
+    .map((v) => String(v).trim())
+    .filter(Boolean)
+    .slice(0, DIRECTORY_ADD_MAX);
+  if (!ids.length) return redirectWithToast(c, '/app/speakers', 'Pick a contact first');
+
+  // json_each keeps this to two bound parameters — D1 allows 100 per statement.
+  const valid = await all<{ id: string }>(
+    c.env.DB,
+    `SELECT id FROM org_contacts WHERE org_id = ? AND id IN (SELECT value FROM json_each(?))`,
+    event.org_id,
+    JSON.stringify(ids)
+  );
+
+  let added = 0;
+  let already = 0;
+  for (const row of valid) {
+    const res = await addContactToEvent(c.env.DB, row.id, event.id);
+    if (!res) continue;
+    if (res.created) added++;
+    else already++;
+  }
+
+  if (added) {
+    await logActivity(c.env.DB, {
+      eventId: event.id,
+      subjectType: 'event',
+      subjectId: event.id,
+      actor: c.var.user?.name || c.var.user?.email || 'Organizer',
+      action: 'Added speakers',
+      detail: `${added} from the directory`,
+    });
+  }
+
+  return redirectWithToast(
+    c,
+    '/app/speakers',
+    `Added ${added} from the directory${already ? ` (${already} already on this event)` : ''}`
+  );
 });
 
 /* ---------------------------------------------------------- sample file */
