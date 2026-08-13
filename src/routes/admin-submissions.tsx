@@ -35,12 +35,16 @@ const app = new Hono<Ctx>();
 
 const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const GRID = 'grid-template-columns:36px 76px minmax(220px,1fr) 150px 130px 96px 140px 104px;';
-const ROW_STYLE = `display:grid;${GRID}min-width:1000px;padding:10px 12px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;background:#fff;`;
-const HEAD_BTN = 'padding:7px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
+/**
+ * Everything that changes shape on a phone lives in `.sub-*` classes (see
+ * PAGE_CSS) — an inline style cannot be beaten by a media query. What stays
+ * inline is what looks the same at every width.
+ */
+const ROW_STYLE = 'border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;background:#fff;';
+const HEAD_BTN = 'background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
 const SELECT = 'padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;';
-const MODAL_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.4);z-index:60;place-items:center;padding:24px;';
-const MODAL_PANEL =
-  'background:#fff;width:620px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 24px 64px rgba(22,23,29,0.22);';
+const MODAL_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.4);z-index:60;place-items:center;';
+const MODAL_PANEL = 'background:#fff;max-width:100%;overflow-y:auto;box-shadow:0 24px 64px rgba(22,23,29,0.22);';
 const INPUT = 'width:100%;padding:8px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;';
 
 /**
@@ -57,9 +61,104 @@ const DRAWER_CSS = `
   #drawer .ic-min{display:none;}
   #drawer[data-expanded] .ic-max{display:none;}
   #drawer[data-expanded] .ic-min{display:block;}
+  /* Drawer body blocks the island paints — classed so the phone rules below
+     can restack them (see public/js/submissions.js drawerHtml). */
+  .sub-metagrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+  .sub-drawer-actions{display:flex;gap:8px;margin-top:14px;}
+  .sub-drawer-actions button{padding:7px 14px;}
 `;
 const TEXTAREA =
   'width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;';
+
+/**
+ * Page CSS. The desktop half of every rule below is byte-for-byte what used to
+ * sit inline; the `@media (max-width:768px)` half is the phone shape.
+ *
+ * The table is the one real decision here (SPECS/M-mobile.md, criterion 7):
+ * eight columns need 1000px, so sideways-scrolling every row would mean the
+ * organizer never sees a title and its status at the same time. Below 768px a
+ * row reflows into a card instead — line 1 checkbox · id · status, line 2 the
+ * title and speakers, line 3 track · format · score · date — so triage (filter,
+ * read, select, decide) reads top to bottom with no horizontal scroll at all.
+ * The column head becomes a wrapping row of sort buttons plus select-all.
+ *
+ * Row visibility is `[hidden]`, never an inline `display`, so these rules can
+ * swap grid for flex; the island sets `el.hidden` for the same reason.
+ */
+const PAGE_CSS = `
+  .sub-page{padding:22px 28px;}
+  .sub-pagehead{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;}
+  .sub-count{white-space:nowrap;}
+  .sub-headbtns{margin-left:auto;display:flex;gap:8px;}
+  .sub-headbtn{padding:7px 14px;}
+  .sub-chip{display:inline-flex;gap:6px;align-items:center;padding:3px 8px;font-size:11px;font-weight:600;font-family:${MONO};cursor:pointer;}
+  .sub-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+  .sub-filterspacer{flex:1;}
+  .sub-search{width:220px;padding:7px 12px;}
+  .sub-qrow{display:grid;grid-template-columns:108px 64px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;}
+  .sub-head{display:grid;${GRID}gap:0;min-width:1000px;padding:9px 12px;}
+  .sub-row{display:grid;${GRID}min-width:1000px;padding:10px 12px;}
+  .sub-c-title{min-width:0;padding-right:14px;}
+  .sub-bulkdiv{width:1px;height:18px;background:#3a3b44;margin:0 4px;}
+  .sub-modalwrap{padding:24px;}
+  .sub-modalpanel{width:620px;max-height:88vh;}
+  .sub-modalhead{padding:18px 24px;}
+  .sub-modalbody{padding:20px 24px;}
+  .sub-modalfoot{padding:14px 24px;}
+${DRAWER_CSS}
+  @media (max-width:768px){
+    .sub-page{padding:14px 14px 28px;}
+    .sub-pagehead{flex-wrap:wrap;gap:8px 10px;margin-bottom:12px;}
+    .sub-headbtns{flex:1 0 100%;margin-left:0;flex-wrap:wrap;}
+    .sub-headbtn{padding:10px 14px;}
+    .sub-chip{padding:10px 12px;font-size:12px;}
+    /* The desktop spacer becomes a zero-height row break, so the chips keep one
+       block and the two selects start a clean row of their own. */
+    .sub-filterspacer{flex:1 0 100%;height:0;}
+    .sub-filters > select{flex:1 1 calc(50% - 3px);min-width:0;}
+    .sub-search{flex:1 0 100%;width:auto;}
+    /* Queue rows: label, title, recipient, Undo — stacked instead of 5 columns. */
+    .sub-qrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:10px 14px;}
+    .sub-qtitle{flex:1 0 100%;}
+    .sub-qmail{flex:1 1 auto;min-width:0;}
+    .sub-qundo{margin-left:auto;}
+    .sub-qundo button{padding:8px 12px;}
+    /* Selection actions stay reachable while scrolling the list: the bar pins to
+       the top of the viewport, and it only exists while rows are selected. Its
+       desktop divider turns into the row break that keeps the count and Clear on
+       a line of their own, above the six action buttons. */
+    .sub-bulkbar{flex-wrap:wrap;gap:6px;position:sticky;top:0;z-index:6;}
+    .sub-bulkbar button{padding:9px 11px;}
+    .sub-bulkcount{order:-2;}
+    #bulk-clear{order:-1;padding:9px 4px;}
+    .sub-bulkdiv{flex:1 0 100%;width:auto;height:0;margin:0;background:none;}
+    .sub-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0;padding:8px 10px;}
+    .sub-head [data-sort]{padding:10px;border:1px solid #e9eaee;background:#fafafc;}
+    .sub-checkall{width:22px;height:22px;margin:0 6px;}
+    .sub-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 9px;min-width:0;padding:12px;}
+    .sub-c-check{order:1;flex:none;width:22px;height:22px;}
+    .sub-c-id{order:2;flex:none;}
+    .sub-c-status{order:3;margin-left:auto;flex:none;}
+    .sub-c-title{order:4;flex:1 0 100%;padding-right:0;}
+    .sub-c-track{order:5;}
+    .sub-c-format{order:6;}
+    .sub-c-score{order:7;}
+    .sub-c-date{order:8;margin-left:auto;}
+    /* Without column heads the meta line needs its own separators. */
+    .sub-c-format::before,.sub-c-score::before{content:'·';color:#c9cbd2;margin-right:7px;}
+    .sub-c-title > div{white-space:normal !important;}
+    .sub-modalwrap{padding:10px;}
+    .sub-modalpanel{width:100%;max-height:calc(100vh - 20px);}
+    .sub-modalhead{padding:14px 16px;}
+    .sub-modalbody{padding:16px;}
+    .sub-modalfoot{padding:12px 16px;}
+    #drawer-panel{--band-x:16px;}
+    #drawer-panel .us-icon-btn{padding:11px;}
+    .sub-metagrid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));}
+    .sub-drawer-actions{flex-wrap:wrap;}
+    .sub-drawer-actions button{padding:10px 14px;}
+  }
+`;
 
 /** Rows shipped to the browser in one page. Past this the island filters server-side. */
 // R2 benchmark (2026-08-12, production, 4,034 rows): TTFB 663ms, DOMContentLoaded
@@ -580,22 +679,22 @@ app.get('/app/submissions', async (c) => {
 
   return c.html(
     <AdminLayout {...props}>
-      <div style="padding:22px 28px;">
-        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px;">
+      <div class="sub-page">
+        <div class="sub-pagehead">
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Submissions</h1>
-          <div id="count-label" style={`font-family:${MONO};font-size:12px;color:#686b74;`}>
+          <div id="count-label" class="sub-count" style={`font-family:${MONO};font-size:12px;color:#686b74;`}>
             {`${shownCount} of ${total} shown`}
           </div>
-          <div style="margin-left:auto;display:flex;gap:8px;">
+          <div class="sub-headbtns">
             {canWrite ? (
-              <button type="button" id="btn-import" style={HEAD_BTN}>
+              <button type="button" id="btn-import" class="sub-headbtn" style={HEAD_BTN}>
                 Import CSV
               </button>
             ) : null}
-            <button type="button" id="btn-export-csv" style={HEAD_BTN}>
+            <button type="button" id="btn-export-csv" class="sub-headbtn" style={HEAD_BTN}>
               Export CSV
             </button>
-            <button type="button" id="btn-export-xlsx" style={HEAD_BTN}>
+            <button type="button" id="btn-export-xlsx" class="sub-headbtn" style={HEAD_BTN}>
               Export XLSX
             </button>
           </div>
@@ -678,20 +777,24 @@ app.get('/app/submissions', async (c) => {
                   </summary>
                   <div style="background:#fff;border-top:1px solid #e6d29a;max-height:320px;overflow-y:auto;">
                     {outbox.map((q) => (
-                      <div style="display:grid;grid-template-columns:108px 64px minmax(0,1fr) 220px 78px;gap:10px;padding:8px 14px;border-bottom:1px solid #f2f3f5;align-items:center;">
+                      <div class="sub-qrow" style="border-bottom:1px solid #f2f3f5;align-items:center;">
                         <span style={queuedChipStyle(q.decision)}>{q.decision.toUpperCase()}</span>
                         <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{`SUB-${q.seq}`}</span>
                         <a
                           href={`/app/submissions?open=${q.submission_id}`}
+                          class="sub-qtitle"
                           style="font-size:12.5px;font-weight:600;color:#16171d;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                         >
                           {q.title}
                         </a>
-                        <span style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}>
+                        <span
+                          class="sub-qmail"
+                          style={`font-family:${MONO};font-size:11px;color:#9a9da6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`}
+                        >
                           {q.speaker_email || 'no speaker email — status only'}
                         </span>
                         {canWrite ? (
-                          <form method="post" action="/app/emails/outbox/remove" style="justify-self:end;">
+                          <form method="post" action="/app/emails/outbox/remove" class="sub-qundo" style="justify-self:end;">
                             <input type="hidden" name="id" value={q.id} />
                             <input type="hidden" name="back" value="/app/submissions" />
                             <button
@@ -716,14 +819,15 @@ app.get('/app/submissions', async (c) => {
                 </details>
               </div>
             ) : null}
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+            <div class="sub-filters">
               {chips.map((chip) => {
                 const on = filter.status === chip.key;
                 return (
                   <button
                     type="button"
                     data-chip={chip.key}
-                    style={`display:inline-flex;gap:6px;align-items:center;padding:3px 8px;font-size:11px;font-weight:600;font-family:${MONO};cursor:pointer;color:${chip.fg};background:${chip.bg};border:1px solid ${chip.fg};box-shadow:${
+                    class="sub-chip"
+                    style={`color:${chip.fg};background:${chip.bg};border:1px solid ${chip.fg};box-shadow:${
                       on ? `0 0 0 1px ${chip.fg}` : 'none'
                     };`}
                   >
@@ -734,7 +838,7 @@ app.get('/app/submissions', async (c) => {
                   </button>
                 );
               })}
-              <div style="flex:1;"></div>
+              <div class="sub-filterspacer"></div>
               <select id="filter-form" style={SELECT}>
                 <option value="all">All forms</option>
                 {board.forms.map((f) => (
@@ -753,21 +857,23 @@ app.get('/app/submissions', async (c) => {
               </select>
               <input
                 id="filter-q"
+                class="sub-search"
                 value={c.req.query('q') ?? ''}
                 placeholder="Search title or speaker…"
-                style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;width:220px;outline-color:#4c5fd5;"
+                style="border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
               />
             </div>
 
             <div
               id="bulk-bar"
+              class="sub-bulkbar"
               hidden
               style="display:flex;align-items:center;gap:8px;background:#16171d;color:#fff;padding:10px 14px;margin-bottom:0;"
             >
-              <span id="bulk-count" style={`font-family:${MONO};font-size:12px;`}>
+              <span id="bulk-count" class="sub-bulkcount" style={`font-family:${MONO};font-size:12px;`}>
                 0 selected
               </span>
-              <div style="width:1px;height:18px;background:#3a3b44;margin:0 4px;"></div>
+              <div class="sub-bulkdiv"></div>
               {canWrite ? (
                 <>
                   <button
@@ -823,19 +929,20 @@ app.get('/app/submissions', async (c) => {
               </button>
             </div>
 
-            <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+            <div class="us-scroll-x" style="background:#fff;border:1px solid #e2e3e8;">
               <div
-                style={`display:grid;${GRID}gap:0;padding:9px 12px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;min-width:1000px;`}
+                class="sub-head"
+                style={`border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;`}
               >
-                <input type="checkbox" id="check-all" style="accent-color:#4c5fd5;" />
-                <div>ID</div>
+                <input type="checkbox" id="check-all" class="sub-checkall" style="accent-color:#4c5fd5;" />
+                <div class="us-desktop-only">ID</div>
                 <div data-sort="title" style="cursor:pointer;">
                   SESSION <span data-arrow=""></span>
                 </div>
                 <div data-sort="track" style="cursor:pointer;">
                   TRACK <span data-arrow=""></span>
                 </div>
-                <div>FORMAT</div>
+                <div class="us-desktop-only">FORMAT</div>
                 <div data-sort="score" style="cursor:pointer;">
                   SCORE <span data-arrow=""></span>
                 </div>
@@ -859,11 +966,15 @@ app.get('/app/submissions', async (c) => {
                     data-submitted={r.submittedAt ?? ''}
                     data-score={r.avg === null ? '' : r.avg.toFixed(3)}
                     data-search={r.search}
-                    style={ROW_STYLE + (matchesFilter(r, filter) ? '' : 'display:none;')}
+                    class="sub-row"
+                    hidden={!matchesFilter(r, filter)}
+                    style={ROW_STYLE}
                   >
-                    <input type="checkbox" data-check style="accent-color:#4c5fd5;" />
-                    <div style={`font-family:${MONO};font-size:11.5px;color:#9a9da6;`}>{r.num}</div>
-                    <div style="min-width:0;padding-right:14px;">
+                    <input type="checkbox" data-check class="sub-c-check" style="accent-color:#4c5fd5;" />
+                    <div class="sub-c-id" style={`font-family:${MONO};font-size:11.5px;color:#9a9da6;`}>
+                      {r.num}
+                    </div>
+                    <div class="sub-c-title">
                       <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                         {r.title}
                       </div>
@@ -872,16 +983,18 @@ app.get('/app/submissions', async (c) => {
                         <span style={`font-family:${MONO};font-size:10px;color:#9c36b5;`}>{r.via}</span>
                       </div>
                     </div>
-                    <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
+                    <div class="sub-c-track" style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
                       <span style={`display:inline-block;width:8px;height:8px;background:${r.trackColor};`}></span>
                       {r.trackName}
                     </div>
-                    <div style="font-size:12.5px;color:#686b74;">{r.format}</div>
-                    <div style={`font-family:${MONO};font-size:12px;`}>
+                    <div class="sub-c-format" style="font-size:12.5px;color:#686b74;">
+                      {r.format}
+                    </div>
+                    <div class="sub-c-score" style={`font-family:${MONO};font-size:12px;`}>
                       <span style="font-weight:600;">{r.avg === null ? '—' : r.avg.toFixed(1)}</span>{' '}
                       <span style="color:#9a9da6;font-size:10.5px;">{`${r.done}/${r.total}`}</span>
                     </div>
-                    <div>
+                    <div class="sub-c-status">
                       <span
                         title={r.chip === 'outbox' ? 'Decision queued in the outbox — nothing sent yet' : undefined}
                         style={badgeStyle(r.chip)}
@@ -889,7 +1002,9 @@ app.get('/app/submissions', async (c) => {
                         {r.chip === 'outbox' ? QUEUED_LABEL[queued.get(r.id)!] : statusMeta(r.chip).label}
                       </span>
                     </div>
-                    <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{r.submitted}</div>
+                    <div class="sub-c-date" style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>
+                      {r.submitted}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -899,16 +1014,16 @@ app.get('/app/submissions', async (c) => {
       </div>
 
       {/* ------------------------------------------------------------ drawer */}
-      {raw(`<style>${DRAWER_CSS}</style>`)}
+      {raw(`<style>${PAGE_CSS}</style>`)}
       <div id="drawer" data-drawer hidden>
         <div id="drawer-backdrop" style="position:fixed;inset:0;background:rgba(22,23,29,0.28);z-index:40;"></div>
-        <aside id="drawer-panel"></aside>
+        <aside id="drawer-panel" class="us-drawer-panel"></aside>
       </div>
 
       {/* --------------------------------------------------- decision modal */}
-      <div id="decision-modal" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
-        <div style={MODAL_PANEL}>
-          <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+      <div id="decision-modal" class="sub-modalwrap" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
+        <div class="sub-modalpanel" style={MODAL_PANEL}>
+          <div class="sub-modalhead" style="border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
             <div id="decision-heading" style="font-size:17px;font-weight:700;"></div>
             <button
               type="button"
@@ -918,7 +1033,7 @@ app.get('/app/submissions', async (c) => {
               ✕
             </button>
           </div>
-          <div style="padding:20px 24px;display:grid;gap:16px;">
+          <div class="sub-modalbody" style="display:grid;gap:16px;">
             <div>
               <div id="decision-recip-label" style={`${MICRO}margin-bottom:8px;`}></div>
               <div id="decision-recipients"></div>
@@ -943,7 +1058,7 @@ app.get('/app/submissions', async (c) => {
               Request confirmation before publishing to the agenda
             </label>
           </div>
-          <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+          <div class="sub-modalfoot" style="border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
             <button
               type="button"
               data-dialog-close="#decision-modal"
@@ -957,9 +1072,9 @@ app.get('/app/submissions', async (c) => {
       </div>
 
       {/* ------------------------------------------------------- group mail */}
-      <div id="mail-modal" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
-        <div style={MODAL_PANEL}>
-          <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+      <div id="mail-modal" class="sub-modalwrap" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
+        <div class="sub-modalpanel" style={MODAL_PANEL}>
+          <div class="sub-modalhead" style="border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
             <div id="mail-heading" style="font-size:17px;font-weight:700;">
               Send email
             </div>
@@ -971,7 +1086,7 @@ app.get('/app/submissions', async (c) => {
               ✕
             </button>
           </div>
-          <div style="padding:20px 24px;display:grid;gap:16px;">
+          <div class="sub-modalbody" style="display:grid;gap:16px;">
             <div>
               <div id="mail-recip-label" style={`${MICRO}margin-bottom:8px;`}></div>
               <div
@@ -1011,7 +1126,7 @@ app.get('/app/submissions', async (c) => {
               ></div>
             </div>
           </div>
-          <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+          <div class="sub-modalfoot" style="border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
             <button
               type="button"
               data-dialog-close="#mail-modal"
@@ -1031,9 +1146,9 @@ app.get('/app/submissions', async (c) => {
       </div>
 
       {/* ----------------------------------------------------------- import */}
-      <div id="import-modal" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
-        <div style={MODAL_PANEL}>
-          <div style="padding:18px 24px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+      <div id="import-modal" class="sub-modalwrap" data-dialog hidden style={`display:grid;${MODAL_WRAP}`}>
+        <div class="sub-modalpanel" style={MODAL_PANEL}>
+          <div class="sub-modalhead" style="border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
             <div style="font-size:17px;font-weight:700;">Import submissions from CSV</div>
             <button
               type="button"
@@ -1043,7 +1158,7 @@ app.get('/app/submissions', async (c) => {
               ✕
             </button>
           </div>
-          <div style="padding:20px 24px;display:grid;gap:16px;">
+          <div class="sub-modalbody" style="display:grid;gap:16px;">
             <div>
               <div style={`${MICRO}margin-bottom:6px;`}>CSV FILE</div>
               <input type="file" id="import-file" accept=".csv,text/csv" style="font-size:13px;" />
@@ -1069,7 +1184,7 @@ app.get('/app/submissions', async (c) => {
               style="background:#f8f8fa;border:1px solid #e2e3e8;padding:10px 14px;font-size:12.5px;color:#686b74;"
             ></div>
           </div>
-          <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;">
+          <div class="sub-modalfoot" style="border-top:1px solid #e2e3e8;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
             <button
               type="button"
               data-dialog-close="#import-modal"

@@ -49,19 +49,73 @@ const MICRO = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9
 const ROW_COLS = '70px minmax(240px,1fr) 130px 170px 92px 150px 160px';
 const CELL_SELECT = 'width:100%;padding:5px 6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;color:#16171d;';
 const DRAWER_LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:6px;`;
-/**
- * Panel width lives here, not inline, so the shared full-screen rule can
- * override it — and on a class, not `#drawer`, since an id would outrank it.
- */
-const DRAWER_CSS =
-  '.drawer-session{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:50;' +
-  'box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;}';
 const DRAWER_SELECT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;';
 const DIALOG_WRAP = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;';
-const DIALOG_CARD = 'background:#fff;width:520px;max-width:calc(100vw - 48px);box-shadow:0 16px 48px rgba(22,23,29,0.25);max-height:calc(100vh - 60px);display:flex;flex-direction:column;';
-const DIALOG_HEAD = 'padding:16px 20px;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
-const DIALOG_BODY = 'padding:18px 20px;display:grid;gap:12px;overflow-y:auto;';
-const DIALOG_FOOT = 'padding:14px 20px;border-top:1px solid #f2f3f5;display:flex;gap:8px;align-items:center;';
+const DIALOG_CARD = 'background:#fff;box-shadow:0 16px 48px rgba(22,23,29,0.25);display:flex;flex-direction:column;';
+const DIALOG_HEAD = 'border-bottom:1px solid #e2e3e8;display:flex;align-items:center;gap:10px;';
+const DIALOG_BODY = 'display:grid;gap:12px;overflow-y:auto;';
+const DIALOG_FOOT = 'border-top:1px solid #f2f3f5;display:flex;gap:8px;align-items:center;';
+
+/**
+ * Page CSS. Everything that changes shape on a phone must live here, not in an
+ * inline `style` — a media query cannot beat an inline declaration. Each rule's
+ * desktop half is byte-for-byte the inline value it replaced.
+ *
+ * The table is the deliberate call (SPECS/M-mobile.md, criterion 7): seven
+ * columns need 1020px, and the page's real work — set a format, a slot length
+ * and a room from the inline selects — sits in the last three columns. Scrolling
+ * sideways to reach them on every row would make the page unusable, so below
+ * 768px a row reflows into a card: id and status on line one, title and
+ * speakers on line two, track on line three, then the three selects. The column
+ * head is dropped there because each select shows its own value.
+ */
+const PAGE_CSS = `
+  /* Panel width lives here, not inline, so the shared full-screen and
+     phone-width rules can override it — and on a class, not \`#drawer\`, since an
+     id would outrank it. */
+  .drawer-session{position:fixed;top:0;right:0;bottom:0;width:460px;max-width:92vw;background:#fff;z-index:50;
+    box-shadow:-12px 0 40px rgba(0,0,0,0.14);animation:slidein 0.18s ease;display:flex;flex-direction:column;}
+  .ses-page{padding:22px 28px;}
+  .ses-filterspacer{flex:1;}
+  .ses-pagehead{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;}
+  .ses-count{white-space:nowrap;}
+  .ses-headbtns{margin-left:auto;display:flex;align-items:center;gap:8px;}
+  .ses-headbtn{padding:7px 12px;}
+  .ses-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+  .ses-chip{padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .ses-search{width:220px;padding:7px 12px;}
+  .ses-abstractbox{width:14px;height:14px;}
+  .ses-head{display:grid;grid-template-columns:${ROW_COLS};gap:0;min-width:1020px;padding:9px 12px;}
+  .ses-row{display:grid;grid-template-columns:${ROW_COLS};gap:0;min-width:1020px;padding:11px 12px;}
+  .ses-c-title{min-width:0;padding-right:14px;}
+  .ses-c-format,.ses-c-dur,.ses-c-room{padding-right:10px;}
+  .ses-drawergrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:768px){
+    .ses-page{padding:14px 14px 28px;}
+    .ses-pagehead{flex-wrap:wrap;gap:8px 10px;}
+    .ses-headbtns{flex:1 0 100%;margin-left:0;flex-wrap:wrap;}
+    .ses-headbtn{padding:10px 14px;}
+    .ses-chip{padding:10px 12px;}
+    /* The desktop spacer becomes a row break so the filters start a clean row. */
+    .ses-filterspacer{flex:1 0 100%;height:0;}
+    .ses-filters > select{flex:1 1 calc(50% - 3px);min-width:0;}
+    .ses-search{flex:1 0 100%;width:auto;}
+    .ses-abstracts{padding:7px 2px;}
+    .ses-abstractbox{width:17px;height:17px;}
+    .ses-head{display:none;}
+    .ses-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;min-width:0;padding:12px;}
+    .ses-c-id{order:1;flex:none;}
+    .ses-c-status{order:2;margin-left:auto;flex:none;}
+    .ses-c-title{order:3;flex:1 0 100%;padding-right:0;}
+    .ses-c-title > div{white-space:normal !important;}
+    .ses-c-track{order:4;flex:1 0 100%;}
+    .ses-c-format{order:5;flex:1 1 150px;padding-right:0;}
+    .ses-c-dur{order:6;flex:1 1 110px;padding-right:0;}
+    .ses-c-room{order:7;flex:1 0 100%;padding-right:0;}
+    .ses-drawergrid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));}
+    #drawer .us-icon-btn{padding:11px;}
+  }
+`;
 const FIELD_LABEL = 'font-size:12px;color:#686b74;margin-bottom:4px;';
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13.5px;outline-color:#4c5fd5;';
 const CANCEL_BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
@@ -85,13 +139,37 @@ function jsonBlock(id: string, value: unknown) {
 /* ------------------------------------------------------------ new session */
 
 /**
+ * The dialog's own sizing and padding. It travels with the component rather
+ * than living in PAGE_CSS because the agenda builder mounts this dialog too and
+ * never renders this page's `<style>` — the phone rules have to come along.
+ */
+const NEW_SESSION_CSS = `
+  .ses-dialogcard{width:520px;max-width:calc(100vw - 48px);max-height:calc(100vh - 60px);}
+  .ses-dialoghead{padding:16px 20px;}
+  .ses-dialogbody{padding:18px 20px;}
+  .ses-dialogfoot{padding:14px 20px;}
+  .ses-foothint{flex:1;}
+  .ses-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:768px){
+    .ses-dialogcard{width:100%;max-width:calc(100vw - 20px);max-height:calc(100vh - 24px);}
+    .ses-dialoghead{padding:14px 16px;}
+    .ses-dialogbody{padding:16px;}
+    /* Hint takes a row of its own so Cancel and Create stay side by side. */
+    .ses-dialogfoot{padding:12px 16px;flex-wrap:wrap;justify-content:flex-end;}
+    .ses-foothint{flex:1 0 100%;}
+    .ses-pair{grid-template-columns:1fr;}
+  }
+`;
+
+/**
  * "＋ New session" dialog — sponsor or service only. Also mounted on the agenda
  * builder (its "＋ Sponsor session" button opens this with sponsor preselected).
  */
 export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ tracks, formats }) => (
   <div id="new-session" data-dialog hidden style={DIALOG_WRAP}>
-    <div style={DIALOG_CARD}>
-      <div style={DIALOG_HEAD}>
+    {raw(`<style>${NEW_SESSION_CSS}</style>`)}
+    <div class="ses-dialogcard" style={DIALOG_CARD}>
+      <div class="ses-dialoghead" style={DIALOG_HEAD}>
         <div style="font-size:15px;font-weight:700;">New session</div>
         <button
           type="button"
@@ -101,7 +179,7 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
           ×
         </button>
       </div>
-      <div style={DIALOG_BODY}>
+      <div class="ses-dialogbody" style={DIALOG_BODY}>
         <div>
           <div style={FIELD_LABEL}>Type</div>
           <select id="ns-kind" style={DRAWER_SELECT}>
@@ -129,7 +207,7 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
               style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;"
             ></textarea>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="ses-pair">
             <div>
               <div style={FIELD_LABEL}>Track</div>
               <select id="ns-track" style={DRAWER_SELECT}>
@@ -153,7 +231,7 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
           </div>
           <div style="border:1px solid #eceded;padding:12px;display:grid;gap:10px;">
             <div style={MICRO}>SPEAKER (OPTIONAL)</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="ses-pair" style="gap:10px;">
               <input id="ns-sp-name" placeholder="Name" style={INPUT} />
               <input id="ns-sp-email" placeholder="name@company.com" style={INPUT} />
             </div>
@@ -201,8 +279,8 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
           </label>
         </div>
       </div>
-      <div style={DIALOG_FOOT}>
-        <div style="font-size:11.5px;color:#9a9da6;line-height:1.4;flex:1;">
+      <div class="ses-dialogfoot" style={DIALOG_FOOT}>
+        <div class="ses-foothint" style="font-size:11.5px;color:#9a9da6;line-height:1.4;">
           Talk sessions can’t be created here. Accept a Submission to create a session from a talk.
         </div>
         <button type="button" data-dialog-close="#new-session" style={CANCEL_BTN}>
@@ -254,38 +332,41 @@ app.get('/app/sessions', async (c) => {
   return c.html(
     <AdminLayout {...props} scripts={['/js/sessions.js']}>
       {jsonBlock('data-sessions', payload)}
-      <style>{raw(DRAWER_CSS)}</style>
-      <div style="padding:22px 28px;">
-        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px;">
+      <style>{raw(PAGE_CSS)}</style>
+      <div class="ses-page">
+        <div class="ses-pagehead">
           <h1 style="margin:0;font-size:21px;letter-spacing:-0.02em;">Sessions</h1>
-          <div style={`font-family:${MONO};font-size:12px;color:#686b74;`} id="session-count">
+          <div class="ses-count" style={`font-family:${MONO};font-size:12px;color:#686b74;`} id="session-count">
             {bundle.sessions.length ? `${counts.all} sessions · ${counts.needs} need a room` : ''}
           </div>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+          <div class="ses-headbtns">
             <a
               href="/app/embeds"
+              class="ses-headbtn"
               title="Embed the sessions list on your website"
-              style="display:inline-block;padding:7px 12px;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
+              style="display:inline-block;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
             >
               Embed
             </a>
             <a
               href="/app/api/sessions/export.csv"
-              style="display:inline-block;padding:7px 12px;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
+              class="ses-headbtn"
+              style="display:inline-block;background:#fff;border:1px solid #e2e3e8;color:#16171d;font-size:13px;text-decoration:none;"
             >
               Export CSV
             </a>
-            <button type="button" data-dialog-open="#new-session" style={CREATE_BTN}>
+            <button type="button" data-dialog-open="#new-session" class="ses-headbtn" style={CREATE_BTN}>
               ＋ New session
             </button>
           </div>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+        <div class="ses-filters">
           {chips.map(([id, label]) => (
             <button
               type="button"
               data-chip={id}
-              style={`padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid ${
+              class="ses-chip"
+              style={`border:1px solid ${
                 id === 'all' ? '#4c5fd5' : '#e2e3e8'
               };background:${id === 'all' ? '#eef0fb' : '#fff'};color:${id === 'all' ? '#4c5fd5' : '#16171d'};font-weight:${
                 id === 'all' ? '600' : '400'
@@ -297,9 +378,9 @@ app.get('/app/sessions', async (c) => {
               </span>
             </button>
           ))}
-          <div style="flex:1;"></div>
-          <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#686b74;cursor:pointer;">
-            <input id="show-abstract" type="checkbox" style="width:14px;height:14px;accent-color:#4c5fd5;" />
+          <div class="ses-filterspacer"></div>
+          <label class="ses-abstracts" style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#686b74;cursor:pointer;">
+            <input id="show-abstract" class="ses-abstractbox" type="checkbox" style="accent-color:#4c5fd5;" />
             Abstracts
           </label>
           <select id="track-filter" style="padding:7px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;color:#16171d;">
@@ -310,13 +391,15 @@ app.get('/app/sessions', async (c) => {
           </select>
           <input
             id="session-search"
+            class="ses-search"
             placeholder="Search title or speaker…"
-            style="padding:7px 12px;border:1px solid #e2e3e8;background:#fff;font-size:13px;width:220px;outline-color:#4c5fd5;"
+            style="border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
           />
         </div>
-        <div style="background:#fff;border:1px solid #e2e3e8;overflow-x:auto;">
+        <div class="us-scroll-x" style="background:#fff;border:1px solid #e2e3e8;">
           <div
-            style={`display:grid;grid-template-columns:${ROW_COLS};gap:0;padding:9px 12px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;min-width:1020px;`}
+            class="ses-head"
+            style={`border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10.5px;letter-spacing:0.1em;color:#9a9da6;align-items:center;`}
           >
             <div>ID</div>
             <div>SESSION</div>
@@ -348,10 +431,13 @@ app.get('/app/sessions', async (c) => {
                 data-state={st}
                 data-track={s.track_option_id ?? ''}
                 data-search={`${s.title} ${speakers.join(' ')} ${s.sponsor_name ?? ''}`.toLowerCase()}
-                style={`display:grid;grid-template-columns:${ROW_COLS};gap:0;padding:11px 12px;border-bottom:1px solid #f0f0f3;align-items:center;cursor:pointer;min-width:1020px;`}
+                class="ses-row"
+                style="border-bottom:1px solid #f0f0f3;align-items:center;cursor:pointer;"
               >
-                <div style={`font-family:${MONO};font-size:11.5px;color:#9a9da6;`}>{ids.get(s.id)}</div>
-                <div style="min-width:0;padding-right:14px;">
+                <div class="ses-c-id" style={`font-family:${MONO};font-size:11.5px;color:#9a9da6;`}>
+                  {ids.get(s.id)}
+                </div>
+                <div class="ses-c-title">
                   <div style="font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
                     {s.type === 'sponsor' ? `SP · ${s.title}` : s.title}
                   </div>
@@ -366,13 +452,13 @@ app.get('/app/sessions', async (c) => {
                     {s.abstract}
                   </div>
                 </div>
-                <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
+                <div class="ses-c-track" style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
                   <span
                     style={`width:8px;height:8px;border-radius:50%;background:${tr?.color ?? '#adb5bd'};flex:none;`}
                   ></span>
                   {tr?.name ?? '—'}
                 </div>
-                <div style="padding-right:10px;">
+                <div class="ses-c-format">
                   <select data-field="format" data-id={s.id} style={CELL_SELECT}>
                     <option value="" selected={!s.format_option_id}>
                       — Format
@@ -384,7 +470,7 @@ app.get('/app/sessions', async (c) => {
                     ))}
                   </select>
                 </div>
-                <div style="padding-right:10px;">
+                <div class="ses-c-dur">
                   <select data-field="duration" data-id={s.id} style={CELL_SELECT}>
                     {durOpts.map((d) => (
                       <option value={String(d)} selected={d === s.duration_min}>
@@ -393,7 +479,7 @@ app.get('/app/sessions', async (c) => {
                     ))}
                   </select>
                 </div>
-                <div style="padding-right:10px;">
+                <div class="ses-c-room">
                   <select
                     data-field="room"
                     data-id={s.id}
@@ -416,7 +502,7 @@ app.get('/app/sessions', async (c) => {
                     ))}
                   </select>
                 </div>
-                <div>
+                <div class="ses-c-status">
                   <span
                     data-badge
                     style={`font-family:${MONO};font-size:11px;padding:3px 8px;color:${badge.fg};background:${badge.bg};white-space:nowrap;`}
@@ -475,7 +561,7 @@ app.get('/app/sessions', async (c) => {
               style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;"
             ></textarea>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="ses-drawergrid">
             <div>
               <div style={DRAWER_LABEL}>TRACK</div>
               <select id="d-track" style={DRAWER_SELECT}>

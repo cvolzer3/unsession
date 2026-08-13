@@ -72,7 +72,10 @@ function boot(DATA) {
     let shown = 0;
     rowEls.forEach((el) => {
       const on = matches(el);
-      el.style.display = on ? 'grid' : 'none';
+      // `hidden`, not an inline display: below 768px the row's own CSS swaps
+      // the eight-column grid for a stacked card, and an inline display would
+      // outrank that media query.
+      el.hidden = !on;
       if (on) shown++;
       const picked = state.sel.has(el.dataset.id);
       el.style.background = picked ? '#eef0fb' : '#fff';
@@ -83,7 +86,7 @@ function boot(DATA) {
     paintChips();
     const checkAll = $('#check-all');
     if (checkAll) {
-      const vis = rowEls.filter((el) => el.style.display !== 'none');
+      const vis = rowEls.filter((el) => !el.hidden);
       checkAll.checked = vis.length > 0 && vis.every((el) => state.sel.has(el.dataset.id));
     }
     if (bulkBar) {
@@ -210,7 +213,7 @@ function boot(DATA) {
   const checkAll = $('#check-all');
   if (checkAll)
     checkAll.addEventListener('change', () => {
-      const vis = rowEls.filter((el) => el.style.display !== 'none');
+      const vis = rowEls.filter((el) => !el.hidden);
       const all = vis.length > 0 && vis.every((el) => state.sel.has(el.dataset.id));
       state.sel.clear();
       if (!all) vis.forEach((el) => state.sel.add(el.dataset.id));
@@ -295,11 +298,13 @@ function boot(DATA) {
   }
 
   function drawerHtml(s) {
+    // Padding and wrapping live in .sub-drawer-actions (admin-submissions.tsx)
+    // so the three decision buttons can grow and wrap on a phone.
     const actions = DATA.canWrite
-      ? `<div style="display:flex;gap:8px;margin-top:14px;">
-          <button type="button" data-drawer-action="accept" style="padding:7px 14px;background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Accept…</button>
-          <button type="button" data-drawer-action="waitlist" style="padding:7px 14px;background:#fff;color:#9c36b5;border:1px solid #dcc3e4;font-size:12.5px;font-weight:600;cursor:pointer;">Waitlist…</button>
-          <button type="button" data-drawer-action="decline" style="padding:7px 14px;background:#fff;color:#c92a2a;border:1px solid #ecc5c5;font-size:12.5px;font-weight:600;cursor:pointer;">Decline…</button>
+      ? `<div class="sub-drawer-actions">
+          <button type="button" data-drawer-action="accept" style="background:#2b8a3e;color:#fff;border:none;font-size:12.5px;font-weight:600;cursor:pointer;">Accept…</button>
+          <button type="button" data-drawer-action="waitlist" style="background:#fff;color:#9c36b5;border:1px solid #dcc3e4;font-size:12.5px;font-weight:600;cursor:pointer;">Waitlist…</button>
+          <button type="button" data-drawer-action="decline" style="background:#fff;color:#c92a2a;border:1px solid #ecc5c5;font-size:12.5px;font-weight:600;cursor:pointer;">Decline…</button>
         </div>`
       : '';
 
@@ -334,7 +339,7 @@ function boot(DATA) {
               ? `<img src="${esc(sp.headshot)}" alt="" style="width:38px;height:38px;object-fit:cover;flex-shrink:0;">`
               : `<div style="width:38px;height:38px;background:#eef0fb;color:#4c5fd5;display:grid;place-items:center;font-weight:700;font-size:13px;flex-shrink:0;">${esc(sp.initials)}</div>`
           }
-          <div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div style="font-size:13.5px;font-weight:600;">${esc(sp.name)}</div><span style="font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;">${esc((sp.role || '').toUpperCase())}</span></div><div style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</div><div style="font-size:12.5px;color:#686b74;margin-top:3px;">${esc(sp.bio)}</div></div>
+          <div style="min-width:0;"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"><div style="font-size:13.5px;font-weight:600;">${esc(sp.name)}</div><span style="font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;">${esc((sp.role || '').toUpperCase())}</span></div><div style="font-family:${MONO};font-size:11px;color:#9a9da6;overflow-wrap:anywhere;">${esc(sp.email)}</div><div style="font-size:12.5px;color:#686b74;margin-top:3px;">${esc(sp.bio)}</div></div>
         </div>`
       )
       .join('')}</div>`;
@@ -458,7 +463,7 @@ function boot(DATA) {
         ${actions}
       </div>
       <div style="padding:20px var(--band-x);display:grid;gap:20px;">
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+        <div class="sub-metagrid">
           ${card('TRACK', `<span style="display:inline-block;width:8px;height:8px;background:${esc(s.trackColor)};"></span>${esc(s.trackName)}`)}
           ${card('FORMAT', esc(s.format))}
           ${card('LEVEL', esc(s.level))}
@@ -592,9 +597,9 @@ function boot(DATA) {
       .map((r) => {
         const sp = r.speakers[0] || { name: 'No speaker on file', email: '—' };
         return `<div style="border:1px solid #e2e3e8;padding:10px 12px;margin-bottom:6px;">
-          <div style="display:flex;gap:8px;align-items:baseline;">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
             <span style="font-size:13px;font-weight:600;">${esc(sp.name)}</span>
-            <span style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(sp.email)}</span>
+            <span style="font-family:${MONO};font-size:11px;color:#9a9da6;overflow-wrap:anywhere;">${esc(sp.email)}</span>
           </div>
           <div style="font-size:12px;color:#686b74;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.title)}</div>
           ${
@@ -704,7 +709,7 @@ function boot(DATA) {
     $('#mail-recipients').innerHTML = recipients
       .map(
         (r) =>
-          `<div style="padding:2px 0;"><span style="font-weight:600;color:#16171d;">${esc(r.name)}</span> <span style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(r.email)}</span></div>`
+          `<div style="padding:2px 0;overflow-wrap:anywhere;"><span style="font-weight:600;color:#16171d;">${esc(r.name)}</span> <span style="font-family:${MONO};font-size:11px;color:#9a9da6;">${esc(r.email)}</span></div>`
       )
       .join('');
     $('#mail-template').value = '';
