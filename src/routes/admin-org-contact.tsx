@@ -29,6 +29,9 @@ const app = new Hono<Ctx>();
 const LABEL = `font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const INPUT = 'width:100%;padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;background:#fff;';
 const BTN = 'padding:8px 14px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;';
+const ACTION_BTN =
+  'display:inline-flex;align-items:center;gap:7px;padding:8px 13px;background:#fff;border:1px solid #cfd3dc;' +
+  'font-size:13px;font-weight:600;color:#16171d;cursor:pointer;box-shadow:0 1px 2px rgba(22,23,29,0.06);';
 const PRIMARY = 'padding:9px 16px;background:#4c5fd5;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;';
 const DIALOG = 'position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:90;display:grid;place-items:center;padding:20px;';
 const CARD = 'background:#fff;border:1px solid #e2e3e8;padding:18px 20px;';
@@ -72,6 +75,12 @@ const STAGE_LABEL: Record<string, string> = {
   confirmed: 'Confirmed',
   declined: 'Declined',
 };
+
+/** Stages a card may start in — the terminal two are reached by moving. */
+const OPEN_STAGES = ['researching', 'identified', 'contacted', 'interested'] as const;
+
+/** Terminal stages keep their status colours; open stages show the brand blue. */
+const STAGE_DOT: Record<string, string> = { confirmed: '#2b8a3e', declined: '#c92a2a' };
 
 const SOURCE_LABEL: Record<string, string> = {
   manual: 'Added by hand',
@@ -145,6 +154,26 @@ async function rewriteSegments(db: D1Database, orgId: string, fromId: string, to
 }
 
 /* ------------------------------------------------------------- fragments */
+
+const ICON_SVG = { width: '13', height: '13', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor' } as const;
+
+const IconPlus: FC = () => (
+  <svg {...ICON_SVG} stroke-width="2.4" stroke-linecap="round">
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+const IconFunnel: FC = () => (
+  <svg {...ICON_SVG} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+  </svg>
+);
+
+const IconTrash: FC = () => (
+  <svg {...ICON_SVG} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+  </svg>
+);
 
 const Avatar: FC<{ contact: ContactRow; size: number }> = ({ contact, size }) => {
   const who = contact.name || contact.email;
@@ -283,22 +312,31 @@ app.get('/app/org/contact/:id', async (c) => {
             ← Speaker Directory
           </a>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-            <button type="button" data-dialog-open="#dlg-event" style={BTN}>
+            <button type="button" data-dialog-open="#dlg-event" title="Create a speaker profile on one of your events" style={ACTION_BTN}>
+              <IconPlus />
               Add to event
             </button>
             {card ? (
-              <a href={`/app/org/pipeline/${card.id}`} style={`${BTN}text-decoration:none;color:#16171d;display:inline-block;`}>
+              <a href={`/app/org/pipeline/${card.id}`} title="Open the pipeline card" style={`${ACTION_BTN}text-decoration:none;`}>
+                <span
+                  style={`width:7px;height:7px;border-radius:50%;flex:none;background:${STAGE_DOT[card.stage] ?? '#4c5fd5'};`}
+                ></span>
                 {`In pipeline — ${STAGE_LABEL[card.stage] ?? card.stage}`}
+                <span style="color:#9a9da6;">→</span>
               </a>
             ) : (
-              <a
-                href={`/app/org/pipeline?enroll=${encodeURIComponent(contact.id)}`}
-                style={`${BTN}text-decoration:none;color:#16171d;display:inline-block;`}
+              <button
+                type="button"
+                data-dialog-open="#dlg-pipeline"
+                title="Add this contact to the speaker pipeline"
+                style={ACTION_BTN}
               >
-                Enroll in pipeline
-              </a>
+                <IconFunnel />
+                Add to pipeline
+              </button>
             )}
-            <button type="button" data-dialog-open="#dlg-delete" style={`${BTN}color:#c92a2a;`}>
+            <button type="button" data-dialog-open="#dlg-delete" style={`${ACTION_BTN}color:#c92a2a;border-color:#f0c4c4;`}>
+              <IconTrash />
               Delete contact
             </button>
           </div>
@@ -661,6 +699,47 @@ app.get('/app/org/contact/:id', async (c) => {
           </form>
         </div>
       </div>
+
+      {!card ? (
+        <div id="dlg-pipeline" data-dialog hidden style={DIALOG}>
+          <div style="background:#fff;width:440px;max-width:100%;padding:24px;">
+            <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Add contact to pipeline</div>
+            <div style="font-size:12.5px;color:#686b74;line-height:1.55;margin-bottom:16px;">
+              {`Puts ${contact.name} on the pipeline board, tracked from first idea to a confirmed slot.`}
+            </div>
+            <form method="post" action="/app/org/pipeline/enroll" style="display:grid;gap:12px;">
+              <input type="hidden" name="contact_id" value={contact.id} />
+              <input type="hidden" name="back" value="contact" />
+              <div>
+                <div style={`${LABEL}margin-bottom:5px;`}>STARTING STAGE</div>
+                <select name="stage" style={INPUT}>
+                  {OPEN_STAGES.map((s) => (
+                    <option value={s} selected={s === 'identified'}>
+                      {STAGE_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <div style={`${LABEL}margin-bottom:5px;`}>SCORE (0–100, OPTIONAL)</div>
+                <input type="number" name="score" min="0" max="100" style={INPUT} />
+              </div>
+              <div>
+                <div style={`${LABEL}margin-bottom:5px;`}>RATIONALE (OPTIONAL)</div>
+                <textarea name="rationale" rows={3} style={`${INPUT}resize:vertical;`}></textarea>
+              </div>
+              <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+                <button type="button" data-dialog-close="#dlg-pipeline" style={BTN}>
+                  Cancel
+                </button>
+                <button type="submit" style={PRIMARY}>
+                  Add to pipeline
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       <div id="dlg-delete" data-dialog hidden style={DIALOG}>
         <div style="background:#fff;width:440px;max-width:100%;padding:24px;">

@@ -193,7 +193,7 @@ const EnrollDialog: FC<{ candidates: ContactOption[]; preselect: string | null }
     <div style={DIALOG_CARD}>
       <form method="post" action="/app/org/pipeline/enroll" style="margin:0;">
         <div style={DIALOG_HEAD}>
-          <div style="font-size:15px;font-weight:700;">Enroll a contact</div>
+          <div style="font-size:15px;font-weight:700;">Add contact to pipeline</div>
           <button
             type="button"
             data-dialog-close="#enroll-dialog"
@@ -247,7 +247,7 @@ const EnrollDialog: FC<{ candidates: ContactOption[]; preselect: string | null }
           </button>
           {candidates.length ? (
             <button type="submit" style={PRIMARY_BTN}>
-              Enroll
+              Add to pipeline
             </button>
           ) : null}
         </div>
@@ -294,7 +294,7 @@ app.get('/app/org/pipeline', async (c) => {
 
   const headerActions = (
     <button type="button" data-dialog-open="#enroll-dialog" style={PRIMARY_BTN}>
-      ＋ Enroll
+      ＋ Add to pipeline
     </button>
   );
 
@@ -313,10 +313,10 @@ app.get('/app/org/pipeline', async (c) => {
           <div style={`${CARD}padding:40px 28px;text-align:center;`}>
             <div style={`${MICRO}margin-bottom:8px;`}>NOBODY IN THE PIPELINE</div>
             <div style="font-size:13px;color:#686b74;margin-bottom:16px;">
-              Enroll a contact to track them from first idea to a confirmed slot.
+              Add a contact to track them from first idea to a confirmed slot.
             </div>
             <button type="button" data-dialog-open="#enroll-dialog" style={PRIMARY_BTN}>
-              ＋ Enroll
+              ＋ Add to pipeline
             </button>
           </div>
         )}
@@ -332,6 +332,9 @@ app.post('/app/org/pipeline/enroll', requireOrgRole('collaborator'), async (c) =
   const body = await c.req.parseBody();
 
   const contactId = String(body.contact_id ?? '');
+  // The contact page's "Add to pipeline" dialog sends back=contact so the
+  // organizer stays on the record they were reading instead of landing here.
+  const backToContact = String(body.back ?? '') === 'contact';
   const stageRaw = String(body.stage ?? 'identified');
   const stage: Stage = isStage(stageRaw) && OPEN_STAGES.includes(stageRaw) ? stageRaw : 'identified';
   const scoreRaw = String(body.score ?? '').trim();
@@ -352,7 +355,10 @@ app.post('/app/org/pipeline/enroll', requireOrgRole('collaborator'), async (c) =
     orgId,
     contactId
   );
-  if (existing) return c.redirect(backToCard(existing.id, 'Already in the pipeline'));
+  if (existing) {
+    if (backToContact) return c.redirect(`/app/org/contact/${contactId}?ok=${encodeURIComponent('Already in the pipeline')}`);
+    return c.redirect(backToCard(existing.id, 'Already in the pipeline'));
+  }
 
   const id = newId('pcd');
   const stamp = now();
@@ -368,7 +374,9 @@ app.post('/app/org/pipeline/enroll', requireOrgRole('collaborator'), async (c) =
     ],
   ]);
 
-  return c.redirect('/app/org/pipeline?ok=' + encodeURIComponent(`${contact.name} enrolled — ${STAGE_LABEL[stage]}`));
+  const okMsg = encodeURIComponent(`${contact.name} added to pipeline — ${STAGE_LABEL[stage]}`);
+  if (backToContact) return c.redirect(`/app/org/contact/${contactId}?ok=${okMsg}`);
+  return c.redirect(`/app/org/pipeline?ok=${okMsg}`);
 });
 
 /* --------------------------------------------------------------- move (API) */
@@ -535,7 +543,7 @@ app.get('/app/org/pipeline/:id', async (c) => {
                       ? `${STAGE_LABEL[h.from_stage as Stage] ?? h.from_stage} → ${
                           STAGE_LABEL[h.to_stage as Stage] ?? h.to_stage
                         }`
-                      : `Enrolled → ${STAGE_LABEL[h.to_stage as Stage] ?? h.to_stage}`}
+                      : `Added → ${STAGE_LABEL[h.to_stage as Stage] ?? h.to_stage}`}
                     <div style="font-size:11.5px;color:#686b74;">{h.actor}</div>
                   </div>
                   <div style={`font-family:${MONO};font-size:10px;color:#9a9da6;text-align:right;white-space:nowrap;`}>
