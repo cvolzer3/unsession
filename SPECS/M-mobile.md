@@ -16,6 +16,11 @@ media queries as `@media (max-width:768px){…}`. Do not invent a second
 breakpoint; if a page needs a mid-size tweak, prefer a fluid value
 (`min()`, `clamp()`, `%`) over a new query.
 
+Do not import `MOBILE_MAX` into a route module's top-level template
+(`const PAGE_CSS = \`…${MOBILE_MAX}…\``). The bundle's import cycle leaves it
+undefined at module-evaluation time and the worker crashes at startup. Write
+the literal `768` in page CSS.
+
 ## Porting an inline style to a media query
 
 Inline `style="…"` beats every stylesheet rule, so a property that must change

@@ -19,6 +19,17 @@ function el(tag, style, text) {
   return n;
 }
 
+/**
+ * Same as `el`, plus a class. Rows built here carry the page's `ev-*` classes
+ * so the `max-width:768px` block in `admin-evaluation.tsx` can restack them —
+ * an inline grid-template cannot be overridden by a media query.
+ */
+function elc(tag, cls, style, text) {
+  const n = el(tag, style, text);
+  n.className = cls;
+  return n;
+}
+
 function boot() {
   autoSubmitFilters();
   cardLinks();
@@ -90,7 +101,7 @@ function planEditor() {
   function renderRules() {
     ruleRow.innerHTML = '';
     RULE_DEFS.forEach((def) => {
-      const sel = el('select', 'padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
+      const sel = elc('select', 'ev-rulesel', 'padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
       sel.appendChild(new Option(def.all, 'all'));
       def.opts.forEach((o) => sel.appendChild(new Option(o.l, o.v)));
       sel.value = draft.rules[def.key] || 'all';
@@ -101,7 +112,7 @@ function planEditor() {
       });
       ruleRow.appendChild(sel);
     });
-    const status = el('select', 'padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
+    const status = elc('select', 'ev-rulesel', 'padding:7px 8px;border:1px solid #e2e3e8;background:#fff;font-size:12.5px;');
     [
       ['active', 'Undecided (In Review)'],
       ['all', 'Any status'],
@@ -139,7 +150,7 @@ function planEditor() {
       if (!(Number(c.weight) > 0)) c.weight = 1;
 
       const wrap = el('div', 'display:grid;gap:6px;');
-      const row = el('div', 'display:grid;grid-template-columns:170px 1fr 106px 30px;gap:8px;align-items:center;');
+      const row = elc('div', 'ev-critrow', 'display:grid;align-items:center;');
       const nm = el('input', 'padding:8px 10px;border:1px solid #e2e3e8;font-size:13px;font-weight:600;outline-color:#4c5fd5;');
       nm.value = c.name;
       nm.placeholder = 'Criterion';
@@ -166,7 +177,7 @@ function planEditor() {
         renderCriteria();
         renderPreview();
       });
-      const x = el('button', 'background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;', '✕');
+      const x = elc('button', 'ev-xbtn', 'background:none;border:none;color:#9a9da6;font-size:15px;cursor:pointer;', '✕');
       x.type = 'button';
       x.addEventListener('click', () => {
         draft.criteria.splice(i, 1);
@@ -177,7 +188,7 @@ function planEditor() {
       wrap.appendChild(row);
 
       if (c.type === 'scale') {
-        const cfg = el('div', 'display:flex;gap:8px;align-items:center;padding-left:178px;');
+        const cfg = elc('div', 'ev-critcfg', 'display:flex;gap:8px;align-items:center;');
         const scale = el('select', 'padding:6px;border:1px solid #e2e3e8;background:#fff;font-size:12px;');
         [3, 5, 10].forEach((n) => scale.appendChild(new Option(n === 3 ? '1–3' : n === 5 ? '1–5' : '1–10', String(n))));
         scale.value = String(c.scale || 5);
@@ -199,7 +210,7 @@ function planEditor() {
         cfg.append(scale, wLabel);
         wrap.appendChild(cfg);
       } else if (c.type === 'select') {
-        const cfg = el('div', 'padding-left:178px;display:grid;gap:6px;');
+        const cfg = elc('div', 'ev-critcfg', 'display:grid;gap:6px;');
         c.options.forEach((opt, oi) => {
           const line = el('div', 'display:grid;grid-template-columns:1fr 30px;gap:8px;align-items:center;');
           const inp = el('input', 'padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;outline-color:#4c5fd5;');
@@ -209,7 +220,7 @@ function planEditor() {
             c.options[oi] = inp.value;
             renderPreview();
           });
-          const rm = el('button', 'background:none;border:none;color:#9a9da6;font-size:13px;cursor:pointer;', '✕');
+          const rm = elc('button', 'ev-xbtn', 'background:none;border:none;color:#9a9da6;font-size:13px;cursor:pointer;', '✕');
           rm.type = 'button';
           rm.addEventListener('click', () => {
             c.options.splice(oi, 1);
@@ -239,7 +250,7 @@ function planEditor() {
   function renderReviewers() {
     revRows.innerHTML = '';
     draft.reviewers.forEach((r, i) => {
-      const row = el('div', 'display:grid;grid-template-columns:1fr 110px 30px;gap:10px;align-items:center;border:1px solid #eceded;padding:7px 12px;');
+      const row = elc('div', 'ev-revrow', 'display:grid;align-items:center;border:1px solid #eceded;padding:7px 12px;');
       const who = el('div', 'min-width:0;');
       who.appendChild(el('div', 'font-size:13px;font-weight:600;', r.name));
       who.appendChild(el('div', `font-family:${MONO};font-size:10px;color:#9a9da6;`, r.email));
@@ -251,7 +262,7 @@ function planEditor() {
         r.role = role.value;
         renderPreview();
       });
-      const x = el('button', 'background:none;border:none;color:#9a9da6;font-size:14px;cursor:pointer;', '✕');
+      const x = elc('button', 'ev-xbtn', 'background:none;border:none;color:#9a9da6;font-size:14px;cursor:pointer;', '✕');
       x.type = 'button';
       x.addEventListener('click', () => {
         draft.reviewers.splice(i, 1);
@@ -317,7 +328,7 @@ function planEditor() {
 
     pickRows.innerHTML = '';
     matched.forEach((s) => {
-      const row = el('div', 'display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;padding:7px 12px;border-bottom:1px solid #f2f3f5;align-items:center;');
+      const row = elc('div', 'ev-pickrow', 'padding:7px 12px;border-bottom:1px solid #f2f3f5;align-items:center;');
       row.appendChild(el('div', `font-family:${MONO};font-size:10.5px;color:#9a9da6;`, s.displayId));
       row.appendChild(el('div', 'font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;', s.title));
       const tr = el('div', 'display:flex;align-items:center;gap:6px;font-size:11.5px;color:#33343c;');

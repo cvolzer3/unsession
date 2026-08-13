@@ -27,10 +27,78 @@ import {
   type VisibleField,
 } from '../lib/evals';
 
-/** Hover affordances the queue relies on — include with the host page's CSS. */
+/**
+ * Hover affordances the queue relies on, plus every property that has to change
+ * on a phone — include with the host page's CSS.
+ *
+ * The desktop values below are byte-for-byte the inline styles they replaced
+ * (see SPECS/M-mobile.md): an inline style outranks a media query, so anything
+ * the `max-width:768px` block touches has to live here instead.
+ */
 export const EVAL_QUEUE_CSS = `
   [data-row-hover]:hover{background:#f8f9fc;}
   [data-star]:hover{border-color:#4c5fd5;}
+  .eq-head{gap:14px;margin-bottom:18px;}
+  .eq-pad-lg{padding:22px 26px;}
+  .eq-pad-md{padding:18px 26px;}
+  .eq-pad-sm{padding:16px 26px;}
+  .eq-pad-form{padding:20px 26px;}
+  .eq-pad-foot{padding:0 26px 20px;}
+  .eq-chiprow{gap:10px;}
+  .eq-meta{grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px;}
+  .eq-speaker{gap:12px;}
+  .eq-crit{grid-template-columns:130px 1fr;gap:14px;}
+  .eq-critsel{max-width:280px;}
+  .eq-stars{gap:4px;}
+  .eq-star{width:40px;height:36px;}
+  .eq-actions{gap:10px;}
+  .eq-srow{grid-template-columns:130px 1fr;gap:12px;}
+  .eq-srow-scale{grid-template-columns:130px 1fr 30px;gap:12px;}
+  .eq-scorefoot{gap:28px;}
+  .eq-filters{gap:8px;}
+  .eq-search{width:240px;}
+  .eq-lhead{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;}
+  .eq-lrow{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;}
+  .eq-ltitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .eq-page{width:30px;padding:6px 0;}
+  @media (max-width:768px){
+    .eq-head{gap:8px 12px;margin-bottom:14px;}
+    .eq-pad-lg,.eq-pad-form{padding:16px 15px;}
+    .eq-pad-md{padding:14px 15px;}
+    .eq-pad-sm{padding:12px 15px;}
+    .eq-pad-foot{padding:0 15px 16px;}
+    .eq-chiprow{gap:6px 10px;flex-wrap:wrap;}
+    .eq-meta{grid-template-columns:repeat(2,1fr);gap:10px 12px;margin-top:12px;}
+    .eq-speaker{flex-wrap:wrap;gap:2px 10px;}
+    .eq-speaker>*{overflow-wrap:anywhere;}
+    .eq-crit{grid-template-columns:1fr;gap:8px;}
+    .eq-critsel{max-width:100%;width:100%;}
+    .eq-stars{gap:6px;flex-wrap:wrap;}
+    /* ~40px hit area, and a 1–10 scale wraps instead of stretching the page. */
+    .eq-star{flex:1 1 40px;min-width:40px;height:44px;}
+    .eq-actions{gap:8px;flex-wrap:wrap;}
+    .eq-srow{grid-template-columns:1fr;gap:2px;}
+    .eq-srow-scale{grid-template-columns:104px minmax(0,1fr) 26px;gap:8px;}
+    .eq-scorefoot{gap:14px 20px;}
+    .eq-filters{gap:8px;}
+    .eq-search{width:100%;}
+    .eq-seg{width:100%;}
+    .eq-seg>a{flex:1;text-align:center;}
+    .eq-fsel{flex:1 1 140px;min-width:0;}
+    /* The 6-column list reflows to a stacked card so "Review →" stays on
+       screen — scrolling it sideways would hide the row's only action. */
+    .eq-lhead{display:none;}
+    .eq-lrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;
+      grid-template-areas:"id status" "title title" "track score" "fmt fmt";}
+    .eq-lrow>*:nth-child(1){grid-area:id;}
+    .eq-lrow>*:nth-child(2){grid-area:title;}
+    .eq-lrow>*:nth-child(3){grid-area:track;}
+    .eq-lrow>*:nth-child(4){grid-area:fmt;}
+    .eq-lrow>*:nth-child(5){grid-area:status;justify-self:end;}
+    .eq-lrow>*:nth-child(6){grid-area:score;}
+    .eq-ltitle{white-space:normal;overflow:visible;}
+    .eq-page{width:40px;padding:9px 0;min-height:40px;}
+  }
 `;
 
 const PAGE_SIZE = 8;
@@ -122,7 +190,7 @@ export function EvalQueue(props: EvalQueueProps) {
 
   return (
     <>
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap;">
+      <div class="eq-head" style="display:flex;align-items:center;flex-wrap:wrap;">
         <h1 style="margin:0;font-size:20px;letter-spacing:-0.02em;">Your review queue</h1>
         <div style={`font-family:${MONO};font-size:12px;color:#686b74;`}>{`${doneCount} of ${total} done`}</div>
         <div style="flex:1;height:6px;background:#e7e8ec;max-width:220px;">
@@ -251,7 +319,7 @@ function metaCells(
 }
 
 const MetaGrid: FC<{ cells: MetaCell[] }> = ({ cells }) => (
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px;">
+  <div class="eq-meta" style="display:grid;">
     {cells.map((m) => (
       <div>
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>{m.label}</div>
@@ -287,8 +355,8 @@ function ReviewCard(opts: {
   const { plan, submission } = item;
   return (
     <div style="background:#fff;border:1px solid #e2e3e8;" id="review-card">
-      <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+      <div class="eq-pad-lg" style="border-bottom:1px solid #eceded;">
+        <div class="eq-chiprow" style="display:flex;align-items:center;margin-bottom:10px;">
           <TrackBadge sub={submission} />
           <span style="font-size:12px;color:#686b74;">{`${submission.format || '—'} · ${submission.level || '—'}`}</span>
           {plan.anonymized ? (
@@ -304,11 +372,11 @@ function ReviewCard(opts: {
         <MetaGrid cells={metaCells(item, fields, fileNames)} />
       </div>
       {!plan.anonymized && submission.speakers.length ? (
-        <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+        <div class="eq-pad-md" style="border-bottom:1px solid #eceded;">
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:10px;`}>SPEAKERS</div>
           <div style="display:grid;gap:10px;">
             {submission.speakers.map((p) => (
-              <div style="display:flex;gap:12px;align-items:baseline;">
+              <div class="eq-speaker" style="display:flex;align-items:baseline;">
                 <div style="font-size:13.5px;font-weight:600;">{p.name}</div>
                 <div
                   style={`font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;`}
@@ -323,15 +391,15 @@ function ReviewCard(opts: {
         </div>
       ) : null}
       {plan.instructions ? (
-        <div style="padding:16px 26px;border-bottom:1px solid #eceded;">
+        <div class="eq-pad-sm" style="border-bottom:1px solid #eceded;">
           <div style="font-size:12.5px;line-height:1.55;color:#33343c;background:#f8f8fa;border:1px solid #eceded;padding:10px 12px;">
             {plan.instructions}
           </div>
         </div>
       ) : null}
-      <div style="padding:20px 26px;display:grid;gap:16px;">
+      <div class="eq-pad-form" style="display:grid;gap:16px;">
         {plan.criteria.map((crit) => (
-          <div style={`display:grid;grid-template-columns:130px 1fr;gap:14px;align-items:${crit.type === 'text' ? 'start' : 'center'};`}>
+          <div class="eq-crit" style={`display:grid;align-items:${crit.type === 'text' ? 'start' : 'center'};`}>
             <div>
               <div style="font-size:13.5px;font-weight:600;">{crit.name}</div>
               <div style="font-size:11.5px;color:#9a9da6;">{crit.hint}</div>
@@ -339,7 +407,8 @@ function ReviewCard(opts: {
             {crit.type === 'select' ? (
               <select
                 data-crit-select={crit.name}
-                style="max-width:280px;padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
+                class="eq-critsel"
+                style="padding:8px 10px;border:1px solid #e2e3e8;background:#fff;font-size:13px;outline-color:#4c5fd5;"
               >
                 <option value="">Choose…</option>
                 {crit.options.map((o) => (
@@ -354,12 +423,13 @@ function ReviewCard(opts: {
                 style="width:100%;padding:9px 11px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"
               ></textarea>
             ) : (
-              <div style="display:flex;gap:4px;" data-crit={crit.name}>
+              <div class="eq-stars" style="display:flex;" data-crit={crit.name}>
                 {Array.from({ length: crit.scale || 5 }, (_, i) => i + 1).map((n) => (
                   <button
                     type="button"
                     data-star={String(n)}
-                    style={`width:40px;height:36px;border:1px solid #e2e3e8;background:#fff;color:#686b74;font-size:13.5px;font-weight:600;cursor:pointer;font-family:${MONO};`}
+                    class="eq-star"
+                    style={`border:1px solid #e2e3e8;background:#fff;color:#686b74;font-size:13.5px;font-weight:600;cursor:pointer;font-family:${MONO};`}
                   >
                     {String(n)}
                   </button>
@@ -374,7 +444,7 @@ function ReviewCard(opts: {
           rows={2}
           style="width:100%;padding:10px 12px;border:1px solid #e2e3e8;font-size:13px;line-height:1.5;resize:vertical;outline-color:#4c5fd5;font-family:inherit;"
         ></textarea>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div class="eq-actions" style="display:flex;align-items:center;">
           <button
             type="button"
             id="submit-score"
@@ -393,8 +463,13 @@ function ReviewCard(opts: {
             Abstain
           </button>
         </div>
-        <div style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
+        {/* The keyboard hint is desktop-only advice; a phone gets the same
+            information without naming keys it has no way to press. */}
+        <div class="us-desktop-only" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
           {`KEYS 1–5 FILL THE NEXT CRITERION · ENTER SUBMITS · CUMULATIVE MAX ${cumMaxOf(plan.criteria)}`}
+        </div>
+        <div class="us-mobile-only" style={`font-family:${MONO};font-size:10.5px;color:#9a9da6;`}>
+          {`CUMULATIVE MAX ${cumMaxOf(plan.criteria)}`}
         </div>
       </div>
     </div>
@@ -412,8 +487,8 @@ function ReviewedCard(opts: {
   const star = evaluation ? starAvgOf(plan, evaluation) : null;
   return (
     <div style="background:#fff;border:1px solid #e2e3e8;">
-      <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+      <div class="eq-pad-lg" style="border-bottom:1px solid #eceded;">
+        <div class="eq-chiprow" style="display:flex;align-items:center;margin-bottom:10px;">
           <TrackBadge sub={submission} />
           <span style="font-size:12px;color:#686b74;">{`${submission.format || '—'} · ${submission.level || '—'}`}</span>
           <span style={`margin-left:auto;font-family:${MONO};font-size:10.5px;color:#2b8a3e;`}>
@@ -423,15 +498,15 @@ function ReviewedCard(opts: {
         <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{submission.title}</div>
         <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{submission.abstract}</div>
       </div>
-      <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+      <div class="eq-pad-md" style="border-bottom:1px solid #eceded;">
         <MetaGrid cells={metaCells(item, fields, fileNames)} />
       </div>
       {!plan.anonymized && submission.speakers.length ? (
-        <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+        <div class="eq-pad-md" style="border-bottom:1px solid #eceded;">
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:10px;`}>SPEAKERS</div>
           <div style="display:grid;gap:10px;">
             {submission.speakers.map((p) => (
-              <div style="display:flex;gap:12px;align-items:baseline;">
+              <div class="eq-speaker" style="display:flex;align-items:baseline;">
                 <div style="font-size:13.5px;font-weight:600;">{p.name}</div>
                 <div
                   style={`font-family:${MONO};font-size:10px;font-weight:600;letter-spacing:0.08em;padding:2px 6px;background:#eef0fb;color:#4c5fd5;white-space:nowrap;`}
@@ -445,14 +520,14 @@ function ReviewedCard(opts: {
           </div>
         </div>
       ) : null}
-      <div style="padding:18px 26px;border-bottom:1px solid #eceded;display:grid;gap:8px;">
+      <div class="eq-pad-md" style="border-bottom:1px solid #eceded;display:grid;gap:8px;">
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>YOUR SCORES</div>
         {evaluation && !evaluation.abstained ? (
           plan.criteria.map((crit) => {
             if (crit.type === 'select' || crit.type === 'text') {
               const t = String(evaluation.scores[crit.name] ?? '');
               return (
-                <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:baseline;font-size:12.5px;color:#686b74;">
+                <div class="eq-srow" style="display:grid;align-items:baseline;font-size:12.5px;color:#686b74;">
                   <div style="font-weight:600;color:#16171d;">{crit.name}</div>
                   <div style={crit.type === 'select' ? 'font-weight:600;color:#16171d;' : 'color:#33343c;line-height:1.5;'}>
                     {t || '—'}
@@ -462,7 +537,7 @@ function ReviewedCard(opts: {
             }
             const v = Number(evaluation.scores[crit.name]) || 0;
             return (
-              <div style="display:grid;grid-template-columns:130px 1fr 30px;gap:12px;align-items:center;font-size:12.5px;color:#686b74;">
+              <div class="eq-srow-scale" style="display:grid;align-items:center;font-size:12.5px;color:#686b74;">
                 <div style="font-weight:600;color:#16171d;">{crit.name}</div>
                 <div style="height:5px;background:#eef0f3;">
                   <div style={`height:5px;width:${Math.round((v / (crit.scale || 5)) * 100)}%;background:#4c5fd5;`}></div>
@@ -480,7 +555,7 @@ function ReviewedCard(opts: {
           </div>
         ) : null}
       </div>
-      <div style="padding:20px 26px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
+      <div class="eq-pad-form eq-scorefoot" style="display:flex;align-items:center;flex-wrap:wrap;">
         <div>
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>YOUR SCORE</div>
           <div style="font-size:24px;font-weight:700;">{star != null ? `${star.toFixed(1)}★` : '—'}</div>
@@ -495,7 +570,7 @@ function ReviewedCard(opts: {
         </div>
         <div style="margin-left:auto;font-size:12px;color:#9a9da6;">Submitted scores are final and can’t be edited.</div>
       </div>
-      <div style="padding:0 26px 20px;">
+      <div class="eq-pad-foot">
         <a href={qs({ mode: 'list' })} style="display:inline-block;padding:9px 16px;background:#fff;border:1px solid #e2e3e8;font-size:13px;cursor:pointer;color:#16171d;text-decoration:none;">
           ← Back to list
         </a>
@@ -553,7 +628,7 @@ function ListMode(opts: {
 
   return (
     <div>
-      <form method="get" data-autosubmit style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <form method="get" data-autosubmit class="eq-filters" style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
         {Object.entries(fixed).map(([k, v]) => (
           <input type="hidden" name={k} value={v} />
         ))}
@@ -562,9 +637,10 @@ function ListMode(opts: {
           name="q"
           value={q}
           placeholder="Search title or ID…"
-          style="width:240px;padding:7px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;background:#fff;"
+          class="eq-search"
+          style="padding:7px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;background:#fff;"
         />
-        <div style="display:flex;border:1px solid #e2e3e8;background:#fff;">
+        <div class="eq-seg" style="display:flex;border:1px solid #e2e3e8;background:#fff;">
           <a href={link({ quick: '' })} style={seg(quick === 'all')}>
             All
           </a>
@@ -575,7 +651,7 @@ function ListMode(opts: {
             Reviewed
           </a>
         </div>
-        <select name="track" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+        <select name="track" class="eq-fsel" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
           <option value="all" selected={fTrack === 'all'}>
             All tracks
           </option>
@@ -585,7 +661,7 @@ function ListMode(opts: {
             </option>
           ))}
         </select>
-        <select name="format" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
+        <select name="format" class="eq-fsel" style="padding:7px 10px;border:1px solid #e2e3e8;font-size:12.5px;background:#fff;color:#33343c;cursor:pointer;outline-color:#4c5fd5;">
           <option value="all" selected={fFormat === 'all'}>
             All formats
           </option>
@@ -603,7 +679,8 @@ function ListMode(opts: {
       </form>
       <div style="background:#fff;border:1px solid #e2e3e8;">
         <div
-          style={`display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
+          class="eq-lhead"
+          style={`padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
         >
           <div>ID</div>
           <div>TITLE</div>
@@ -619,10 +696,11 @@ function ListMode(opts: {
             <a
               data-row-hover
               href={href}
-              style="display:grid;grid-template-columns:56px minmax(0,1fr) 110px 150px 96px 92px;gap:16px;padding:11px 16px;min-height:48px;box-sizing:border-box;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
+              class="eq-lrow"
+              style="padding:11px 16px;min-height:48px;box-sizing:border-box;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
             >
               <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;${ELLIPSIS}`}>{i.submission.displayId}</div>
-              <div style={`font-size:13px;font-weight:600;line-height:1.35;min-width:0;${ELLIPSIS}`}>{i.submission.title}</div>
+              <div class="eq-ltitle" style="font-size:13px;font-weight:600;line-height:1.35;min-width:0;">{i.submission.title}</div>
               <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#33343c;min-width:0;">
                 <span style={`width:8px;height:8px;background:${i.submission.trackColor};flex:none;`}></span>
                 <span style={ELLIPSIS}>{i.submission.trackName}</span>
@@ -655,16 +733,17 @@ function ListMode(opts: {
             </a>
           </div>
         ) : null}
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #eceded;">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid #eceded;flex-wrap:wrap;">
           <div style={`font-family:${MONO};font-size:11px;color:#686b74;`}>
             {rows.length === 0 ? '0 of 0' : `${cur * PAGE_SIZE + 1}–${Math.min(rows.length, (cur + 1) * PAGE_SIZE)} of ${rows.length}`}
           </div>
           {pages > 1 ? (
-            <div style="margin-left:auto;display:flex;gap:5px;align-items:center;">
+            <div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
               {Array.from({ length: pages }, (_, i) => i).map((i) => (
                 <a
                   href={link({ page: String(i) })}
-                  style={`width:30px;padding:6px 0;border:1px solid ${i === cur ? '#4c5fd5' : '#e2e3e8'};background:${
+                  class="eq-page"
+                  style={`border:1px solid ${i === cur ? '#4c5fd5' : '#e2e3e8'};background:${
                     i === cur ? '#eef0fb' : '#fff'
                   };color:${i === cur ? '#4c5fd5' : '#686b74'};font-size:12px;font-weight:600;cursor:pointer;font-family:${MONO};text-align:center;text-decoration:none;`}
                 >

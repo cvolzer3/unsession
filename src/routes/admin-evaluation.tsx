@@ -85,12 +85,160 @@ const dot = (color: string) => `width:8px;height:8px;background:${color};flex:no
 /**
  * The reminders overlay carries its layout here rather than inline: an inline
  * `display` would beat the `[hidden]` UA rule and the modal would never hide.
+ *
+ * Everything after it is the phone layout. Inline styles are the house style on
+ * this page and no media query can beat one, so any property that has to change
+ * below 768px lives here with its desktop value copied byte-for-byte from the
+ * inline style it replaced (SPECS/M-mobile.md). Classes prefixed `ev-` are
+ * page-scoped; a few are applied by `public/js/evaluation.js` to the rows it
+ * builds (criteria, reviewers, rule selects, the submission picker).
  */
 const PAGE_CSS = `
   #rem-modal{position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:60;display:grid;justify-items:center;align-items:start;padding:44px 32px;overflow:auto;}
   #rem-modal[hidden]{display:none;}
   [data-row-hover]:hover{background:#f8f9fc;}
   [data-card-href]:hover{border-color:#4c5fd5;background:#fdfdff;}
+
+  .ev-page{padding:24px 28px;}
+  .ev-tabs{gap:18px;margin-bottom:20px;}
+  .ev-stats{grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+  .ev-split-rail{grid-template-columns:1fr 300px;gap:16px;}
+  .ev-split-plan{grid-template-columns:minmax(0,1fr) 290px;gap:16px;}
+  .ev-split-edit{grid-template-columns:minmax(0,1fr) 340px;gap:18px;}
+  .ev-filters{gap:8px;}
+  .ev-search{width:250px;}
+  .ev-exports{margin-left:auto;display:flex;gap:8px;}
+  .ev-scorehead{display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;}
+  .ev-scorerow{display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;}
+  .ev-band-lg{padding:22px 26px;}
+  .ev-band-md{padding:18px 26px;}
+  .ev-band-form{padding:20px 26px;}
+  .ev-band-24{padding:20px 24px;}
+  .ev-band-foot{padding:14px 24px;}
+  .ev-chiprow{gap:10px;}
+  .ev-meta4{grid-template-columns:repeat(4,1fr);gap:14px;}
+  .ev-speaker{gap:12px;}
+  .ev-evalrow{grid-template-columns:160px 1fr 54px;gap:14px;}
+  .ev-evalnote{margin:8px 0 0 174px;}
+  .ev-scorefoot{gap:28px;}
+  .ev-plancard{grid-template-columns:minmax(230px,1.3fr) minmax(140px,0.8fr) minmax(200px,1.1fr) 110px 80px;gap:20px;padding:16px 20px;}
+  .ev-planhead{display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;}
+  .ev-planrow{display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;}
+  .ev-pname{flex:1;min-width:260px;}
+  .ev-pdate{width:160px;}
+  .ev-addrev{width:260px;}
+  .ev-editrail{position:sticky;top:16px;}
+  .ev-pickhead{display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;}
+  .ev-pickrow{display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;}
+  .ev-critrow{grid-template-columns:170px 1fr 106px 30px;gap:8px;}
+  .ev-critcfg{padding-left:178px;}
+  .ev-revrow{grid-template-columns:1fr 110px 30px;gap:10px;}
+  .ev-remdlg{width:1160px;max-width:100%;max-height:calc(100vh - 88px);}
+  .ev-remhead{gap:16px;padding:13px 20px;}
+  .ev-remgrid{grid-template-columns:minmax(0,1fr) 420px;}
+  .ev-remgrid2{grid-template-columns:minmax(0,1fr) 320px;}
+  .ev-remhdr{display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;}
+  .ev-remrow{display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;}
+  .ev-rempane{padding:16px 20px;}
+  .ev-rowtitle{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ev-remx{padding:2px 6px;}
+
+  @media (max-width:768px){
+    .ev-page{padding:16px 14px;}
+    /* The three sub-tabs scroll sideways rather than stacking into three
+       two-line blocks that eat the top of every screen. */
+    .ev-tabs{gap:16px;margin-bottom:16px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    .ev-tabs>a{flex:none;white-space:nowrap;}
+    .ev-stats{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+    .ev-split-rail,.ev-split-plan,.ev-split-edit{grid-template-columns:minmax(0,1fr);gap:14px;}
+    .ev-search{width:100%;}
+    .ev-exports{margin-left:0;flex:1 0 100%;}
+    .ev-fsel{flex:1 1 150px;min-width:0;max-width:100%;}
+    /* Seven columns become a stacked card: the row is the only tap target and
+       its score / decision have to stay on screen. */
+    .ev-scorehead{display:none;}
+    .ev-scorerow{grid-template-columns:minmax(0,1fr) auto auto;gap:4px 10px;
+      grid-template-areas:"id left dec" "title title title" "track track avg" "chips chips chips";}
+    .ev-scorerow>*:nth-child(1){grid-area:id;}
+    .ev-scorerow>*:nth-child(2){grid-area:title;}
+    .ev-scorerow>*:nth-child(3){grid-area:track;}
+    .ev-scorerow>*:nth-child(4){grid-area:chips;}
+    .ev-scorerow>*:nth-child(5){grid-area:avg;}
+    .ev-scorerow>*:nth-child(6){grid-area:left;}
+    .ev-scorerow>*:nth-child(7){grid-area:dec;}
+    .ev-band-lg,.ev-band-form,.ev-band-24{padding:16px 15px;}
+    .ev-band-md{padding:14px 15px;}
+    .ev-band-foot{padding:12px 15px;flex-wrap:wrap;}
+    .ev-chiprow{gap:6px 10px;flex-wrap:wrap;}
+    .ev-meta4{grid-template-columns:repeat(2,1fr);gap:10px 12px;}
+    .ev-speaker{flex-wrap:wrap;gap:2px 10px;}
+    .ev-speaker>*{overflow-wrap:anywhere;}
+    .ev-evalrow{grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;
+      grid-template-areas:"who avg" "scores scores";}
+    .ev-evalrow>*:nth-child(1){grid-area:who;}
+    .ev-evalrow>*:nth-child(2){grid-area:scores;}
+    .ev-evalrow>*:nth-child(3){grid-area:avg;}
+    .ev-evalnote{margin:8px 0 0 0;}
+    .ev-scorefoot{gap:14px 18px;}
+    .ev-plancard{grid-template-columns:minmax(0,1fr);gap:12px;padding:14px 15px;}
+    .ev-planhead{display:none;}
+    .ev-planrow{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;
+      grid-template-areas:"id cum" "title title" "crits crits" "revs revs";}
+    .ev-planrow>*:nth-child(1){grid-area:id;}
+    .ev-planrow>*:nth-child(2){grid-area:title;}
+    .ev-planrow>*:nth-child(3){grid-area:crits;}
+    .ev-planrow>*:nth-child(4){grid-area:revs;}
+    .ev-planrow>*:nth-child(5){grid-area:cum;}
+    .ev-pname{flex:1 1 100%;min-width:0;}
+    .ev-pdate{width:100%;}
+    .ev-pdatebox{flex:1 1 140px;min-width:0;}
+    .ev-addrev{width:100%;}
+    .ev-editrail{position:static;top:auto;}
+    .ev-pickhead{display:none;}
+    .ev-pickrow{grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;
+      grid-template-areas:"id status" "title title" "track track";}
+    .ev-pickrow>*:nth-child(1){grid-area:id;}
+    .ev-pickrow>*:nth-child(2){grid-area:title;}
+    .ev-pickrow>*:nth-child(3){grid-area:track;}
+    .ev-pickrow>*:nth-child(4){grid-area:status;justify-self:end;}
+    .ev-critrow{grid-template-columns:minmax(0,1fr) 30px;gap:6px 8px;
+      grid-template-areas:"name x" "hint hint" "type type";}
+    .ev-critrow>*:nth-child(1){grid-area:name;}
+    .ev-critrow>*:nth-child(2){grid-area:hint;}
+    .ev-critrow>*:nth-child(3){grid-area:type;}
+    .ev-critrow>*:nth-child(4){grid-area:x;}
+    .ev-critcfg{padding-left:0;flex-wrap:wrap;}
+    .ev-revrow{grid-template-columns:minmax(0,1fr) auto 26px;gap:8px;}
+    .ev-rulesel{flex:1 1 150px;min-width:0;max-width:100%;}
+    /* The reminders modal takes the whole screen; its two panes stack and the
+       recipient rows reflow so the checkbox and the name stay side by side. */
+    /* Full screen, so it now reaches the corner the sandbox chip (z-index 70)
+       sits in — the "Send now" button would end up underneath it. Above the
+       chip, still below the toast (80) so a confirmation stays visible. */
+    #rem-modal{padding:0;z-index:75;}
+    .ev-remdlg{width:100%;max-width:100%;max-height:100vh;height:100dvh;}
+    .ev-remhead{gap:8px;padding:10px 12px;flex-wrap:wrap;}
+    .ev-remgrid,.ev-remgrid2{grid-template-columns:minmax(0,1fr);}
+    .ev-remhdr{display:none;}
+    .ev-remrow{grid-template-columns:26px minmax(0,1fr) auto;gap:4px 10px;
+      grid-template-areas:"box who who" "box remaining due" "box last last";}
+    .ev-remrow>*:nth-child(1){grid-area:box;align-self:start;margin-top:3px;}
+    .ev-remrow>*:nth-child(2){grid-area:who;}
+    .ev-remrow>*:nth-child(3){grid-area:remaining;}
+    .ev-remrow>*:nth-child(4){grid-area:due;justify-self:end;}
+    .ev-remrow>*:nth-child(5){grid-area:last;}
+    .ev-rempane{padding:12px 14px;}
+    /* A stacked row gives the title the full width, so it wraps rather than
+       losing half of itself to an ellipsis. */
+    .ev-rowtitle{white-space:normal;overflow:visible;}
+    /* The bare ✕ glyph is a real action (delete a criterion, an option, a
+       reviewer), so it needs a finger-sized box around it. */
+    .ev-xbtn{min-height:40px;min-width:30px;}
+    .ev-remx{padding:10px 12px;}
+    /* The automation switch has to stay 38×21 — JS positions its knob in those
+       pixels — so the hit area grows around it instead of with it. */
+    #auto-toggle::after{content:'';position:absolute;left:-9px;right:-9px;top:-10px;bottom:-10px;}
+  }
 `;
 
 const DEC_BUTTONS = [
@@ -104,7 +252,7 @@ const num1 = (n: number | null | undefined) => (n === null || n === undefined ? 
 /* ------------------------------------------------------------------ pieces */
 
 const StatCards: FC<{ stats: { label: string; val: string; sub: string }[] }> = ({ stats }) => (
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+  <div class="ev-stats" style="display:grid;">
     {stats.map((s) => (
       <div style={`${CARD}padding:14px 16px;`}>
         <div style={MICRO}>{s.label}</div>
@@ -227,7 +375,7 @@ app.get('/app/evaluation', async (c) => {
   const detailPlan = ctx.plans.find((p) => p.id === planParam) ?? null;
 
   const tabs = (
-    <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
+    <div class="ev-tabs" style="display:flex;border-bottom:1px solid #e2e3e8;">
       <a href="/app/evaluation" style={subTab(tab === 'scores')}>
         All Evaluations
       </a>
@@ -253,7 +401,7 @@ app.get('/app/evaluation', async (c) => {
     return c.html(
       <AdminLayout {...props} scripts={['/js/evaluate.js']}>
         <style>{raw(PAGE_CSS + EVAL_QUEUE_CSS)}</style>
-        <div style="padding:24px 28px;">
+        <div class="ev-page">
           {tabs}
           <EvalQueue
             ctx={ctx}
@@ -307,7 +455,7 @@ app.get('/app/evaluation', async (c) => {
   return c.html(
     <AdminLayout {...props} scripts={['/js/evaluation.js']}>
       <style>{raw(PAGE_CSS)}</style>
-      <div style="padding:24px 28px;">
+      <div class="ev-page">
         {tabs}
         {tab === 'scores'
           ? ScoresTab({ ctx, openSub, reminders, filters })
@@ -364,7 +512,7 @@ function ScoresTab(opts: { ctx: PageCtx; openSub: string; reminders: RemindersDa
   return (
     <div>
       <StatCards stats={stats} />
-      <div style="display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;">
+      <div class="ev-split-rail" style="display:grid;align-items:start;">
         <div style="min-width:0;">{sel ? ScoreDetail({ ctx, sub: sel }) : ScoreList({ ctx, scores, filters })}</div>
         {rail}
       </div>
@@ -418,7 +566,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
   return (
     <div>
       {filters.unreviewed ? (
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#fdf5dc;border:1px solid #e8d79a;font-size:12.5px;color:#7a5c0a;flex-wrap:wrap;">
           <span>
             Showing <b>{`${rows.length} submission${rows.length === 1 ? '' : 's'} with no evaluations yet`}</b>. Assign
             evaluators or remind the ones already assigned.
@@ -431,10 +579,16 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
           </a>
         </div>
       ) : null}
-      <form method="get" action="/app/evaluation" data-autosubmit style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+      <form
+        method="get"
+        action="/app/evaluation"
+        data-autosubmit
+        class="ev-filters"
+        style="display:flex;align-items:center;margin-bottom:12px;flex-wrap:wrap;"
+      >
         {filters.unreviewed ? <input type="hidden" name="filter" value="unreviewed" /> : null}
-        <input name="q" value={filters.q} placeholder="Search title or author…" style={`width:250px;${INPUT}`} />
-        <select name="track" style={SELECT}>
+        <input name="q" value={filters.q} placeholder="Search title or author…" class="ev-search" style={INPUT} />
+        <select name="track" class="ev-fsel" style={SELECT}>
           <option value="all" selected={fTrack === 'all'}>
             All tracks
           </option>
@@ -444,7 +598,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
             </option>
           ))}
         </select>
-        <select name="plan" style={SELECT}>
+        <select name="plan" class="ev-fsel" style={SELECT}>
           <option value="all" selected={fPlan === 'all'}>
             All evaluation plans
           </option>
@@ -459,7 +613,7 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
             Clear ×
           </a>
         ) : null}
-        <div style="margin-left:auto;display:flex;gap:8px;">
+        <div class="ev-exports">
           <a href={exportHref(filters, 'csv')} style={`${GHOST_BTN}color:#33343c;text-decoration:none;`}>
             Export CSV
           </a>
@@ -470,7 +624,8 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
       </form>
       <div style={CARD}>
         <div
-          style={`display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
+          class="ev-scorehead"
+          style={`padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
         >
           <div>ID</div>
           <div>TITLE</div>
@@ -490,13 +645,12 @@ function ScoreList(opts: { ctx: PageCtx; scores: Map<string, ReturnType<typeof s
             <a
               data-row-hover
               href={`/app/evaluation?open=${s.id}`}
-              style="display:grid;grid-template-columns:56px minmax(0,1fr) 120px 190px 50px 60px 92px;gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
+              class="ev-scorerow"
+              style="padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:pointer;color:#16171d;text-decoration:none;"
             >
               <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{s.displayId}</div>
               <div style="min-width:0;">
-                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                  {s.title}
-                </div>
+                <div class="ev-rowtitle" style="font-size:13px;font-weight:600;">{s.title}</div>
                 <div style="font-size:11px;color:#9a9da6;">
                   {`${s.format.replace(/ \(.+\)/, '') || '—'} · ${s.level || '—'}`}
                 </div>
@@ -575,8 +729,8 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
 
   return (
     <div style={CARD}>
-      <div style="padding:22px 26px;border-bottom:1px solid #eceded;">
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+      <div class="ev-band-lg" style="border-bottom:1px solid #eceded;">
+        <div class="ev-chiprow" style="display:flex;align-items:center;margin-bottom:10px;">
           <span
             style={`display:inline-block;padding:3px 8px;font-size:11px;font-weight:600;color:#fff;background:${sub.trackColor};font-family:${MONO};`}
           >
@@ -593,7 +747,7 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
         <div style="font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1.3;">{sub.title}</div>
         <div style="font-size:14.5px;line-height:1.6;color:#33343c;margin-top:10px;">{sub.abstract}</div>
       </div>
-      <div style="padding:18px 26px;border-bottom:1px solid #eceded;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <div class="ev-band-md ev-meta4" style="border-bottom:1px solid #eceded;display:grid;">
         {[
           { label: 'ID', val: sub.displayId },
           { label: 'SUBMITTED', val: fmtDay(sub.submittedAt) },
@@ -606,11 +760,11 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
           </div>
         ))}
       </div>
-      <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+      <div class="ev-band-md" style="border-bottom:1px solid #eceded;">
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:10px;`}>SPEAKERS</div>
         <div style="display:grid;gap:10px;">
           {sub.speakers.map((p) => (
-            <div style="display:flex;gap:12px;align-items:baseline;">
+            <div class="ev-speaker" style="display:flex;align-items:baseline;">
               <div style="font-size:13.5px;font-weight:600;">{p.name}</div>
               <div style={`font-size:12px;color:#4c5fd5;font-family:${MONO};`}>{p.email}</div>
               <div style="font-size:12.5px;color:#686b74;">{p.bio}</div>
@@ -619,7 +773,7 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
           {sub.speakers.length === 0 ? <div style="font-size:12.5px;color:#9a9da6;">No speakers on this submission.</div> : null}
         </div>
       </div>
-      <div style="padding:18px 26px;border-bottom:1px solid #eceded;">
+      <div class="ev-band-md" style="border-bottom:1px solid #eceded;">
         <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;margin-bottom:12px;`}>
           SCORES BY EVALUATOR
         </div>
@@ -632,7 +786,7 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
                 {inPlans.length > 1 ? <div style={MICRO}>{p.name.toUpperCase()}</div> : null}
                 {evals.map((e) => (
                   <div>
-                    <div style="display:grid;grid-template-columns:160px 1fr 54px;gap:14px;align-items:center;">
+                    <div class="ev-evalrow" style="display:grid;align-items:center;">
                       <div>
                         <div style="font-size:13px;font-weight:600;">{nameOf(ctx, e.reviewerId)}</div>
                         <div
@@ -681,14 +835,14 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
                       </div>
                     </div>
                     {e.note ? (
-                      <div style="border-left:2px solid #e2e3e8;padding:2px 0 2px 12px;margin:8px 0 0 174px;font-size:12.5px;color:#33343c;">
+                      <div class="ev-evalnote" style="border-left:2px solid #e2e3e8;padding:2px 0 2px 12px;font-size:12.5px;color:#33343c;">
                         {e.note}
                       </div>
                     ) : null}
                   </div>
                 ))}
                 {pending.map((r) => (
-                  <div style="display:grid;grid-template-columns:160px 1fr 54px;gap:14px;align-items:center;">
+                  <div class="ev-evalrow" style="display:grid;align-items:center;">
                     <div>
                       <div style="font-size:13px;font-weight:600;">{r.name}</div>
                       <div style={`font-family:${MONO};font-size:9.5px;letter-spacing:0.06em;color:#b08800;margin-top:2px;`}>PENDING</div>
@@ -705,7 +859,7 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
           ) : null}
         </div>
       </div>
-      <div style="padding:20px 26px;display:flex;align-items:center;gap:28px;flex-wrap:wrap;">
+      <div class="ev-band-form ev-scorefoot" style="display:flex;align-items:center;flex-wrap:wrap;">
         <div>
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>AVG SCORE</div>
           <div style="font-size:24px;font-weight:700;">{sc.avg != null ? `${num1(sc.avg)}★` : '—'}</div>
@@ -718,9 +872,9 @@ function ScoreDetail(opts: { ctx: PageCtx; sub: EvalSubmission }) {
           <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>REMAINING</div>
           <div style="font-size:24px;font-weight:700;">{String(rem)}</div>
         </div>
-        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <div
-            style={`display:flex;gap:6px;padding-right:8px;margin-right:4px;border-right:1px solid #eceded;${
+            style={`display:flex;gap:6px;padding-right:8px;margin-right:4px;border-right:1px solid #eceded;flex-wrap:wrap;${
               rem === 0 ? '' : 'opacity:0.45;'
             }`}
           >
@@ -753,7 +907,7 @@ function PlansList(opts: { ctx: PageCtx }) {
   const { ctx } = opts;
   return (
     <div>
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
         <a href="/app/evaluation?tab=plans&new=1" style={`${PRIMARY_BTN}text-decoration:none;`}>
           ＋ New plan
         </a>
@@ -771,7 +925,8 @@ function PlansList(opts: { ctx: PageCtx }) {
           return (
             <div
               data-card-href={`/app/evaluation?tab=plans&plan=${p.id}`}
-              style={`${CARD}padding:16px 20px;display:grid;grid-template-columns:minmax(230px,1.3fr) minmax(140px,0.8fr) minmax(200px,1.1fr) 110px 80px;gap:20px;align-items:center;cursor:pointer;color:#16171d;`}
+              class="ev-plancard"
+              style={`${CARD}display:grid;align-items:center;cursor:pointer;color:#16171d;`}
             >
               <div style="min-width:0;">
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -893,12 +1048,12 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
           ← Go back
         </a>
       </div>
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;">
+      <div class="ev-split-edit" style="display:grid;align-items:start;">
         <div style={CARD} id="plan-form">
-          <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:14px;">
+          <div class="ev-band-24" style="border-bottom:1px solid #eceded;display:grid;gap:14px;">
             <div style={MICRO_WIDE}>01 · PLAN</div>
             <div style="display:flex;gap:14px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:260px;">
+              <div class="ev-pname">
                 <div style={`${MICRO}margin-bottom:6px;`}>NAME</div>
                 <input
                   id="p-name"
@@ -907,22 +1062,24 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
                   style="width:100%;padding:9px 12px;border:1px solid #e2e3e8;font-size:14px;font-weight:600;outline-color:#4c5fd5;"
                 />
               </div>
-              <div>
+              <div class="ev-pdatebox">
                 <div style={`${MICRO}margin-bottom:6px;`}>OPEN DATE</div>
                 <input
                   id="p-opens"
                   type="date"
+                  class="ev-pdate"
                   value={plan?.opensAt ?? ''}
-                  style="width:160px;padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;"
+                  style="padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;"
                 />
               </div>
-              <div>
+              <div class="ev-pdatebox">
                 <div style={`${MICRO}margin-bottom:6px;`}>CLOSE DATE · DEADLINE</div>
                 <input
                   id="p-deadline"
                   type="date"
+                  class="ev-pdate"
                   value={plan?.deadline ?? ''}
-                  style="width:160px;padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;"
+                  style="padding:9px 12px;border:1px solid #e2e3e8;font-size:13px;outline-color:#4c5fd5;"
                 />
               </div>
             </div>
@@ -951,7 +1108,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               </label>
             </div>
           </div>
-          <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:14px;">
+          <div class="ev-band-24" style="border-bottom:1px solid #eceded;display:grid;gap:14px;">
             <div style={MICRO_WIDE}>02 · REVIEWER INSTRUCTIONS</div>
             <div>
               <textarea
@@ -976,10 +1133,10 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               </div>
             </div>
           </div>
-          <div style="padding:20px 24px;border-bottom:1px solid #eceded;display:grid;gap:12px;">
+          <div class="ev-band-24" style="border-bottom:1px solid #eceded;display:grid;gap:12px;">
             <div style={MICRO_WIDE}>03 · REVIEWERS</div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-              <select id="add-reviewer" style="width:260px;padding:8px 10px;border:1px dashed #c9cbd2;background:#fafafc;font-size:12.5px;color:#686b74;">
+              <select id="add-reviewer" class="ev-addrev" style="padding:8px 10px;border:1px dashed #c9cbd2;background:#fafafc;font-size:12.5px;color:#686b74;">
                 <option value="">+ Add reviewer…</option>
               </select>
             </div>
@@ -995,8 +1152,8 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               </label>
             </div>
           </div>
-          <div style="padding:20px 24px;display:grid;gap:10px;">
-            <div style="display:flex;align-items:baseline;gap:10px;">
+          <div class="ev-band-24" style="display:grid;gap:10px;">
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
               <div style={MICRO_WIDE}>04 · SUBMISSIONS</div>
               <div style="font-size:11.5px;color:#9a9da6;">Submissions matching all filters join the plan.</div>
             </div>
@@ -1007,7 +1164,8 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
             </div>
             <div style="border:1px solid #eceded;max-height:320px;overflow-y:auto;">
               <div
-                style={`display:grid;grid-template-columns:60px minmax(0,1fr) 130px 90px;gap:8px;padding:8px 12px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;position:sticky;top:0;background:#fff;`}
+                class="ev-pickhead"
+                style={`padding:8px 12px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:9.5px;letter-spacing:0.1em;color:#9a9da6;position:sticky;top:0;background:#fff;`}
               >
                 <div>ID</div>
                 <div>TITLE</div>
@@ -1017,7 +1175,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
               <div id="pick-rows"></div>
             </div>
           </div>
-          <div style="padding:14px 24px;border-top:1px solid #e2e3e8;display:flex;gap:10px;align-items:center;">
+          <div class="ev-band-foot" style="border-top:1px solid #e2e3e8;display:flex;gap:10px;align-items:center;">
             <div id="edit-summary" style="font-size:12px;color:#686b74;"></div>
             <div style="margin-left:auto;display:flex;gap:8px;">
               <a href={backHref} style={`${GHOST_BTN}text-decoration:none;color:#16171d;`}>
@@ -1029,7 +1187,7 @@ function PlanEditor(opts: { plan: EvalPlan | null; ctx: PageCtx }) {
             </div>
           </div>
         </div>
-        <div style="position:sticky;top:16px;display:grid;gap:14px;">
+        <div class="ev-editrail" style="display:grid;gap:14px;">
           <div style={CARD}>
             <div style={`padding:10px 16px;border-bottom:1px solid #e2e3e8;${MICRO_WIDE}`}>WHAT REVIEWERS SEE</div>
             <div style="padding:14px 16px;display:grid;gap:12px;">
@@ -1084,7 +1242,7 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
       <a href="/app/evaluation?tab=plans" style="display:inline-block;color:#686b74;font-size:12.5px;margin-bottom:12px;text-decoration:none;">
         ← Evaluation plans
       </a>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap;">
         <h1 style="margin:0;font-size:19px;letter-spacing:-0.02em;">{plan.name}</h1>
         {plan.anonymized ? (
           <span
@@ -1113,10 +1271,11 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
           { label: 'OUTSTANDING', val: String(Math.max(0, pr.total - pr.done)), sub: 'reviews left' },
         ]}
       />
-      <div style="display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:16px;align-items:start;">
+      <div class="ev-split-plan" style="display:grid;align-items:start;">
         <div style={CARD}>
           <div
-            style={`display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
+            class="ev-planhead"
+            style={`padding:9px 16px;border-bottom:1px solid #e2e3e8;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
           >
             <div>ID</div>
             <div>TITLE</div>
@@ -1128,11 +1287,12 @@ function PlanDetail(opts: { plan: EvalPlan; ctx: PageCtx; reminders: RemindersDa
             <a
               data-row-hover
               href={`/app/evaluation?open=${r.s.id}`}
-              style="display:grid;grid-template-columns:56px minmax(0,1fr) 250px 160px 100px;gap:12px;padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;text-decoration:none;color:#16171d;"
+              class="ev-planrow"
+              style="padding:10px 16px;border-bottom:1px solid #f2f3f5;align-items:center;text-decoration:none;color:#16171d;"
             >
               <div style={`font-family:${MONO};font-size:11px;color:#9a9da6;`}>{r.s.displayId}</div>
               <div style="min-width:0;">
-                <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{r.s.title}</div>
+                <div class="ev-rowtitle" style="font-size:13px;font-weight:600;">{r.s.title}</div>
                 <div style="font-size:11px;color:#9a9da6;">{`${r.s.format.replace(/ \(.+\)/, '') || '—'} · ${r.s.trackName}`}</div>
               </div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -1364,8 +1524,8 @@ function RemindersModal(opts: { reminders: RemindersData }) {
   const eligible = r.rows.filter((x) => x.remaining > 0);
   return (
     <div id="rem-modal" data-dialog hidden>
-      <div style="width:1160px;max-width:100%;max-height:calc(100vh - 88px);background:#fff;border:1px solid #e2e3e8;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(22,23,29,0.25);">
-        <div style="display:flex;align-items:center;gap:16px;padding:13px 20px;border-bottom:1px solid #e2e3e8;flex:none;">
+      <div class="ev-remdlg" style="background:#fff;border:1px solid #e2e3e8;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(22,23,29,0.25);">
+        <div class="ev-remhead" style="display:flex;align-items:center;border-bottom:1px solid #e2e3e8;flex:none;">
           <div id="rem-title" style="font-size:15px;font-weight:700;letter-spacing:-0.01em;">
             {r.scope === 'plan' ? `Remind reviewers · ${r.planName}` : 'Remind evaluators'}
           </div>
@@ -1385,14 +1545,14 @@ function RemindersModal(opts: { reminders: RemindersData }) {
             <span style="font-size:13px;line-height:1;">⚙</span>
             <span id="rem-hdr-label">Automation settings</span>
           </button>
-          <button type="button" id="rem-x" style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;padding:2px 6px;line-height:1;">
+          <button type="button" id="rem-x" class="ev-remx" style="background:none;border:none;font-size:18px;color:#9a9da6;cursor:pointer;line-height:1;">
             ×
           </button>
         </div>
 
         {/* ---------------------------------------------------------- send */}
         <div data-rem-pane="send" style="display:flex;flex-direction:column;min-height:0;flex:1;">
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;overflow:auto;flex:1;min-height:0;">
+          <div class="ev-remgrid" style="display:grid;overflow:auto;flex:1;min-height:0;">
             <div style="border-right:1px solid #eceded;">
               <div style="display:flex;gap:6px;align-items:center;padding:12px 20px;border-bottom:1px solid #eceded;flex-wrap:wrap;">
                 <button type="button" id="sel-left" style="padding:5px 10px;border:1px solid #e2e3e8;background:#fff;font-size:11.5px;font-weight:600;color:#33343c;cursor:pointer;">
@@ -1406,7 +1566,8 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                 </div>
               </div>
               <div
-                style={`display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;padding:8px 20px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
+                class="ev-remhdr"
+                style={`padding:8px 20px;border-bottom:1px solid #eceded;font-family:${MONO};font-size:10px;letter-spacing:0.1em;color:#9a9da6;`}
               >
                 <div></div>
                 <div>EVALUATOR</div>
@@ -1422,7 +1583,8 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                     data-remaining={String(row.remaining)}
                     data-name={row.name}
                     data-selected={dis ? '0' : '1'}
-                    style={`display:grid;grid-template-columns:26px minmax(0,1fr) 130px 100px 92px;gap:12px;padding:10px 20px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:${
+                    class="ev-remrow"
+                    style={`padding:10px 20px;border-bottom:1px solid #f2f3f5;align-items:center;cursor:${
                       dis ? 'default' : 'pointer'
                     };${dis ? 'opacity:0.55;' : ''}`}
                   >
@@ -1479,8 +1641,8 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                 <div style="padding:28px 20px;font-size:13px;color:#686b74;">No reviewers with a queue yet.</div>
               ) : null}
             </div>
-            <div style="padding:16px 20px;display:grid;gap:10px;align-content:start;">
-              <div style="display:flex;align-items:baseline;gap:8px;">
+            <div class="ev-rempane" style="display:grid;gap:10px;align-content:start;">
+              <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
                 <div style={MICRO_WIDE}>REMINDER EMAIL</div>
                 <div style="margin-left:auto;display:flex;align-items:center;gap:8px;">
                   <button type="button" data-rem-goto="editor" style="padding:5px 10px;background:#fff;border:1px solid #e2e3e8;color:#33343c;font-size:11.5px;cursor:pointer;">
@@ -1535,8 +1697,8 @@ function RemindersModal(opts: { reminders: RemindersData }) {
 
         {/* ---------------------------------------------------------- auto */}
         <div data-rem-pane="auto" hidden style="display:flex;flex-direction:column;min-height:0;flex:1;">
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;overflow:auto;flex:1;min-height:0;">
-            <div style="padding:18px 20px;border-right:1px solid #eceded;display:grid;gap:18px;align-content:start;">
+          <div class="ev-remgrid2" style="display:grid;overflow:auto;flex:1;min-height:0;">
+            <div class="ev-rempane" style="border-right:1px solid #eceded;display:grid;gap:18px;align-content:start;">
               <div style="display:flex;align-items:center;gap:12px;">
                 <button
                   type="button"
@@ -1616,12 +1778,12 @@ function RemindersModal(opts: { reminders: RemindersData }) {
                 </div>
               </div>
             </div>
-            <div style="padding:18px 20px;">
+            <div class="ev-rempane">
               <div style={`${MICRO}margin-bottom:6px;`}>NEXT SCHEDULED SENDS</div>
               <div id="upcoming"></div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;flex-wrap:wrap;">
             <button type="button" id="save-auto" style="padding:10px 18px;background:#16171d;color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer;">
               Save automation
             </button>
@@ -1635,7 +1797,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
 
         {/* -------------------------------------------------------- editor */}
         <div data-rem-pane="editor" hidden style="display:flex;flex-direction:column;min-height:0;flex:1;">
-          <div style="flex:1;min-height:0;overflow:auto;padding:18px 20px;">
+          <div class="ev-rempane" style="flex:1;min-height:0;overflow:auto;">
             <div data-ed-pane="edit" style="display:grid;gap:14px;max-width:720px;margin:0 auto;">
               <div>
                 <div style={`${MICRO_WIDE}margin-bottom:6px;`}>SUBJECT</div>
@@ -1676,7 +1838,7 @@ function RemindersModal(opts: { reminders: RemindersData }) {
               </div>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid #e2e3e8;flex:none;flex-wrap:wrap;">
             <button type="button" data-send-test style="padding:8px 14px;background:#fdf6e0;border:1px solid #e8d79a;color:#7a5c0a;font-size:12.5px;cursor:pointer;">
               Send test to me
             </button>

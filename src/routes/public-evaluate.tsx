@@ -37,6 +37,39 @@ import {
 
 const app = new Hono<Ctx>();
 
+/**
+ * The workspace's own chrome. Desktop values are byte-for-byte the inline
+ * styles they replaced — a media query cannot beat an inline style, so every
+ * property the phone block touches has to live here (SPECS/M-mobile.md).
+ *
+ * Below 768px the 216px rail turns into a top bar: logo on the left, the
+ * reviewer's avatar and Sign out on the right. The rail's three text items say
+ * nothing a reviewer needs on a phone, so they drop out.
+ */
+const EVAL_SHELL_CSS = `
+  .ev-shell{display:grid;grid-template-columns:216px 1fr;min-height:100vh;}
+  .ev-nav{padding:20px 0;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;
+    border-right:1px solid #e2e3e8;}
+  .ev-navlogo{padding:0 20px 18px;}
+  .ev-navuser{margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;}
+  .ev-head{padding:14px 28px;gap:14px;}
+  .ev-headname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ev-body{padding:26px 28px;}
+  .ev-empty{padding:48px 28px;}
+  .ev-emptycard{padding:40px 28px;}
+  @media (max-width:768px){
+    .ev-shell{grid-template-columns:1fr;}
+    .ev-nav{padding:10px 14px;flex-direction:row;align-items:center;gap:12px;position:static;height:auto;
+      overflow:visible;border-right:none;border-bottom:1px solid #e2e3e8;}
+    .ev-navlogo{padding:0;display:flex;align-items:center;}
+    .ev-navuser{margin-top:0;margin-left:auto;padding:0;border-top:none;}
+    .ev-head{padding:10px 14px;gap:8px;flex-wrap:wrap;}
+    .ev-body{padding:16px 14px;}
+    .ev-empty{padding:24px 14px;}
+    .ev-emptycard{padding:28px 16px;}
+  }
+`;
+
 const Shell: FC<
   PropsWithChildren<{
     eventName: string;
@@ -54,28 +87,35 @@ const Shell: FC<
       <Favicons />
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href={GOOGLE_FONTS} rel="stylesheet" />
-      <style>{raw(ADMIN_BASE_CSS + EVAL_QUEUE_CSS)}</style>
+      <style>{raw(ADMIN_BASE_CSS + EVAL_SHELL_CSS + EVAL_QUEUE_CSS)}</style>
     </head>
     <body>
-      <div style="display:grid;grid-template-columns:216px 1fr;min-height:100vh;">
-        <nav style="background:#fff;border-right:1px solid #e2e3e8;padding:20px 0;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow-y:auto;">
-          <a href="/" aria-label="Unsession home" style="padding:0 20px 18px;display:block;text-decoration:none;">
+      <div class="ev-shell">
+        <nav class="ev-nav" style="background:#fff;display:flex;">
+          <a href="/" aria-label="Unsession home" class="ev-navlogo" style="display:block;text-decoration:none;">
             <ProductLogo height={22} />
           </a>
-          <div style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}>
+          <div
+            class="us-desktop-only"
+            style={`padding:6px 20px 4px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`}
+          >
             PROGRAM
           </div>
-          <div style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;">
+          <div class="us-desktop-only" style="display:block;padding:7px 20px;color:#4c5fd5;font-size:13.5px;background:#eef0fb;font-weight:600;">
             Evaluation Queue
           </div>
-          <div style="padding:14px 20px 0;font-size:11.5px;line-height:1.5;color:#9a9da6;">You have evaluation access.</div>
-          <div style="margin-top:auto;padding:16px 20px 0;border-top:1px solid #eceded;">
+          <div class="us-desktop-only" style="padding:14px 20px 0;font-size:11.5px;line-height:1.5;color:#9a9da6;">
+            You have evaluation access.
+          </div>
+          <div class="ev-navuser">
             <div style="display:flex;align-items:center;gap:9px;">
-              <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>
+              <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;flex:none;`}>
                 {initials(props.userName)}
               </div>
               <div style="min-width:0;">
-                <div style="font-size:12.5px;font-weight:600;">{props.userName}</div>
+                <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                  {props.userName}
+                </div>
                 <a href="/auth/signout" style="font-size:11px;color:#9a9da6;text-decoration:none;">
                   Sign out
                 </a>
@@ -84,9 +124,9 @@ const Shell: FC<
           </div>
         </nav>
         <main style="min-width:0;">
-          <header style="background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;">
-            <div style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">{props.eventName}</div>
-            <div style={`margin-left:auto;font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:#9a9da6;`}>
+          <header class="ev-head" style="background:#fff;border-bottom:1px solid #e2e3e8;display:flex;align-items:center;">
+            <div class="ev-headname" style="font-weight:700;font-size:16px;letter-spacing:-0.01em;">{props.eventName}</div>
+            <div style={`margin-left:auto;font-family:${MONO};font-size:10.5px;letter-spacing:0.08em;color:#9a9da6;white-space:nowrap;`}>
               {props.kicker}
             </div>
           </header>
@@ -119,8 +159,8 @@ app.get('/:event/evaluate', async (c) => {
   if (!myPlans.length) {
     return c.html(
       <Shell eventName={event.name} userName={userName} kicker="NO EVALUATION ACCESS">
-        <div style="max-width:680px;margin:0 auto;padding:48px 28px;">
-          <div style="background:#fff;border:1px solid #e2e3e8;padding:40px 28px;text-align:center;">
+        <div class="ev-empty" style="max-width:680px;margin:0 auto;">
+          <div class="ev-emptycard" style="background:#fff;border:1px solid #e2e3e8;text-align:center;">
             <div style={`font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;margin-bottom:8px;`}>
               NOTHING ASSIGNED
             </div>
@@ -144,7 +184,7 @@ app.get('/:event/evaluate', async (c) => {
 
   return c.html(
     <Shell eventName={event.name} userName={userName} kicker={kicker} toast={c.req.query('ok') ?? null} scripts={['/js/evaluate.js']}>
-      <div style="max-width:1120px;margin:0 auto;padding:26px 28px;">
+      <div class="ev-body" style="max-width:1120px;margin:0 auto;">
         <EvalQueue
           ctx={ctx}
           myPlans={myPlans}
