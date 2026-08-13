@@ -221,9 +221,9 @@ app.get('/app/embeds', async (c) => {
   return c.html(
     <AdminLayout {...props} headerActions={headerActions} scripts={['/js/embeds.js']}>
       <div style="padding:24px 28px;">
-        <div style="font-size:13px;color:#686b74;line-height:1.6;max-width:640px;">
-          Embed your agenda, sessions, or speakers on your website or in your app. Each embed reads from the published
-          program and updates automatically when you publish changes.
+        <div style="font-size:13px;color:#686b74;line-height:1.6;">
+          <div>Embed your agenda, sessions, or speakers on your website or in your app.</div>
+          <div>Each embed reads from the published program and updates automatically when you publish changes.</div>
         </div>
         {!event.published ? (
           <div style="margin-top:14px;background:#fdf5dc;border:1px solid #f3e3ab;padding:11px 14px;font-size:12.5px;color:#8a6d1a;">
