@@ -8,6 +8,7 @@ import { all, one, now, run } from './db';
 import { newId } from './ids';
 import { slugify } from './slugify';
 import { logActivity } from './activity';
+import { upsertOrgContact } from './org-contacts';
 import type { Bindings } from '../types';
 
 type SubRow = {
@@ -37,6 +38,7 @@ function matchOption(options: OptionRow[], taxonomy: string, answer: unknown): O
 /** Ensure a per-event speaker profile exists for each submission speaker; returns profile ids in position order. */
 export async function ensureSpeakerProfiles(env: Bindings, eventId: string, speakers: SpeakerRow[]): Promise<string[]> {
   const ids: string[] = [];
+  const org = await one<{ org_id: string }>(env.DB, `SELECT org_id FROM events WHERE id = ?`, eventId);
   for (const sp of speakers) {
     if (!sp.email) continue;
     const existing = await one<{ id: string }>(
@@ -74,6 +76,24 @@ export async function ensureSpeakerProfiles(env: Bindings, eventId: string, spea
       slug,
       now()
     );
+    // Mirror the speaker into the org's contact directory (Speaker CRM).
+    if (org) {
+      await upsertOrgContact(
+        env.DB,
+        org.org_id,
+        {
+          email: sp.email,
+          name: sp.name || sp.email,
+          bio: sp.bio,
+          job_title: sp.job_title,
+          company: sp.company,
+          tagline: sp.tagline,
+          links_json: sp.links_json,
+          headshot_file_id: sp.headshot_file_id,
+        },
+        'event'
+      );
+    }
     ids.push(id);
   }
   return ids;

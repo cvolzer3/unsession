@@ -388,6 +388,14 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
        VALUES (?,?,?,?,?,?,NULL,?,?)`,
       [id, eventId, email === speakerPersonaEmail ? speakerPersonaUserId : null, email, name, bio, s, stamp],
     ]);
+    // Mirror into the org's contact directory (Speaker CRM). The sandbox org is
+    // brand new, so a plain INSERT in the same batch does what upsertOrgContact
+    // would — and costs no extra subrequest.
+    stmts.push([
+      `INSERT INTO org_contacts (id, org_id, email, name, bio, source, created_at, updated_at)
+       VALUES (?,?,?,?,?,'event',?,?)`,
+      [newId('ctc'), orgId, email, name, bio, stamp, stamp],
+    ]);
   };
   D.SUBMISSIONS.forEach((s) => s.speakers.forEach((sp) => addProfile(sp.name, D.suffixEmail(sp.email, suffix), sp.bio)));
 

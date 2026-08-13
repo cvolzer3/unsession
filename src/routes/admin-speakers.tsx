@@ -36,6 +36,7 @@ import { listReminderQueue, queueTaskReminder } from '../lib/reminder-queue';
 import { OUTBOX_SEND_LIMIT } from '../lib/decision-queue';
 import * as T from '../lib/tasks';
 import { speakerAffiliation } from '../lib/agenda';
+import { upsertOrgContact } from '../lib/org-contacts';
 
 const app = new Hono<Ctx>();
 
@@ -1468,6 +1469,26 @@ app.post('/app/api/speakers/import', requireOrgRole('admin'), async (c) => {
     );
   }
   await batch(c.env.DB, stmts);
+
+  // Mirror imported speakers into the org's contact directory (Speaker CRM).
+  for (const [key, p] of seen) {
+    if (byEmail.has(key)) continue; // already a profile here, so already a contact
+    await upsertOrgContact(
+      c.env.DB,
+      event.org_id,
+      {
+        email: p.email,
+        name: p.name,
+        bio: p.bio,
+        job_title: p.job_title,
+        company: p.company,
+        tagline: p.tagline,
+        pronouns: p.pronouns,
+        links_json: p.links_json,
+      },
+      'import'
+    );
+  }
 
   // Version history for overwritten profiles (new profiles start theirs on
   // their first later edit). Snapshots are complete: headshot rode along on

@@ -31,6 +31,9 @@ import adminSpeakers from './routes/admin-speakers';
 import adminFiles from './routes/admin-files';
 import adminAgenda from './routes/admin-agenda';
 import adminEmbeds from './routes/admin-embeds';
+import adminOrgDirectory from './routes/admin-org-directory';
+import adminOrgContact from './routes/admin-org-contact';
+import adminOrgPipeline from './routes/admin-org-pipeline';
 import publicAgenda from './routes/public-agenda';
 import publicEmbed from './routes/public-embed';
 import publicWidgets from './routes/public-widgets';
@@ -75,6 +78,9 @@ app.route('/', adminSpeakers);
 app.route('/', adminFiles);
 app.route('/', adminAgenda);
 app.route('/', adminEmbeds);
+app.route('/', adminOrgDirectory);
+app.route('/', adminOrgContact);
+app.route('/', adminOrgPipeline);
 
 // Public, event-themed surfaces — order-sensitive, `/:event/:form` last.
 app.route('/', publicPortal);

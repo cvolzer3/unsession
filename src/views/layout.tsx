@@ -269,7 +269,6 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             </div>
             {navLink('/app/setup', 'Setup & Theming', isActive('/app/setup'))}
             {navLink('/app/forms', 'Forms', isActive('/app/forms'))}
-            {navLink('/app/team', 'Team', isActive('/app/team'))}
             {navLink('/app/emails', 'Emails', isActive('/app/emails'))}
             <div style={SECTION_LABEL}>PROGRAM</div>
             {navLink('/app/submissions', 'Submissions', isActive('/app/submissions'))}
@@ -284,13 +283,12 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {navLink(`/${slug}/agenda`, 'Agenda Page ↗', false, true)}
             {navLink(`/${slug}/sessions`, 'Sessions Page ↗', false, true)}
             {navLink(`/${slug}/speakers`, 'Speakers Page ↗', false, true)}
+            <div style={SECTION_LABEL}>ORGANIZATION</div>
+            {navLink('/app/org/contacts', 'Speaker Directory', isActive('/app/org/contacts'))}
+            {navLink('/app/org/pipeline', 'Pipeline', isActive('/app/org/pipeline'))}
+            {navLink('/app/team', 'Team', isActive('/app/team'))}
             {/* Sandbox orgs can't mint API tokens — hide the page entirely. */}
-            {props.sandbox ? null : (
-              <>
-                <div style={SECTION_LABEL}>WORKSPACE</div>
-                {navLink('/app/api', 'API', isActive('/app/api'))}
-              </>
-            )}
+            {props.sandbox ? null : navLink('/app/api', 'API', isActive('/app/api'))}
             <div style="margin-top:auto;padding:14px 20px 0;border-top:1px solid #eceded;">
               <div style="display:flex;align-items:center;gap:9px;">
                 <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>

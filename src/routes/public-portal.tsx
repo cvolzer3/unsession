@@ -23,6 +23,7 @@ import { addFileComment, fmtDateTime, listFileComments, type FileCommentRow } fr
 import * as T from '../lib/tasks';
 import { LINK_FIELDS, normalizeLink, type SpeakerLinks } from '../lib/speaker-links';
 import { roleLabel } from '../lib/speaker-roles';
+import { upsertOrgContact } from '../lib/org-contacts';
 
 const app = new Hono<Ctx>();
 
@@ -1271,6 +1272,13 @@ app.post('/:event/portal/profile', async (c) => {
       linksJson,
       slug,
       now()
+    );
+    // Mirror the speaker into the org's contact directory (Speaker CRM).
+    await upsertOrgContact(
+      c.env.DB,
+      g.event.org_id,
+      { email: g.email, name: name || g.email, bio, job_title: jobTitle, company, pronouns, links_json: linksJson },
+      'event'
     );
   } else {
     await run(
