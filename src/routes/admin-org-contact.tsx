@@ -192,7 +192,7 @@ app.get('/app/org/contact/:id', async (c) => {
   if (!contact) return c.notFound();
   const db = c.env.DB;
   const orgId = contact.org_id;
-  const props = await adminProps(c, contact.name, { headerTitle: contact.name });
+  const props = await adminProps(c, contact.name, { headerTitle: contact.name, scripts: ['/js/org-contact.js'] });
 
   const [fields, notes, conns, mails, card, dups, events] = await Promise.all([
     all<FieldRow>(db, `SELECT id, name, type, options_json FROM org_fields WHERE org_id = ? ORDER BY created_at, name`, orgId),
@@ -607,7 +607,8 @@ app.get('/app/org/contact/:id', async (c) => {
                 <option value="dropdown">Dropdown</option>
               </select>
             </div>
-            <div>
+            {/* org-contact.js swaps the fallback input for an add-one-at-a-time chip builder */}
+            <div data-option-builder>
               <div style={`${LABEL}margin-bottom:5px;`}>OPTIONS</div>
               <input name="options" placeholder="Comma-separated. Dropdown only." style={INPUT} />
             </div>
@@ -786,10 +787,13 @@ app.post('/app/org/contact/:id/fields/new', manage, async (c) => {
   const type = clean(body.type) === 'dropdown' ? 'dropdown' : 'text';
   if (!name) return c.redirect(back(contact.id, undefined, 'Give the field a name.'));
 
-  const options = clean(body.options)
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
+  // Chip builder posts one options[] input per value; the no-JS fallback is
+  // the comma-separated text input.
+  const raw = body['options[]'];
+  const fromChips = (Array.isArray(raw) ? raw : raw != null ? [raw] : []).map(clean).filter(Boolean);
+  const options = [
+    ...new Set(fromChips.length ? fromChips : clean(body.options).split(',').map((o) => o.trim()).filter(Boolean)),
+  ];
   if (type === 'dropdown' && !options.length) {
     return c.redirect(back(contact.id, undefined, 'A dropdown needs at least one option.'));
   }
