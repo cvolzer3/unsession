@@ -17,30 +17,24 @@
 import { Hono } from 'hono';
 import type { Bindings } from '../types';
 import { apiTokenAuth, canWrite, type ApiAuth, type ApiCtx } from '../lib/api-tokens';
+import { EVENT_PROP, str, type Tool, type ToolArgs } from '../lib/api-core';
 import * as api from './api';
+import { FORM_TOOLS } from './api-forms';
+import { EVALUATION_TOOLS } from './api-evaluation';
+import { EMBED_TOOLS } from './api-embeds';
+import { FILE_TOOLS } from './api-files';
+import { EMAIL_TOOLS } from './api-emails';
+import { EVENT_ADMIN_TOOLS } from './api-event-admin';
+import { SPEAKER_TASK_TOOLS } from './api-speaker-tasks';
+import { ORG_TOOLS } from './api-org';
 
-const SERVER_INFO = { name: 'unsession', version: '0.1.0' };
+const SERVER_INFO = { name: 'unsession', version: '0.2.0' };
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26'];
 const LATEST_PROTOCOL = '2025-06-18';
 
 /* ------------------------------------------------------------------- tools */
 
-type ToolArgs = Record<string, unknown>;
-
-type Tool = {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  /** True = omitted from tools/list for read-only tokens. */
-  write?: boolean;
-  run: (env: Bindings, auth: ApiAuth, args: ToolArgs) => Promise<unknown>;
-};
-
-const str = (v: unknown): string => (typeof v === 'string' ? v : v === undefined || v === null ? '' : String(v));
-
-const EVENT_PROP = { type: 'string', description: 'Event slug or id (see list_events).' };
-
-export const TOOLS: Tool[] = [
+const CORE_TOOLS: Tool[] = [
   {
     name: 'list_events',
     description: 'List the events this token can see (id, name, slug, dates, timezone, venue, published). Read-only.',
@@ -307,7 +301,7 @@ export const TOOLS: Tool[] = [
   {
     name: 'update_speaker',
     description:
-      'UPDATE a speaker profile: name, bio, job title, company, pronouns and/or links ({linkedin, x, website, other}; links merge, null removes). Activity-logged; may auto-complete an open “complete profile” task. Sends no email.',
+      'UPDATE a speaker profile: name, bio, job title, company, pronouns, links ({linkedin, x, website, other}; links merge, null removes) and/or the organizer-only travelNotes. Activity-logged; may auto-complete an open “complete profile” task. Sends no email.',
     write: true,
     inputSchema: {
       type: 'object',
@@ -319,6 +313,7 @@ export const TOOLS: Tool[] = [
         company: { type: ['string', 'null'] },
         pronouns: { type: ['string', 'null'] },
         links: { type: 'object', description: 'Keys linkedin/x/website/other; values are URLs, null removes.' },
+        travelNotes: { type: ['string', 'null'], description: 'Organizer-only travel & logistics notes; never shown to the speaker. Null clears.' },
       },
       required: ['id'],
       additionalProperties: false,
@@ -365,6 +360,23 @@ export const TOOLS: Tool[] = [
     },
     run: (env, auth, a) => api.completeTask(env, auth, str(a.id)),
   },
+];
+
+/**
+ * The full tool surface: the round-1 core (events, submissions, decisions,
+ * sessions, speakers, tasks) plus the parity-round-2 domain modules. Order
+ * groups related tools for humans reading tools/list.
+ */
+export const TOOLS: Tool[] = [
+  ...CORE_TOOLS,
+  ...FORM_TOOLS,
+  ...EVALUATION_TOOLS,
+  ...EMAIL_TOOLS,
+  ...EVENT_ADMIN_TOOLS,
+  ...SPEAKER_TASK_TOOLS,
+  ...FILE_TOOLS,
+  ...EMBED_TOOLS,
+  ...ORG_TOOLS,
 ];
 
 /* ---------------------------------------------------------------- JSON-RPC */

@@ -274,7 +274,7 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
               <div style="font-size:12.5px;color:#686b74;line-height:1.5;">
                 Clients without OAuth can still send the Bearer header instead.{' '}
                 <a href="/docs/mcp#tools" style="color:#4c5fd5;font-weight:600;white-space:nowrap;">
-                  All 19 tools →
+                  All 84 tools →
                 </a>
               </div>
             </div>
@@ -284,23 +284,23 @@ async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
             <div class="api-scope api-cell-l">
               <span style={`${CHIP}color:#1c7ed6;background:#e7f1fb;`}>READ</span>
               <span style="font-size:12.5px;color:#686b74;line-height:1.5;">
-                Events, forms, submissions, sessions, speakers, tasks and the published agenda. Read-only tokens
-                see only the read MCP tools.
+                Events, forms, submissions, evaluations, sessions, speakers, tasks, files, emails, embeds, the CRM
+                and the published agenda. Read-only tokens see only the read MCP tools.
               </span>
             </div>
             <div class="api-scope">
               <span style={`${CHIP}color:#9c36b5;background:#f6e8f9;`}>WRITE</span>
               <span style="font-size:12.5px;color:#686b74;line-height:1.5;">
-                Adds submission create/update, decisions, session create/edit/schedule, speaker profile edits and
-                task assignment. Every write lands in the activity log as{' '}
-                <span style={`font-family:${MONO};font-size:11.5px;`}>api:&lt;token name&gt;</span>.
+                Adds everything an organizer can do: decisions and the outbox, form building, evaluation plans and
+                scores, scheduling and publish, task and email workflows, CRM and team invites. Every write lands
+                in the activity log as <span style={`font-family:${MONO};font-size:11.5px;`}>api:&lt;token name&gt;</span>.
               </span>
             </div>
           </div>
 
           <div class="api-foot" style="border-top:1px solid #f2f3f5;padding:10px 20px;font-size:12px;color:#9a9da6;">
-            Deliberately out of scope in v1: form/schema editing, event creation, team management, email template
-            CRUD.
+            Deliberately UI-only: file uploads, CRM contact deletion/merging, team role changes and removal, and
+            CSV/XLSX exports. Org-level tools (CRM, pipeline, team) need an org-wide token.
           </div>
         </div>
       </div>

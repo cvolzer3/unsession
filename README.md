@@ -17,14 +17,14 @@ The [sandbox](https://unsession.dev) is a live event mid-lifecycle: submissions 
 
 ## Unsession MCP: Your AI agent can work the CFP with you
 
-Unsession ships an MCP server, so Claude Code, Claude, Cursor, and anything else that speaks MCP can read your submission queue, pull evaluation scores, accept a talk, add a sponsor session, or move something on the agenda. Same engines, same permissions, same activity log as the admin UI. There is also a bearer-token REST API (`/api/v1/*`) over the same operations. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
+Unsession ships an MCP server at parity with the admin UI: anything an organizer can do in the app, an agent can do over MCP. Claude Code, Claude, Cursor, and anything else that speaks MCP can read the submission queue, build forms, run evaluation plans and record scores, queue decisions and send the outbox, review uploaded slides and reply with feedback, schedule and publish the agenda, create embeds, work the speaker CRM and pipeline, and invite teammates. Same engines, same permissions, same activity log as the admin UI. There is also a bearer-token REST API (`/api/v1/*`) over the same operations. Full guide, tool reference and per-client snippets: **[unsession.dev/docs/mcp](https://unsession.dev/docs/mcp)**.
 
 | | |
 |---|---|
 | **Endpoint** | `POST https://unsession.dev/api/mcp` (self-hosted: `https://<your-domain>/api/mcp`) |
 | **Transport** | Streamable HTTP — stateless JSON-RPC 2.0 over POST. No SSE, no sessions, no SDK, no Durable Objects. |
 | **Auth** | OAuth (add the URL, sign in) or a static token: `Authorization: Bearer uns_…`, minted at `/app/api` |
-| **Tools** | 19 — 10 read, 9 write. Write tools are omitted from `tools/list` for read-only tokens. |
+| **Tools** | 84 — 32 read, 52 write. Write tools are omitted from `tools/list` for read-only tokens; org-level tools (CRM, pipeline, team) need an org-wide token. |
 
 **1. Connect with OAuth, or mint a token.** Clients that speak OAuth — the Claude apps, VS Code, Cursor — need only the endpoint URL: add it, sign in, and pick a workspace and a scope on the consent page. The server supports dynamic client registration, so there is nothing to configure first. For header-based clients, mint a token instead: sign in → **Workspace → API** (`/app/api`) → **New token**. Choose read-only or read-write, optionally restrict it to one event, and copy the secret — it is shown once. (Sandbox workspaces can't create tokens or approve OAuth connections.)
 
@@ -60,7 +60,7 @@ curl -s https://unsession.dev/api/mcp \
 
 **3. Hosting it yourself.** The MCP endpoint is part of the worker — deploy per [Self-hosting](#self-hosting) below and it is live at `/api/mcp` on your origin, with nothing extra to enable or run. OAuth runs on your origin too, and tokens are minted on your own instance at `/app/api`; hosted-service credentials don't work against it.
 
-Every write lands in the activity log as `api:<token name>`. Three tools send email — `decide_submission` (suppressible with `sendEmail: false`), `update_session`/`schedule_session` when a confirmed session moves, and `assign_task` — and the rest are silent. Note that `decide_submission` applies a decision immediately rather than queueing it for the Emails → Outbox review the admin UI uses; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts), spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
+Every write lands in the activity log as `api:<token name>`. Tools that send email say so in their descriptions — `decide_submission` (suppressible with `sendEmail: false`), `send_outbox`, `update_session`/`schedule_session` when a confirmed session moves, `assign_task`, `save_evaluation_plan`, `remind_evaluators`, `review_task` (request-changes), `email_speaker`, `email_contacts`, `invite_teammate` — and the rest are silent. Decisions come in two speeds: `queue_decision` + `send_outbox` is the admin UI's reviewable two-phase flow, while `decide_submission` applies immediately; give an agent a read-only token if you want recommendations without sends. Implementation: [`src/routes/mcp.ts`](src/routes/mcp.ts) plus the `src/routes/api-*.ts` domain modules, spec: [`SPECS/C-api-mcp.md`](SPECS/C-api-mcp.md).
 
 ## Stack
 

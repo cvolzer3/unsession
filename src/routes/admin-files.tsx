@@ -92,7 +92,7 @@ function fmtSize(bytes: number): string {
 /* ------------------------------------------------------------ page data */
 
 /** One version chain — what a library row shows. */
-type Chain = {
+export type Chain = {
   /** Latest version's file id — the row's `?file=` opener and reply target. */
   fileId: string;
   kind: string;
@@ -117,7 +117,7 @@ const KIND_LABEL: Record<string, string> = {
   upload: 'Upload',
 };
 
-async function loadLibrary(env: Ctx['Bindings'], eventId: string): Promise<Chain[]> {
+export async function loadLibrary(env: Ctx['Bindings'], eventId: string): Promise<Chain[]> {
   const rows = await all<FileRow>(
     env.DB,
     `SELECT * FROM files WHERE event_id = ? ORDER BY version DESC, created_at DESC`,

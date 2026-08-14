@@ -188,6 +188,7 @@ const READ_TOOLS: [string, string][] = [
   ['list_events', 'Events this token can see — id, name, slug, dates, timezone, venue, published.'],
   ['get_event', 'One event with its rooms and taxonomies (Track / Format / Level options and their ids).'],
   ['list_forms', 'An event’s submission forms — id, name, slug, status, open/close dates, public URL.'],
+  ['get_form', 'One form in full: settings, open state, and the hydrated field schema with flags and conditions.'],
   [
     'list_submissions',
     'Submissions with answers, speakers, status and resolved track/format/level. Filters: status, form, track, free-text q. Cursor-paginated (default 100, max 500).',
@@ -196,8 +197,29 @@ const READ_TOOLS: [string, string][] = [
   ['list_sessions', 'Sessions including schedule (day / start / end / room), type, status and publish flag.'],
   ['get_session', 'One session — schedule, speakers, track/format, publish flag.'],
   ['list_speakers', 'Speaker profiles — name, email, bio, job title, company, pronouns, links, headshot — with task progress counts.'],
+  ['get_speaker', 'One speaker in full: profile, travel notes, sessions, tasks with latest files, version history.'],
   ['get_agenda', 'The published public agenda, same shape as /{slug}/agenda.json. Fails while the agenda is unpublished.'],
+  ['get_schedule_conflicts', 'Double-booked rooms, speakers in two places, sessions past the day end — per session or all.'],
   ['list_tasks', 'Speaker and session task instances with status, due date and target.'],
+  ['list_task_templates', 'Task templates: type, target, trigger, due rule, clauses, reminders, live instance counts.'],
+  ['preview_task_rule', 'Who an assignment rule (trigger + clauses) reaches right now, before saving a template.'],
+  ['list_evaluation_plans', 'Evaluation plans: criteria, scope rules, reviewers with per-reviewer load, progress.'],
+  ['list_evaluations', 'Recorded evaluations — scores per criterion, notes, abstentions. Filters: plan, submission, reviewer.'],
+  ['get_evaluation_scores', 'Score summary per submission across plans: average, done, expected, remaining.'],
+  ['list_email_templates', 'Email templates with subject, body and sent counts.'],
+  ['list_email_log', 'The email log — every recorded email with status (sent / simulated / failed). Cursor-paginated.'],
+  ['get_email', 'One logged email in full, body and failure error included.'],
+  ['get_outbox', 'Queued decisions and task reminders that have not been sent yet.'],
+  ['list_files', 'The files library grouped by version chain — deliverables, headshots, samples — with comment counts.'],
+  ['get_file', 'One file’s version chain and its cross-role comment thread.'],
+  ['list_embeds', 'Saved website embeds with snippets and URLs, plus the widget/format catalog.'],
+  ['list_content_versions', 'Version history for a session’s title/abstract or a speaker profile.'],
+  ['list_activity', 'The event activity feed — every logged action with actor and detail. Cursor-paginated.'],
+  ['list_contacts', 'The org-wide speaker CRM directory. Filters: q, company, jobTitle, tag. Org-wide tokens only.'],
+  ['get_contact', 'One CRM contact: fields, tags, custom fields, notes, cross-event history, pipeline card.'],
+  ['get_pipeline', 'The speaker-pipeline board — every card by stage in column order.'],
+  ['get_pipeline_card', 'One pipeline card with contact, notes and stage history.'],
+  ['list_team', 'Org members with roles, plus pending invites.'],
 ];
 
 const WRITE_TOOLS: [string, string, boolean][] = [
@@ -209,9 +231,20 @@ const WRITE_TOOLS: [string, string, boolean][] = [
   ['update_submission', 'Update title, abstract and/or answers. Answers merge; a null value removes a key.', false],
   [
     'decide_submission',
-    'Accept, decline or waitlist. Runs the real decision engine: flips the status, creates the public Session on accept, mints a 7-day confirmation link, and emails the speaker unless sendEmail is false.',
+    'Accept, decline or waitlist — immediately. Runs the real decision engine: flips the status, creates the public Session on accept, mints a 7-day confirmation link, and emails the speaker unless sendEmail is false.',
     true,
   ],
+  [
+    'queue_decision',
+    'Queue decisions into the outbox instead — the admin modal’s semantics. Nothing happens (and nothing is visible to speakers) until send_outbox.',
+    false,
+  ],
+  [
+    'send_outbox',
+    'Send the outbox: applies queued decisions (status, sessions, tasks, decision emails) and queued task reminders, 40 rows per call.',
+    true,
+  ],
+  ['remove_from_outbox', 'Remove queued decisions or reminders before they send — the outbox undo.', false],
   ['create_session', 'Create a sponsor or service session. Talk sessions only ever arrive by accepting a submission.', false],
   [
     'update_session',
@@ -219,13 +252,57 @@ const WRITE_TOOLS: [string, string, boolean][] = [
     true,
   ],
   ['schedule_session', 'Put a session in a slot (day, startMin, optional room) or unschedule it. Same engine, same schedule notice.', true],
-  ['update_speaker', 'Update a speaker profile — name, bio, job title, company, pronouns, links. May auto-complete an open “complete profile” task.', false],
+  ['delete_session', 'Delete a sponsor or service session. Talks can only be unscheduled or unpublished.', false],
+  ['auto_schedule', 'Fill the unscheduled bin — deterministic greedy packer. Deliberately sends no schedule emails.', false],
+  ['publish_agenda', 'Publish the agenda (or push pending edits live) and bump the public revision.', false],
+  ['create_form', 'Create a form from a preset (cfp, contact, session intake, empty). Starts as a draft.', false],
+  ['update_form', 'Rename, open/close, set the submission window, and merge settings (welcome copy, notifications, late link…).', false],
+  [
+    'update_form_schema',
+    'Replace the field list through the builder pipeline: normalize, validate, cascade option renames. Copy-on-write versioning keeps old answers intact.',
+    false,
+  ],
+  ['delete_form', 'Delete a form — refused once it has submissions.', false],
+  ['save_evaluation_plan', 'Create or update an evaluation plan: criteria, scope rules, reviewers. Newly added reviewers are emailed their queue link.', true],
+  ['record_evaluation', 'Record a score or abstention for a named reviewer — same guards as the reviewer queue; scores are final.', false],
+  ['remind_evaluators', 'Email evaluators with outstanding reviews, immediately. Reviewers with nothing left are skipped.', true],
+  ['update_email_template', 'Edit a template’s name, subject, body (rich-lite sanitized).', false],
+  ['duplicate_email_template', 'Copy a template as a same-key variant, usable as decide_submission’s templateId.', false],
+  ['update_speaker', 'Update a speaker profile — name, bio, job title, company, pronouns, links, organizer-only travel notes.', false],
+  ['create_speaker', 'Add a speaker profile to an event (keyed by email, idempotent) and mirror them into the CRM directory.', false],
   [
     'assign_task',
     'Assign a task template to speakers or a session, or a one-off task to one speaker. Already-assigned and no-session speakers are skipped and reported. New assignments email each speaker a digest.',
     true,
   ],
   ['complete_task', 'Mark a task instance done as an organizer override. Idempotent.', false],
+  ['remove_task', 'Cancel an open task. Completed tasks are kept for the record.', false],
+  ['review_task', 'Approve a pending deliverable, or request changes — which emails the speakers with your message.', true],
+  ['queue_task_reminder', 'Queue reminders for one task or all of a speaker’s open tasks; they send as one email from the outbox.', false],
+  ['email_speaker', 'Email one speaker directly, immediately, with merge tags.', true],
+  ['save_task_template', 'Create or edit a task template. Edits pin the old wording onto live instances first.', false],
+  ['archive_task_template', 'Archive (or restore) a template — stops assigning, keeps open instances.', false],
+  ['comment_on_file', 'Reply on a file’s comment thread as the organizer. Deliberately sends no email.', false],
+  ['restore_content_version', 'Restore a session or speaker content version — appends a new version, never rewrites history.', false],
+  ['create_embed', 'Create a website embed and get its snippet/URL. Also toggle_embed and delete_embed.', false],
+  ['toggle_embed', 'Enable or disable an embed — disabled embeds 404 publicly but keep their config.', false],
+  ['delete_embed', 'Delete an embed; its public URL stops working.', false],
+  ['create_event', 'Create an event with the standard defaults. Org-wide tokens only.', false],
+  ['update_event', 'Update event settings and theme — name, slug, dates, timezone, venue, mode, colors.', false],
+  ['save_room', 'Add or edit a room (name, capacity, priority). delete_room untags sessions first.', false],
+  ['delete_room', 'Delete a room — sessions in it keep their slot, lose the room.', false],
+  ['create_taxonomy', 'Add a taxonomy (option set) with optional per-option color and duration.', false],
+  ['save_taxonomy_option', 'Add or rename a taxonomy option — renames cascade into form conditions and stored answers.', false],
+  ['delete_taxonomy_option', 'Delete an option — tagged sessions are untagged, never deleted.', false],
+  ['save_contact', 'Create (upsert by email) or update a CRM contact; manage tags and custom fields. Org-wide tokens only.', false],
+  ['add_contact_note', 'Note on a CRM contact’s record.', false],
+  ['add_contact_to_event', 'Add a CRM contact to an event as a speaker profile — idempotent by email.', false],
+  ['email_contacts', 'Bulk-email directory contacts (max 100 per call) with merge tags.', true],
+  ['enroll_pipeline_card', 'Put a contact on the speaker-pipeline board.', false],
+  ['update_pipeline_card', 'Move a card between stages (history-logged), set score/rationale, add notes.', false],
+  ['remove_pipeline_card', 'Take a card off the board; the contact stays in the directory.', false],
+  ['invite_teammate', 'Invite a teammate (admin or collaborator) — emails a one-shot accept link.', true],
+  ['revoke_invite', 'Revoke a pending team invite.', false],
 ];
 
 const REST_READ: [string, string][] = [
@@ -242,6 +319,23 @@ const REST_READ: [string, string][] = [
   ['GET /events/:event/speakers', 'Speaker profiles — bio, pronouns, links, headshot — with task progress counts.'],
   ['GET /events/:event/agenda', 'The published agenda, same shape as /{slug}/agenda.json.'],
   ['GET /events/:event/tasks', 'Task instances with status, due date and speaker/session target.'],
+  ['GET /events/:event/forms/:form', 'One form in full — settings, open state, hydrated field schema.'],
+  ['GET /speakers/:id', 'One speaker in full — profile, travel notes, tasks with files, version history.'],
+  ['GET /events/:event/evaluation/plans', 'Evaluation plans with criteria, reviewers and progress.'],
+  ['GET /events/:event/evaluations', 'Recorded evaluations. Filters: plan, submission, reviewer.'],
+  ['GET /events/:event/evaluation/scores', 'Score summary per submission across plans.'],
+  ['GET /events/:event/email-templates', 'Email templates with sent counts.'],
+  ['GET /events/:event/emails', 'The email log, cursor-paginated. GET /emails/:id for one in full.'],
+  ['GET /events/:event/outbox', 'Queued decisions and task reminders awaiting send.'],
+  ['GET /events/:event/files', 'The files library by version chain. GET /files/:id for one chain + thread.'],
+  ['GET /events/:event/embeds', 'Saved embeds with snippets, plus the widget/format catalog.'],
+  ['GET /events/:event/task-templates', 'Task templates with rules and instance counts.'],
+  ['GET /events/:event/agenda/conflicts', 'Schedule conflicts, per session (?session=) or all.'],
+  ['GET /events/:event/activity', 'The activity feed, cursor-paginated.'],
+  ['GET /content-versions/:subjectType/:id', 'Version history for a session or speaker.'],
+  ['GET /org/contacts', 'The CRM directory (org-wide tokens). GET /org/contacts/:id for one.'],
+  ['GET /org/pipeline', 'The pipeline board. GET /org/pipeline/:id for one card.'],
+  ['GET /org/team', 'Org members and pending invites.'],
 ];
 
 const REST_WRITE: [string, string][] = [
@@ -249,13 +343,37 @@ const REST_WRITE: [string, string][] = [
   ['PATCH /submissions/:id', 'Update title, abstract and/or answers. Answers merge; null removes a key.'],
   [
     'POST /submissions/:id/decision',
-    'Accept, decline or waitlist. Runs the real decision engine and emails the speaker unless sendEmail is false.',
+    'Accept, decline or waitlist immediately. Runs the real decision engine and emails the speaker unless sendEmail is false.',
   ],
-  ['POST /events/:event/sessions', 'Create a sponsor or service session.'],
+  ['POST /events/:event/outbox/decisions', 'Queue decisions for the outbox instead (the admin modal’s semantics).'],
+  ['POST /events/:event/outbox/send', 'Send the outbox — queued decisions then task reminders, 40 rows per call.'],
+  ['POST /events/:event/outbox/remove', 'Remove queued items before they send.'],
+  ['POST /events/:event/sessions', 'Create a sponsor or service session. DELETE /sessions/:id removes one.'],
   ['PATCH /sessions/:id', 'Edit fields. { day, startMin, roomId } schedules; nulls unschedule; published toggles.'],
-  ['PATCH /speakers/:id', 'Update a speaker profile — name, bio, pronouns, links.'],
+  ['POST /events/:event/agenda/autoschedule', 'Fill the unscheduled bin. No emails.'],
+  ['POST /events/:event/agenda/publish', 'Publish the agenda / push edits live.'],
+  ['POST /events/:event/forms', 'Create a form from a preset. PATCH /forms/:id edits; DELETE removes; PUT /forms/:id/schema replaces the fields.'],
+  ['POST /events/:event/evaluation/plans', 'Create or update an evaluation plan (emails new reviewers).'],
+  ['POST /events/:event/evaluations', 'Record a score or abstention for a named reviewer.'],
+  ['POST /events/:event/evaluation/remind', 'Email evaluators with outstanding reviews.'],
+  ['PATCH /email-templates/:id', 'Edit a template. POST /email-templates/:id/duplicate copies it.'],
+  ['PATCH /speakers/:id', 'Update a speaker profile — name, bio, pronouns, links, travel notes.'],
+  ['POST /events/:event/speakers', 'Add a speaker profile (keyed by email, idempotent).'],
   ['POST /tasks', 'Assign a template or one-off task to a speaker or session.'],
   ['POST /tasks/:id/complete', 'Mark a task done as an organizer override. Idempotent.'],
+  ['POST /tasks/:id/remove', 'Cancel an open task. POST /tasks/:id/review approves or requests changes (emails).'],
+  ['POST /task-reminders', 'Queue reminders for a speaker’s task(s) into the outbox.'],
+  ['POST /speakers/email', 'Email one speaker directly.'],
+  ['POST /events/:event/task-templates', 'Create or edit a task template. …/preview previews a rule; /task-templates/:id/archive toggles.'],
+  ['POST /files/:id/comments', 'Reply on a file’s comment thread.'],
+  ['POST /content-versions/:subjectType/:id/restore', 'Restore a session/speaker content version.'],
+  ['POST /events/:event/embeds', 'Create an embed. PATCH /embeds/:id toggles; DELETE removes.'],
+  ['POST /events', 'Create an event (org-wide tokens). PATCH /events/:event updates settings and theme.'],
+  ['POST /events/:event/rooms', 'Add or edit a room. DELETE /events/:event/rooms/:id removes one.'],
+  ['POST /events/:event/taxonomies', 'Add a taxonomy. POST …/taxonomy-options adds/renames options (renames cascade); DELETE …/taxonomy-options/:id removes.'],
+  ['POST /org/contacts', 'Create or update a CRM contact (org-wide tokens). POST /org/contacts/:id/notes, …/add-to-event, /org/contacts/email.'],
+  ['POST /org/pipeline', 'Enroll a contact on the pipeline. PATCH /org/pipeline/:id moves/scores/notes; DELETE removes the card.'],
+  ['POST /org/team/invite', 'Invite a teammate (emails the accept link). POST /org/team/invites/:id/revoke.'],
 ];
 
 const METHODS: [string, string][] = [
@@ -329,7 +447,7 @@ app.get('/docs/mcp', (c) => {
               <div class="sub">
                 OAuth 2.1 · dynamic client registration — no token needed
                 <br />
-                Streamable HTTP · stateless JSON-RPC 2.0 · 19 tools
+                Streamable HTTP · stateless JSON-RPC 2.0 · 84 tools
               </div>
             </div>
           </div>
@@ -351,8 +469,9 @@ app.get('/docs/mcp', (c) => {
             <h2 id="what">What it is</h2>
             <p>
               The <a href="https://modelcontextprotocol.io">Model Context Protocol</a> is how AI agents plug into
-              outside systems. Unsession's MCP server exposes <b>19 tools</b> — ten read, nine write — over the
-              hosted service and over any instance you host yourself.
+              outside systems. Unsession's MCP server exposes <b>84 tools</b> — 32 read, 52 write, covering
+              everything an organizer can do in the admin UI — over the hosted service and over any instance you
+              host yourself.
             </p>
             <p>
               Every tool dispatches into the same functions behind the REST API and the admin screens. There is no
@@ -594,9 +713,11 @@ app.get('/docs/mcp', (c) => {
               </tbody>
             </table>
             <p>
-              Deliberately out of scope in v1: form and schema editing, event creation, team management, and email
-              template CRUD. Those have versioning and permission semantics that deserve their own design rather
-              than a tool call.
+              The tool surface now matches what an organizer can do in the admin UI. Deliberately still UI-only:
+              file <i>uploads</i>, CRM contact deletion and merging, team role changes and member removal, and CSV
+              / XLSX exports (the API returns the same data as JSON) — interactive or destructive operations that
+              want a human at the wheel. Org-level tools (CRM, pipeline, team) additionally require an org-wide
+              token; event-restricted tokens stay inside their event.
             </p>
 
             {/* ------------------------------------------------ safety */}
@@ -620,11 +741,15 @@ app.get('/docs/mcp', (c) => {
                 as it does for a person.
               </li>
               <li>
-                <b>Three tools send email.</b> <code>decide_submission</code> (decision email, suppressible with{' '}
-                <code>sendEmail: false</code>), <code>update_session</code> / <code>schedule_session</code> (a
-                schedule notice, but only when a <i>confirmed</i> session actually moves), and{' '}
-                <code>assign_task</code> (an assignment digest for genuinely new assignments). Every other tool is
-                silent.
+                <b>Emailing tools are labeled.</b> The senders: <code>decide_submission</code> (suppressible with{' '}
+                <code>sendEmail: false</code>), <code>send_outbox</code> (that is its whole job),{' '}
+                <code>update_session</code> / <code>schedule_session</code> (a schedule notice, but only when a{' '}
+                <i>confirmed</i> session actually moves), <code>assign_task</code> and{' '}
+                <code>save_evaluation_plan</code> (digests for genuinely new assignments/reviewers),{' '}
+                <code>remind_evaluators</code>, <code>review_task</code> (request-changes only),{' '}
+                <code>email_speaker</code>, <code>email_contacts</code>, and <code>invite_teammate</code>. Every
+                other tool is silent — including the <code>queue_*</code> tools, which only stage work for{' '}
+                <code>send_outbox</code>.
               </li>
               <li>
                 <b>Revoking is instant.</b> Revoke on <code>/app/api</code> and the next request gets a 401. The
@@ -632,11 +757,13 @@ app.get('/docs/mcp', (c) => {
               </li>
             </ul>
             <div class="warn">
-              <b>Decisions over MCP skip the outbox.</b> In the admin UI, deciding a submission only <i>queues</i>{' '}
-              the decision for review, and an organizer sends it from Emails → Outbox. The{' '}
-              <code>decide_submission</code> tool applies the decision immediately — status flip, session copy,
-              confirmation link and email — because a machine caller is being explicit. Use a read-only token if you
-              want an agent that can recommend decisions but not make them.
+              <b>Two ways to decide.</b> <code>queue_decision</code> + <code>send_outbox</code> is the admin UI’s
+              two-phase flow: queueing is invisible to speakers and freely undoable with{' '}
+              <code>remove_from_outbox</code>, and nothing happens until the outbox is sent.{' '}
+              <code>decide_submission</code> skips the outbox and applies the decision immediately — status flip,
+              session copy, confirmation link and email — because a machine caller is being explicit. Prefer the
+              queue when a human should review before anything reaches a speaker; use a read-only token for an
+              agent that should only recommend.
             </div>
 
             {/* ---------------------------------------------- selfhost */}
@@ -766,8 +893,8 @@ npx wrangler deploy`}
                   <td>Someone revoked it. Tokens can’t be un-revoked — create a replacement.</td>
                 </tr>
                 <tr>
-                  <td>Only ten tools listed</td>
-                  <td>Read-only token. The nine write tools are hidden by design; mint a read-write one.</td>
+                  <td>Only the read tools listed</td>
+                  <td>Read-only token. The write tools are hidden by design; mint a read-write one.</td>
                 </tr>
                 <tr>
                   <td>405 Method not allowed</td>

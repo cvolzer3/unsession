@@ -14,10 +14,30 @@
  * codes. Event-scoped routes 404 outside the token's event restriction.
  */
 import { Hono } from 'hono';
-import type { Context } from 'hono';
-import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { Bindings, Event } from '../types';
-import { apiActor, apiTokenAuth, canWrite, type ApiAuth, type ApiCtx } from '../lib/api-tokens';
+import { apiActor, apiTokenAuth, type ApiAuth, type ApiCtx } from '../lib/api-tokens';
+import {
+  ApiError,
+  bad,
+  clampLimit,
+  decodeCursor,
+  encodeCursor,
+  eventOf,
+  handle,
+  jsonBody,
+  notFound,
+  p,
+  requireWrite,
+  resolveEvent,
+} from '../lib/api-core';
+import { registerFormRoutes } from './api-forms';
+import { registerEvaluationRoutes } from './api-evaluation';
+import { registerEmbedRoutes } from './api-embeds';
+import { registerFileRoutes } from './api-files';
+import { registerEmailRoutes } from './api-emails';
+import { registerEventAdminRoutes } from './api-event-admin';
+import { registerSpeakerTaskRoutes } from './api-speaker-tasks';
+import { registerOrgRoutes } from './api-org';
 import { all, batch, jsonParse, now, one, run } from '../lib/db';
 import { newId, nextSeq } from '../lib/ids';
 import { logActivity } from '../lib/activity';
@@ -39,52 +59,12 @@ import {
 } from '../lib/agenda';
 import { publicSessions } from './public-agenda';
 
-/* ------------------------------------------------------------------ errors */
+/* -------------------------------------------------- shared core (re-export) */
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string
-  ) {
-    super(message);
-  }
-}
-
-const bad = (msg: string) => new ApiError(400, msg);
-const notFound = (msg = 'Not found') => new ApiError(404, msg);
-
-export function requireWrite(auth: ApiAuth): void {
-  if (!canWrite(auth)) {
-    throw new ApiError(
-      403,
-      "This token is read-only (scope 'read') — create a token with the read,write scope at /app/api"
-    );
-  }
-}
-
-/* ----------------------------------------------------------- event scoping */
-
-/** Resolve `:event` (slug or id) inside the token's org + event restriction. */
-export async function resolveEvent(env: Bindings, auth: ApiAuth, ref: string): Promise<Event> {
-  const r = (ref ?? '').trim();
-  if (!r) throw bad('Missing event — pass an event slug or id');
-  const event = await one<Event>(
-    env.DB,
-    `SELECT * FROM events WHERE org_id = ? AND (id = ? OR slug = ?)`,
-    auth.orgId,
-    r,
-    r
-  );
-  if (!event || (auth.eventId && event.id !== auth.eventId)) throw notFound('Event not found');
-  return event;
-}
-
-/** Scope check for rows reached by id (submission/session/speaker/task). */
-async function eventOf(env: Bindings, auth: ApiAuth, eventId: string): Promise<Event> {
-  const event = await one<Event>(env.DB, `SELECT * FROM events WHERE id = ? AND org_id = ?`, eventId, auth.orgId);
-  if (!event || (auth.eventId && event.id !== auth.eventId)) throw notFound('Not found');
-  return event;
-}
+// The error class, scoping helpers and route shells live in `lib/api-core` so
+// the api-*.ts domain modules can use them without importing this router.
+// Re-exported so existing importers (`routes/mcp.ts`) keep working unchanged.
+export { ApiError, requireWrite, resolveEvent };
 
 /* ------------------------------------------------------------- shared bits */
 
@@ -305,27 +285,6 @@ export async function listForms(env: Bindings, auth: ApiAuth, ref: string) {
 }
 
 /* ------------------------------------------------------------- submissions */
-
-/** Opaque keyset cursor: base64 of [COALESCE(submitted_at, created_at), id]. */
-function encodeCursor(sortKey: string, id: string): string {
-  return btoa(JSON.stringify([sortKey, id]));
-}
-
-function decodeCursor(raw: string): [string, string] {
-  try {
-    const v = JSON.parse(atob(raw)) as unknown;
-    if (Array.isArray(v) && typeof v[0] === 'string' && typeof v[1] === 'string') return [v[0], v[1]];
-  } catch {
-    /* fall through */
-  }
-  throw bad('Bad cursor — pass the nextCursor value from the previous page');
-}
-
-function clampLimit(raw: string | number | undefined): number {
-  const n = Math.round(Number(raw ?? 100));
-  if (!Number.isFinite(n) || n < 1) return 100;
-  return Math.min(n, 500);
-}
 
 export type SubmissionListQuery = {
   status?: string;
@@ -1155,6 +1114,8 @@ export type UpdateSpeakerInput = {
   pronouns?: string | null;
   /** Merged: string values are normalized URLs, null/'' removes the key. */
   links?: Record<string, string | null>;
+  /** Organizer-only CRM field — never shown to the speaker, not versioned. */
+  travelNotes?: string | null;
 };
 
 export async function updateSpeaker(env: Bindings, auth: ApiAuth, id: string, input: UpdateSpeakerInput) {
@@ -1196,7 +1157,10 @@ export async function updateSpeaker(env: Bindings, auth: ApiAuth, id: string, in
     }
     push('links_json', Object.keys(links).length ? JSON.stringify(links) : null);
   }
-  if (!sets.length) throw bad('Nothing to update — pass name, bio, pronouns and/or links');
+  if (input.travelNotes !== undefined) {
+    push('travel_notes', String(input.travelNotes ?? '').trim().slice(0, 4000) || null);
+  }
+  if (!sets.length) throw bad('Nothing to update — pass name, bio, pronouns, links and/or travelNotes');
 
   params.push(profile.id);
   await run(env.DB, `UPDATE speaker_profiles SET ${sets.join(', ')} WHERE id = ?`, ...params);
@@ -1475,32 +1439,6 @@ const app = new Hono<ApiCtx>();
 
 app.use('/api/v1/*', apiTokenAuth);
 
-/** try/catch shell: ApiError → its status, anything else → 500. */
-function handle(fn: (c: Context<ApiCtx>) => Promise<unknown>) {
-  return async (c: Context<ApiCtx>) => {
-    try {
-      return c.json({ ok: true, data: await fn(c) });
-    } catch (err) {
-      if (err instanceof ApiError) return c.json({ ok: false, error: err.message }, err.status as ContentfulStatusCode);
-      console.error('[api]', err);
-      return c.json({ ok: false, error: 'Something went wrong' }, 500);
-    }
-  };
-}
-
-async function jsonBody<TBody>(c: Context<ApiCtx>): Promise<TBody> {
-  try {
-    return await c.req.json<TBody>();
-  } catch {
-    throw bad('Body must be JSON');
-  }
-}
-
-/** Route param — the `handle` wrapper erases Hono's path typing, so read it loosely. */
-function p(c: Context<ApiCtx>, name: string): string {
-  return c.req.param(name) ?? '';
-}
-
 app.get('/api/v1/events', handle((c) => listEvents(c.env, c.var.apiAuth)));
 app.get('/api/v1/events/:event', handle((c) => getEvent(c.env, c.var.apiAuth, p(c, 'event'))));
 app.get('/api/v1/events/:event/forms', handle((c) => listForms(c.env, c.var.apiAuth, p(c, 'event'))));
@@ -1554,6 +1492,19 @@ app.get('/api/v1/events/:event/tasks', handle((c) => listTasks(c.env, c.var.apiA
 
 app.post('/api/v1/tasks', handle(async (c) => assignTask(c.env, c.var.apiAuth, await jsonBody(c))));
 app.post('/api/v1/tasks/:id/complete', handle((c) => completeTask(c.env, c.var.apiAuth, p(c, 'id'))));
+
+// Parity round 2 (2026-08): the api-*.ts domain modules — forms, evaluation,
+// embeds, files, emails/outbox, event admin + agenda ops, speaker tasks, org
+// CRM + team. Each registers its own /api/v1 routes here and exports the
+// matching MCP tools, which routes/mcp.ts concatenates.
+registerFormRoutes(app);
+registerEvaluationRoutes(app);
+registerEmbedRoutes(app);
+registerFileRoutes(app);
+registerEmailRoutes(app);
+registerEventAdminRoutes(app);
+registerSpeakerTaskRoutes(app);
+registerOrgRoutes(app);
 
 // Unknown /api/v1 path or wrong method → JSON 404, never the HTML not-found page.
 app.all('/api/v1/*', (c) => c.json({ ok: false, error: 'No such API route' }, 404));

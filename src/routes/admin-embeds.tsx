@@ -123,7 +123,7 @@ export const FORMATS = [
 ] as const;
 
 /** Card fields the organizer can untick per widget — title and date/time are always shown. */
-const FIELD_KEYS: Record<string, { key: string; label: string }[]> = {
+export const FIELD_KEYS: Record<string, { key: string; label: string }[]> = {
   sessions: [
     { key: 'description', label: 'Description' },
     { key: 'speakers', label: 'Speakers' },
@@ -153,8 +153,8 @@ const FIELD_KEYS: Record<string, { key: string; label: string }[]> = {
   ],
 };
 
-const widgetLabel = (key: string) => WIDGET_TYPES.find((w) => w.key === key)?.label ?? key;
-const formatLabel = (key: string) => FORMATS.find((f) => f.key === key)?.label ?? key;
+export const widgetLabel = (key: string) => WIDGET_TYPES.find((w) => w.key === key)?.label ?? key;
+export const formatLabel = (key: string) => FORMATS.find((f) => f.key === key)?.label ?? key;
 
 /* --------------------------------------------------------------- snippets */
 

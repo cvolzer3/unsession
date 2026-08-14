@@ -79,6 +79,7 @@ Write (scope `write`):
 Deliberately **not** in v1: form/schema editing (versioning semantics deserve
 their own design), event creation, team management, email template CRUD.
 Documented in the page footer as out of scope.
+**[Superseded by parity round 2 — see the section at the end of this spec.]**
 
 ## MCP server — `POST /api/mcp`
 
@@ -129,6 +130,48 @@ get one:
   the row from `/app/api` kills the whole connection.
 
 OAuth files: `migrations/0026_oauth_dcr.sql`, `src/routes/oauth.tsx`.
+
+## Parity round 2 (2026-08-14) — full organizer parity
+
+Chris's directive: "anything a human can do in the app as an organizer, I want
+to be able to do through the MCP." The v1 out-of-scope list is retired; the
+API/MCP surface now mirrors the admin UI. 84 tools total (32 read, 52 write),
+each with a matching `/api/v1` REST route — still one implementation behind
+both protocols.
+
+Structure: shared plumbing moved to `src/lib/api-core.ts` (ApiError, event
+scoping, cursors, route shells, the MCP `Tool` type) so the new domain modules
+never import the router. Each `src/routes/api-*.ts` module exports core
+functions + a `register*Routes(app)` for REST + a `*_TOOLS` array that
+`routes/mcp.ts` concatenates:
+
+| Module | Covers |
+|---|---|
+| `api-forms.ts` | get/create/update/delete form, schema replacement via the builder pipeline (normalize → sanitize conds → rename cascade → validate → copy-on-write `saveSchema`) |
+| `api-evaluation.ts` | plans (list + merge-upsert incl. reviewer resolution and reviewer-added emails), evaluations list, scores summary, `record_evaluation` on a named reviewer's behalf (same guards as the reviewer queue; insert-once), evaluator reminders |
+| `api-emails.ts` | template list/update/duplicate, email log (+ single email w/ error), the outbox: `queue_decision` (R14 semantics), `send_outbox` (decisions then reminders, shared 40-row budget), `remove_from_outbox` |
+| `api-event-admin.ts` | create/update event (+theme), rooms, taxonomies + options (rename cascade), `publish_agenda` (rev bump + cache purge), `auto_schedule` (no emails, like the builder), conflicts, sponsor/service session delete, activity feed |
+| `api-speaker-tasks.ts` | task template CRUD (snapshot pinning, applyMode), rule preview, remove/review task (request-changes emails speakers), reminder queueing, direct speaker email, `create_speaker` (upsert-by-email + CRM mirror), `get_speaker` detail, content versions list/restore |
+| `api-files.ts` | files library by version chain (reuses `admin-files.loadLibrary`), file detail + comment thread, organizer replies (no email, like the drawer) |
+| `api-embeds.ts` | embed list (+snippets/URLs + catalog), create/toggle/delete |
+| `api-org.ts` | CRM directory (list/get/save/notes/tags/custom fields), add-to-event, bulk contact email, pipeline board/cards/enroll/move/remove, team list, invite (capped at admin), revoke invite |
+
+Boundary decisions:
+
+- **Two-phase decisions over MCP too.** `queue_decision` + `send_outbox` +
+  `remove_from_outbox` mirror the admin outbox (R14). `decide_submission`
+  keeps its immediate semantics for explicit machine callers — the docs
+  explain the choice.
+- **Org-level tools require an org-wide token.** CRM, pipeline and team 403
+  for event-restricted tokens rather than reading across events.
+- **Scoring names the reviewer.** `record_evaluation` takes a reviewer (id or
+  email) and enforces plan membership, non-chair, and `assignedFor`
+  assignment — the API can act *for* a reviewer, never invent one.
+- **Still UI-only, deliberately:** file uploads, CRM contact delete/merge,
+  team role changes/removal, CSV/XLSX exports (the API returns JSON).
+  Interactive or destructive record surgery keeps a human at the wheel.
+- `update_speaker` grew `travelNotes` (organizer-only CRM field), matching the
+  drawer.
 
 ## Files
 

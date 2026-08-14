@@ -526,7 +526,7 @@ const TERMINAL: [string, string][] = [
   ['p', '$ claude mcp add --transport http unsession \\'],
   ['p', '    https://unsession.dev/api/mcp'],
   ['', ' '],
-  ['ok', '✓ Authenticated · unsession · 19 tools'],
+  ['ok', '✓ Authenticated · unsession · 84 tools'],
   ['', ' '],
   ['you', '> which accepted speakers still owe us slides?'],
   ['', ' '],
