@@ -165,7 +165,7 @@ app.get('/sandbox/:org', async (c) => {
                     {initials(p.name)}
                   </span>
                   <span class="sb-text">
-                    <span style="display:block;font-size:13.5px;font-weight:600;">{p.title}</span>
+                    <span style="display:block;font-size:13.5px;font-weight:600;color:#16171d;">{p.title}</span>
                     <span style="display:block;font-size:12px;color:#686b74;">{p.blurb}</span>
                   </span>
                   <span class="sb-who" style={`font-family:${MONO};font-size:10px;letter-spacing:0.08em;color:#9a9da6;`}>
