@@ -109,7 +109,12 @@ export const ADMIN_BASE_CSS = `
        closed keeps the off-screen links out of the tab order. */
     .us-shell{grid-template-columns:1fr;}
     .us-signout{display:inline-block;padding:9px 12px 9px 0;}
-    .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:min(80vw,300px);height:100vh;height:100dvh;
+    /* viewport-fit=cover lets the drawer paint edge to edge, behind the status
+       bar and home indicator; the env() padding keeps its content out of them.
+       The width grows by the left inset so links don't narrow on notched
+       phones in landscape. */
+    .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:calc(min(80vw,300px) + env(safe-area-inset-left));height:100vh;height:100dvh;
+      padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);
       border-right:none;box-shadow:6px 0 28px rgba(22,23,29,0.22);
       transform:translateX(-100%);visibility:hidden;transition:transform 0.18s ease,visibility 0s linear 0.18s;}
     /* visibility flips on the same tick the drawer opens (0s, no delay) so
@@ -118,13 +123,15 @@ export const ADMIN_BASE_CSS = `
     .us-shell[data-nav-open] .us-navscrim{display:block;position:fixed;inset:0;background:rgba(22,23,29,0.45);z-index:98;}
     .us-burger{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;
       margin:-6px 0 -6px -10px;padding:0;background:none;border:none;color:#16171d;cursor:pointer;}
-    .us-navclose{display:flex;align-items:center;justify-content:center;position:absolute;top:12px;right:8px;
+    .us-navclose{display:flex;align-items:center;justify-content:center;position:absolute;top:calc(12px + env(safe-area-inset-top));right:8px;
       width:40px;height:40px;padding:0;background:none;border:none;color:#686b74;font-size:19px;line-height:1;cursor:pointer;}
     /* Burger and event picker share row one — flex-basis 0 keeps the picker
        from wrapping under the burger. headerActions is arbitrary per-page
        markup, so it takes a full row of its own instead of squeezing the event
        name; :not(:empty) spares that row on the pages that pass none. */
-    .us-adminhead{padding:10px 14px;gap:10px;flex-wrap:wrap;}
+    /* With viewport-fit=cover the page reaches under the status bar, so the
+       header keeps its content clear of the top and side insets itself. */
+    .us-adminhead{padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 10px max(14px,env(safe-area-inset-left));gap:10px;flex-wrap:wrap;}
     .us-headmain{flex:1 1 0;}
     .us-headactions{flex-wrap:wrap;justify-content:flex-end;gap:8px;}
     .us-headactions:not(:empty){flex:1 0 100%;margin-left:0;}
@@ -341,7 +348,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
     <html>
       <head>
         <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>{`Unsession — ${title}`}</title>
         <Favicons />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -393,7 +400,7 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
             {/* Sandbox orgs can't mint API tokens — hide the page entirely. */}
             {props.sandbox ? null : navLink('/app/api', 'API', isActive('/app/api'))}
             </div>
-            <div style="flex-shrink:0;padding:14px 20px 16px;border-top:1px solid #eceded;">
+            <div style="flex-shrink:0;padding:14px 20px calc(16px + env(safe-area-inset-bottom));border-top:1px solid #eceded;">
               <div style="display:flex;align-items:center;gap:9px;">
                 <div style={`width:28px;height:28px;border-radius:50%;background:#4c5fd5;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10.5px;font-weight:600;`}>
                   {initials(user?.name || user?.email || '')}
