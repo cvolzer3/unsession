@@ -1298,6 +1298,25 @@ app.get('/app/api/submissions/export.xlsx', async (c) => {
   });
 });
 
+/* ----------------------------------------------------------------- recent */
+
+// Feeds the ⌘L command palette (public/js/palette.js). Registered before
+// `/app/api/submissions/:id` so the literal path wins over the param.
+app.get('/app/api/submissions/recent', async (c) => {
+  const event = c.var.event;
+  if (!event) return c.json({ ok: false, error: 'No active event' }, 400);
+  const rows = await all<{ id: string; seq: number; title: string; status: string }>(
+    c.env.DB,
+    `SELECT id, seq, title, status FROM submissions WHERE event_id = ?
+      ORDER BY COALESCE(submitted_at, created_at) DESC, seq DESC LIMIT 3`,
+    event.id
+  );
+  return c.json({
+    ok: true,
+    submissions: rows.map((r) => ({ id: r.id, num: `SUB-${r.seq}`, title: r.title, status: r.status })),
+  });
+});
+
 /* ------------------------------------------------------------------ detail */
 
 app.get('/app/api/submissions/:id', async (c) => {

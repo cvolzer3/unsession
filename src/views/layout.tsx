@@ -495,6 +495,8 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
         <Toast message={props.toast} />
         {props.sandbox ? <SandboxSwitcher sandbox={props.sandbox} /> : null}
         <script type="module" src="/js/ui.js"></script>
+        {/* ⌘K / ⌘L command palette — keyboard-only, no visible trigger. */}
+        <script type="module" src="/js/palette.js"></script>
         {(props.scripts ?? []).map((s) => (
           <script type="module" src={s}></script>
         ))}
