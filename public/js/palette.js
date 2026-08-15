@@ -1,19 +1,21 @@
 /**
  * Command palette. Loaded on every admin page by AdminLayout.
  *
- *   ⌘K / Ctrl+K   jump to any admin page (list read from the sidebar nav)
- *   ⌘L / Ctrl+L   jump to one of the last three submissions
+ *   ⌘K / Ctrl+K   open the palette: the last three submissions on top, then
+ *                 every admin page (read from the sidebar nav) with its jump
+ *                 shortcut
+ *   ⌘L / Ctrl+L   the same palette, submissions only
  *   ⌘<letter>     jump straight to one page — the KEYS table below; each
  *                 palette row shows its own combo
  *
- * Arrow keys move the selection, Enter goes, Escape closes. Keyboard-only —
- * there is deliberately no visible trigger.
+ * Arrow keys move the selection across sections, Enter goes, Escape closes.
+ * Keyboard-only — there is deliberately no visible trigger.
  */
 import { api } from './ui.js';
 
 const MONO = "'IBM Plex Mono',monospace";
-const LABELS = { pages: 'PAGES', subs: 'RECENT SUBMISSIONS' };
-const PLACEHOLDERS = { pages: 'Jump to a page…', subs: 'Filter submissions…' };
+const PLACEHOLDERS = { pages: 'Jump to…', subs: 'Filter submissions…' };
+const LABEL_CSS = `padding:12px 16px 2px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const IS_MAC = /Mac|iP/.test(navigator.platform);
 
 /**
@@ -49,13 +51,17 @@ function keyLabel(spec) {
 const isEditable = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
 
 let overlay = null; // built on first open
-let panel, input, labelEl, listEl;
+let panel, input, listEl;
 let mode = 'pages';
-let items = []; // full set for the current mode
-let shown = []; // after filtering
+/** Sections: { label, items, filtered, note } — `note` renders when no rows do. */
+let groups = [];
+let shown = []; // flattened filtered items across groups
 let rows = []; // rendered row elements, parallel to `shown`
 let sel = 0;
+let moved = false; // arrows/typing since open — keeps selection put on async updates
 let prevFocus = null;
+let fetchSeq = 0; // ignores stale recent-submissions responses
+let subsCache = null; // last fetched list, shown instantly while refreshing
 
 /**
  * The sidebar already lists this user's pages (sandbox orgs hide API, roles
@@ -111,17 +117,14 @@ function build() {
   input.style.cssText =
     'display:block;width:100%;border:none;outline:none;background:none;padding:14px 16px;font-size:15px;font-family:inherit;color:#16171d;border-bottom:1px solid #eceded;';
   input.addEventListener('input', () => {
-    sel = 0;
-    refilter();
+    moved = true;
+    refilter(false);
   });
-
-  labelEl = document.createElement('div');
-  labelEl.style.cssText = `padding:12px 16px 2px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 
   listEl = document.createElement('div');
   listEl.id = 'us-palette-list';
   listEl.setAttribute('role', 'listbox');
-  listEl.style.cssText = 'max-height:320px;overflow-y:auto;padding:2px 0 8px;';
+  listEl.style.cssText = 'max-height:360px;overflow-y:auto;padding:2px 0 8px;';
 
   panel.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -132,6 +135,7 @@ function build() {
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (!shown.length) return;
+      moved = true;
       sel = (sel + (e.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length;
       paint();
     } else if (e.key === 'Enter') {
@@ -141,71 +145,86 @@ function build() {
   });
 
   panel.appendChild(input);
-  panel.appendChild(labelEl);
   panel.appendChild(listEl);
   overlay.appendChild(panel);
   document.body.appendChild(overlay);
 }
 
-function note(text) {
-  listEl.textContent = '';
-  rows = [];
+function noteEl(text) {
   const el = document.createElement('div');
-  el.style.cssText = 'padding:10px 16px;font-size:13px;color:#686b74;';
+  el.style.cssText = 'padding:8px 16px;font-size:13px;color:#686b74;';
   el.textContent = text;
-  listEl.appendChild(el);
+  return el;
 }
 
-function refilter() {
+function refilter(preserve) {
   const q = input.value.trim().toLowerCase();
-  shown = q ? items.filter((it) => `${it.label} ${it.num || ''}`.toLowerCase().includes(q)) : items;
-  if (sel >= shown.length) sel = 0;
+  const keep = preserve ? shown[sel] : null;
+  for (const g of groups) {
+    g.filtered = q ? g.items.filter((it) => `${it.label} ${it.num || ''}`.toLowerCase().includes(q)) : g.items;
+  }
+  shown = groups.flatMap((g) => g.filtered);
+  sel = keep ? Math.max(0, shown.indexOf(keep)) : 0;
   render();
 }
 
 function render() {
-  if (!shown.length) {
-    note(items.length ? 'No matches' : mode === 'subs' ? 'No submissions yet' : 'No pages');
-    return;
-  }
   listEl.textContent = '';
-  rows = shown.map((it, i) => {
-    const row = document.createElement('div');
-    row.id = `us-palette-opt-${i}`;
-    row.setAttribute('role', 'option');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;';
-
-    if (it.num) {
-      const num = document.createElement('span');
-      num.style.cssText = `flex:none;font-family:${MONO};font-size:11px;color:#9a9da6;`;
-      num.textContent = it.num;
-      row.appendChild(num);
+  rows = [];
+  let any = false;
+  for (const g of groups) {
+    if (!g.filtered.length && !g.note) continue; // e.g. no submissions in ⌘K view
+    any = true;
+    const lab = document.createElement('div');
+    lab.style.cssText = LABEL_CSS;
+    lab.textContent = g.label;
+    listEl.appendChild(lab);
+    if (!g.filtered.length) {
+      listEl.appendChild(noteEl(g.note));
+      continue;
     }
-    const label = document.createElement('span');
-    label.style.cssText =
-      'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:#16171d;';
-    label.textContent = it.label;
-    row.appendChild(label);
-    const meta = document.createElement('span');
-    meta.style.cssText = it.keyLabel
-      ? `flex:none;font-family:${MONO};font-size:10px;color:#686b74;background:#f1f3f5;padding:2px 6px;`
-      : `flex:none;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`;
-    meta.textContent = it.status || it.keyLabel || '';
-    row.appendChild(meta);
-
-    row.addEventListener('mouseenter', () => {
-      if (sel !== i) {
-        sel = i;
-        paint();
-      }
-    });
-    row.addEventListener('click', () => {
-      location.href = it.href;
-    });
-    listEl.appendChild(row);
-    return { row, label };
-  });
+    for (const it of g.filtered) listEl.appendChild(makeRow(it, rows.length));
+  }
+  if (!any) listEl.appendChild(noteEl('No matches'));
   paint();
+}
+
+function makeRow(it, i) {
+  const row = document.createElement('div');
+  row.id = `us-palette-opt-${i}`;
+  row.setAttribute('role', 'option');
+  row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;';
+
+  if (it.num) {
+    const num = document.createElement('span');
+    num.style.cssText = `flex:none;font-family:${MONO};font-size:11px;color:#9a9da6;`;
+    num.textContent = it.num;
+    row.appendChild(num);
+  }
+  const label = document.createElement('span');
+  label.style.cssText =
+    'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:#16171d;';
+  label.textContent = it.label;
+  row.appendChild(label);
+  const meta = document.createElement('span');
+  meta.style.cssText = it.keyLabel
+    ? `flex:none;font-family:${MONO};font-size:10px;color:#686b74;background:#f1f3f5;padding:2px 6px;`
+    : `flex:none;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`;
+  meta.textContent = it.status || it.keyLabel || '';
+  row.appendChild(meta);
+
+  row.addEventListener('mouseenter', () => {
+    if (sel !== i) {
+      moved = true;
+      sel = i;
+      paint();
+    }
+  });
+  row.addEventListener('click', () => {
+    location.href = it.href;
+  });
+  rows.push({ row, label });
+  return row;
 }
 
 function paint() {
@@ -220,21 +239,27 @@ function paint() {
   if (rows[sel]) rows[sel].row.scrollIntoView({ block: 'nearest' });
 }
 
-async function loadSubs() {
-  note('Loading…');
-  try {
-    const res = await api('/app/api/submissions/recent', undefined, 'GET');
-    if (mode !== 'subs' || overlay.hidden) return; // closed or switched while fetching
-    items = (res.submissions || []).map((s) => ({
-      label: s.title || 'Untitled',
-      href: `/app/submissions?open=${s.id}`,
-      num: s.num,
-      status: (s.status || '').replace(/_/g, ' ').toUpperCase(),
-    }));
-    refilter();
-  } catch (err) {
-    note(err.message);
-  }
+function loadSubs(group) {
+  const token = ++fetchSeq;
+  api('/app/api/submissions/recent', undefined, 'GET')
+    .then((res) => {
+      if (token !== fetchSeq || overlay.hidden) return;
+      subsCache = (res.submissions || []).map((s) => ({
+        label: s.title || 'Untitled',
+        href: `/app/submissions?open=${s.id}`,
+        num: s.num,
+        status: (s.status || '').replace(/_/g, ' ').toUpperCase(),
+      }));
+      group.items = subsCache;
+      group.note = subsCache.length || mode !== 'subs' ? null : 'No submissions yet';
+      // Selection follows the top only while the user has not touched anything.
+      refilter(moved);
+    })
+    .catch((err) => {
+      if (token !== fetchSeq || overlay.hidden || group.items.length) return;
+      group.note = err.message;
+      refilter(moved);
+    });
 }
 
 function open(next) {
@@ -243,17 +268,18 @@ function open(next) {
   mode = next;
   overlay.hidden = false;
   input.value = '';
-  input.placeholder = PLACEHOLDERS[mode];
-  labelEl.textContent = LABELS[mode];
+  input.placeholder = PLACEHOLDERS[next];
+  moved = false;
   sel = 0;
-  if (mode === 'pages') {
-    items = pageItems();
-    refilter();
-  } else {
-    items = [];
-    shown = [];
-    loadSubs();
-  }
+  // The cached list paints instantly; the fetch refreshes it in place.
+  const subsGroup = {
+    label: 'RECENT SUBMISSIONS',
+    items: subsCache || [],
+    note: subsCache ? (subsCache.length || next !== 'subs' ? null : 'No submissions yet') : 'Loading…',
+  };
+  groups = next === 'pages' ? [subsGroup, { label: 'PAGES', items: pageItems(), note: null }] : [subsGroup];
+  loadSubs(subsGroup);
+  refilter(false);
   input.focus();
 }
 
