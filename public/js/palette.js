@@ -3,6 +3,8 @@
  *
  *   ⌘K / Ctrl+K   jump to any admin page (list read from the sidebar nav)
  *   ⌘L / Ctrl+L   jump to one of the last three submissions
+ *   ⌘<letter>     jump straight to one page — the KEYS table below; each
+ *                 palette row shows its own combo
  *
  * Arrow keys move the selection, Enter goes, Escape closes. Keyboard-only —
  * there is deliberately no visible trigger.
@@ -12,6 +14,39 @@ import { api } from './ui.js';
 const MONO = "'IBM Plex Mono',monospace";
 const LABELS = { pages: 'PAGES', subs: 'RECENT SUBMISSIONS' };
 const PLACEHOLDERS = { pages: 'Jump to a page…', subs: 'Filter submissions…' };
+const IS_MAC = /Mac|iP/.test(navigator.platform);
+
+/**
+ * Per-page jump shortcuts, keyed by sidebar href. ⌘/Ctrl + first letter where
+ * it is free; colliding letters (S, E, F, D) move their second page to the
+ * ⇧ tier. T/W/N stay with the browser (not interceptable) and A/C/V/X/Z stay
+ * with the clipboard, so Team, Speakers, Agenda and API use in-word letters.
+ */
+const KEYS = {
+  '/app': 'd',
+  '/app/setup': 'u', // setUp
+  '/app/forms': 'f',
+  '/app/emails': 'e',
+  '/app/submissions': 's',
+  '/app/evaluation': 'shift+e',
+  '/app/sessions': 'shift+s',
+  '/app/speakers': 'shift+k', // speaKers
+  '/app/files': 'shift+f',
+  '/app/agenda': 'g', // aGenda
+  '/app/embeds': 'b', // emBeds
+  '/app/org/contacts': 'shift+d', // Directory
+  '/app/org/pipeline': 'p',
+  '/app/team': 'shift+m', // teaM
+  '/app/api': 'i', // apI
+};
+
+function keyLabel(spec) {
+  const shift = spec.startsWith('shift+');
+  const letter = spec.slice(shift ? 6 : 0).toUpperCase();
+  return IS_MAC ? `⌘${shift ? '⇧' : ''}${letter}` : `Ctrl+${shift ? 'Shift+' : ''}${letter}`;
+}
+
+const isEditable = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''));
 
 let overlay = null; // built on first open
 let panel, input, labelEl, listEl;
@@ -25,9 +60,12 @@ let prevFocus = null;
 /**
  * The sidebar already lists this user's pages (sandbox orgs hide API, roles
  * may differ) — read it instead of keeping a second list. The logo link is
- * svg-only, so the text filter drops it.
+ * svg-only, so the text filter drops it. A page absent from the sidebar also
+ * loses its KEYS shortcut, since the jump handler matches against this list.
  */
+let pages = null;
 function pageItems() {
+  if (pages) return pages;
   const seen = new Set();
   const out = [];
   document.querySelectorAll('#us-sidenav a[href^="/app"]').forEach((a) => {
@@ -35,9 +73,16 @@ function pageItems() {
     const href = a.getAttribute('href');
     if (!label || a.querySelector('svg') || seen.has(href)) return;
     seen.add(href);
-    out.push({ label, href, meta: href });
+    const spec = KEYS[href];
+    out.push({
+      label,
+      href,
+      shift: !!spec && spec.startsWith('shift+'),
+      letter: spec ? spec.slice(spec.startsWith('shift+') ? 6 : 0) : null,
+      keyLabel: spec ? keyLabel(spec) : '',
+    });
   });
-  return out;
+  return (pages = out);
 }
 
 function build() {
@@ -142,8 +187,10 @@ function render() {
     label.textContent = it.label;
     row.appendChild(label);
     const meta = document.createElement('span');
-    meta.style.cssText = `flex:none;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`;
-    meta.textContent = it.status || it.meta || '';
+    meta.style.cssText = it.keyLabel
+      ? `flex:none;font-family:${MONO};font-size:10px;color:#686b74;background:#f1f3f5;padding:2px 6px;`
+      : `flex:none;font-family:${MONO};font-size:10px;letter-spacing:0.06em;color:#9a9da6;`;
+    meta.textContent = it.status || it.keyLabel || '';
     row.appendChild(meta);
 
     row.addEventListener('mouseenter', () => {
@@ -218,13 +265,25 @@ function close() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.repeat) return;
-  const k = e.key.toLowerCase();
-  if (k !== 'k' && k !== 'l') return;
-  // The rich editor claims ⌘K for its link flow and preventDefaults first.
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.repeat) return;
+  // The rich editor claims ⌘K/⌘B/⌘I for its own commands and preventDefaults first.
   if (e.defaultPrevented) return;
-  e.preventDefault();
-  const next = k === 'k' ? 'pages' : 'subs';
-  if (overlay && !overlay.hidden && mode === next) close();
-  else open(next);
+  const k = e.key.toLowerCase();
+
+  if (!e.shiftKey && (k === 'k' || k === 'l')) {
+    e.preventDefault();
+    const next = k === 'k' ? 'pages' : 'subs';
+    if (overlay && !overlay.hidden && mode === next) close();
+    else open(next);
+    return;
+  }
+
+  // Page jumps run anywhere except while typing — unless the palette itself
+  // has focus, where the row hints invite exactly these keys.
+  if (isEditable(e.target) && !(overlay && !overlay.hidden)) return;
+  const hit = pageItems().find((it) => it.letter === k && it.shift === e.shiftKey);
+  if (hit) {
+    e.preventDefault();
+    location.href = hit.href;
+  }
 });

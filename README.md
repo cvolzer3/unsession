@@ -13,7 +13,7 @@ and deliberately nothing else: no CRM, no marketing suite, no media library. It 
 The [sandbox](https://unsession.dev) is a live event mid-lifecycle: submissions in review, an agenda half-built, a speaker mid-onboarding. Pick a seat: organizer, speaker, or evaluator. No signup, no demo call, no credit card.
 
 - **Hosted service:** https://unsession.dev — runs this repo unmodified (admin at `/app`)
-- **Keyboard:** in the admin, `⌘K` (`Ctrl+K`) opens the command palette to jump to any page; `⌘L` jumps to one of the last three submissions.
+- **Keyboard:** in the admin, `⌘K` (`Ctrl+K`) opens the command palette to jump to any page; `⌘L` jumps to one of the last three submissions. Each page also has a direct shortcut (for example `⌘S` for Submissions) — the palette shows them.
 - **License:** [AGPL-3.0](LICENSE)
 
 ## Unsession MCP: Your AI agent can work the CFP with you

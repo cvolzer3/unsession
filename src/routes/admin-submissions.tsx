@@ -1307,8 +1307,10 @@ app.get('/app/api/submissions/recent', async (c) => {
   if (!event) return c.json({ ok: false, error: 'No active event' }, 400);
   const rows = await all<{ id: string; seq: number; title: string; status: string }>(
     c.env.DB,
+    // seq, not timestamps: it is the arrival order the SUB number shows, so
+    // the list always reads newest-first even where seeded dates disagree.
     `SELECT id, seq, title, status FROM submissions WHERE event_id = ?
-      ORDER BY COALESCE(submitted_at, created_at) DESC, seq DESC LIMIT 3`,
+      ORDER BY seq DESC LIMIT 3`,
     event.id
   );
   return c.json({
