@@ -10,10 +10,16 @@
  *
  * Arrow keys move the selection across sections, Enter goes, Escape closes.
  * Keyboard-only — there is deliberately no visible trigger.
+ *
+ * The recent-submissions list is prefetched at every page load and carried
+ * across navigations in sessionStorage (scoped to the active event via the
+ * us-event-id meta tag), so opening the palette never waits on the network.
  */
 import { api } from './ui.js';
 
 const MONO = "'IBM Plex Mono',monospace";
+const STORE = 'us-palette-subs';
+const EVENT_ID = document.querySelector('meta[name="us-event-id"]')?.content || '';
 const PLACEHOLDERS = { pages: 'Jump to…', subs: 'Filter submissions…' };
 const LABEL_CSS = `padding:12px 16px 2px;font-family:${MONO};font-size:10px;letter-spacing:0.12em;color:#9a9da6;`;
 const IS_MAC = /Mac|iP/.test(navigator.platform);
@@ -61,7 +67,7 @@ let sel = 0;
 let moved = false; // arrows/typing since open — keeps selection put on async updates
 let prevFocus = null;
 let fetchSeq = 0; // ignores stale recent-submissions responses
-let subsCache = null; // last fetched list, shown instantly while refreshing
+let subsCache = null; // null until the first fetch (or sessionStorage) delivers
 
 /**
  * The sidebar already lists this user's pages (sandbox orgs hide API, roles
@@ -239,27 +245,50 @@ function paint() {
   if (rows[sel]) rows[sel].row.scrollIntoView({ block: 'nearest' });
 }
 
-function loadSubs(group) {
+/**
+ * Fetch the list and store it. Runs once at every page load; open() calls it
+ * again only when that fetch has not delivered anything yet.
+ */
+function refreshSubs() {
+  if (!EVENT_ID) {
+    subsCache = subsCache || []; // no active event — nothing to fetch
+    return;
+  }
   const token = ++fetchSeq;
   api('/app/api/submissions/recent', undefined, 'GET')
     .then((res) => {
-      if (token !== fetchSeq || overlay.hidden) return;
+      if (token !== fetchSeq) return;
       subsCache = (res.submissions || []).map((s) => ({
         label: s.title || 'Untitled',
         href: `/app/submissions?open=${s.id}`,
         num: s.num,
         status: (s.status || '').replace(/_/g, ' ').toUpperCase(),
       }));
-      group.items = subsCache;
-      group.note = subsCache.length || mode !== 'subs' ? null : 'No submissions yet';
-      // Selection follows the top only while the user has not touched anything.
-      refilter(moved);
+      try {
+        sessionStorage.setItem(STORE, JSON.stringify({ event: EVENT_ID, subs: subsCache }));
+      } catch {
+        // storage full or blocked — the in-page cache still works
+      }
+      syncSubsGroup(null);
     })
     .catch((err) => {
-      if (token !== fetchSeq || overlay.hidden || group.items.length) return;
-      group.note = err.message;
-      refilter(moved);
+      if (token === fetchSeq) syncSubsGroup(err.message);
     });
+}
+
+/** Repaint an open palette's RECENT SUBMISSIONS section in place. */
+function syncSubsGroup(error) {
+  if (!overlay || overlay.hidden) return;
+  const g = groups[0];
+  if (!g || !g.subs) return;
+  if (subsCache) {
+    g.items = subsCache;
+    g.note = subsCache.length || mode !== 'subs' ? null : 'No submissions yet';
+  } else if (error && !g.items.length) {
+    g.note = error;
+  }
+  // Selection follows the top only while the user has not touched anything.
+  refilter(moved);
 }
 
 function open(next) {
@@ -271,14 +300,15 @@ function open(next) {
   input.placeholder = PLACEHOLDERS[next];
   moved = false;
   sel = 0;
-  // The cached list paints instantly; the fetch refreshes it in place.
   const subsGroup = {
+    subs: true,
     label: 'RECENT SUBMISSIONS',
     items: subsCache || [],
     note: subsCache ? (subsCache.length || next !== 'subs' ? null : 'No submissions yet') : 'Loading…',
   };
   groups = next === 'pages' ? [subsGroup, { label: 'PAGES', items: pageItems(), note: null }] : [subsGroup];
-  loadSubs(subsGroup);
+  // The page-load prefetch already ran — retry only if it never delivered.
+  if (!subsCache) refreshSubs();
   refilter(false);
   input.focus();
 }
@@ -313,3 +343,13 @@ document.addEventListener('keydown', (e) => {
     location.href = hit.href;
   }
 });
+
+// Prefetch at every page load, seeded from the last navigation's copy so the
+// palette opens complete even before this refresh lands.
+try {
+  const saved = JSON.parse(sessionStorage.getItem(STORE) || 'null');
+  if (saved && saved.event === EVENT_ID && Array.isArray(saved.subs)) subsCache = saved.subs;
+} catch {
+  // unreadable saved copy — the fetch below rebuilds it
+}
+refreshSubs();

@@ -350,6 +350,8 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>{`Unsession — ${title}`}</title>
+        {/* palette.js scopes its prefetched recent-submissions cache to this event */}
+        <meta name="us-event-id" content={event?.id ?? ''} />
         <Favicons />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
