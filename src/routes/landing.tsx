@@ -602,7 +602,7 @@ app.get('/', (c) => {
           <div class="wrap hero-inner">
             <div class="kicker">FOR CONFERENCE ORGANIZERS &amp; PROGRAM TEAMS</div>
             <h1>
-              From open call to <em>opening keynote</em>
+              Open source <em>session management</em>
             </h1>
             <p>
               Unsession runs the whole speaker side of your event. Proposals in, fair reviews, confident
