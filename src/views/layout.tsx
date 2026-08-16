@@ -112,10 +112,11 @@ export const ADMIN_BASE_CSS = `
      query. Desktop values are byte-for-byte what the inline styles used to be. */
   .us-shell{display:grid;grid-template-columns:216px 1fr;min-height:100vh;}
   .us-sidenav{background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
-  /* Sidebar and header ride outside the root cross-fade as their own
-     view-transition groups: their pixels match on every admin page, so a
-     navigation leaves them visually untouched while the content fades. */
-  .us-sidenav{view-transition-name:us-sidenav;}
+  /* Keep the sidebar in the root snapshot. Isolating this scroll container as
+     its own view-transition group makes Chromium/WebKit intermittently omit
+     unchanged descendants while a heavier sandbox page is revealed, which is
+     the visible nav jitter. Its geometry matches between documents, so the
+     root transition keeps those pixels stationary without a separate layer. */
   .us-adminhead{view-transition-name:us-adminhead;}
   .us-navscrim{display:none;}
   .us-burger,.us-navclose{display:none;}
@@ -134,10 +135,6 @@ export const ADMIN_BASE_CSS = `
        bar and home indicator; the env() padding keeps its content out of them.
        The width grows by the left inset so links don't narrow on notched
        phones in landscape. */
-    /* As an overlay drawer the sidebar is hidden on most navigations and
-       slides when it isn't — a pinned transition group would snapshot that
-       motion, so it rejoins the plain root cross-fade here. */
-    .us-sidenav{view-transition-name:none;}
     .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:calc(min(80vw,300px) + env(safe-area-inset-left));height:100vh;height:100dvh;
       padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);
       border-right:none;box-shadow:6px 0 28px rgba(22,23,29,0.22);
