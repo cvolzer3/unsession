@@ -1,5 +1,5 @@
 /**
- * Notify-members chips (track B1) — the "@Marta Keller" picker in form
+ * Notify-members chips (track B1) — the "@Sean Parker" picker in form
  * settings' NOTIFY ON EVERY NEW SUBMISSION block.
  *
  * The server renders a plain `<select multiple name="notifyMembers[]">` so the

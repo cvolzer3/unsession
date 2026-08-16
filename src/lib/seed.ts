@@ -11,8 +11,8 @@
  * decision outbox, review comments, and the simulated email history the
  * accepted speakers would have received.
  *
- * The visitor is never a throwaway user: the three picker personas (Marta
- * Keller the org owner, Sofia Rossi the speaker, Deniz Aksoy the evaluator)
+ * The visitor is never a throwaway user: the three picker personas (Sean
+ * Parker the org owner, Tim Jobs the speaker, Molly Simpson the evaluator)
  * are real seeded users whose emails are plus-suffixed per sandbox, and
  * `routes/sandbox.tsx` signs the visitor in as one of them.
  */
@@ -271,8 +271,8 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
     ]);
   });
 
-  // Speaker persona — Sofia Rossi gets a real user so the picker can sign the
-  // visitor in as her; her speaker profile links back via user_id below.
+  // Speaker persona — Tim Jobs gets a real user so the picker can sign the
+  // visitor in as him; his speaker profile links back via user_id below.
   const speakerPersonaEmail = D.suffixEmail(D.SANDBOX_PERSONAS.speaker.email, suffix);
   const speakerPersonaUserId = newId('usr');
   stmts.push([
@@ -280,8 +280,8 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
     [speakerPersonaUserId, speakerPersonaEmail, D.SANDBOX_PERSONAS.speaker.name, stamp],
   ]);
 
-  // The whole roster joins the org: Marta Keller as owner (the organizer
-  // persona — the visitor's session IS Marta, there is no throwaway owner
+  // The whole roster joins the org: Sean Parker as owner (the organizer
+  // persona — the visitor's session IS Sean, there is no throwaway owner
   // user), the program team as admins/collaborators, and the outside
   // evaluators as collaborators so the reviewer picker can offer them.
   D.PEOPLE.forEach((p) => {
@@ -942,7 +942,7 @@ export async function seedSandbox(env: Bindings): Promise<SandboxResult> {
 
   await batch(db, stmts);
 
-  // Marta and Deniz come from D.PEOPLE ('marta' owns the org; 'deniz' is a
+  // Sean and Molly come from D.PEOPLE ('marta' owns the org; 'deniz' is a
   // collaborator on the Main CFP + AI second-opinion rosters via EVAL_PLANS).
   const personas: SandboxResult['personas'] = {
     organizer: {

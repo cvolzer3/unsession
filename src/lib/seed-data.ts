@@ -122,7 +122,7 @@ export const SUBMISSIONS: SeedSubmission[] = [
   S(124, 'From Jupyter to Production in One Repo', 'Killing the notebook-to-service rewrite: our template for shipping models straight from research.', [sp('Emil Johansson', 'emil@mlship.se', 'MLOps Engineer', 'MLShip', 'MLOps engineer.')], 'ai', 'Talk (30 min)', 'Intermediate', 'in_review', 0, 3, null, 12),
   S(123, 'HTMX and the Return of the Server', 'We deleted 40k lines of React. A tour of what replaced it and where we drew the line.', [sp('Julia Novak', 'julia@hypermedia.dev', 'Full-Stack Engineer', 'Hypermedia', 'Full-stack engineer, simplicity zealot.')], 'web', 'Talk (30 min)', 'Intermediate', 'waitlisted', 3, 3, 3.7, 11),
   S(122, 'Chaos Engineering on a Budget', 'You do not need a chaos platform. You need a Tuesday, a script, and management buy-in.', [sp('Kwame Mensah', 'kwame@faultline.dev', 'Site Reliability Engineer', 'Faultline', 'SRE, professional breaker of staging.')], 'infra', 'Lightning (10 min)', 'Intro', 'declined', 3, 3, 2.2, 10),
-  S(121, 'Local-First Apps: Sync Engines in Anger', 'CRDTs in production: conflict UX, storage costs, and the bug that ate a week of edits.', [sp('Sofia Rossi', 'sofia@syncable.app', 'Product Engineer', 'Syncable', 'Product engineer, local-first convert.'), sp('Tim Okada', 'tim@syncable.app', 'Distributed Systems Engineer', 'Syncable', 'Distributed-systems engineer.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'accepted', 3, 3, 4.6, 9),
+  S(121, 'Local-First Apps: Sync Engines in Anger', 'CRDTs in production: conflict UX, storage costs, and the bug that ate a week of edits.', [sp('Tim Jobs', 'sofia@syncable.app', 'Product Engineer', 'Syncable', 'Product engineer, local-first convert.'), sp('Tim Okada', 'tim@syncable.app', 'Distributed Systems Engineer', 'Syncable', 'Distributed-systems engineer.')], 'web', 'Deep Dive (45 min)', 'Advanced', 'accepted', 3, 3, 4.6, 9),
   S(120, 'Burnout-Proofing Your On-Call Rotation', 'Alert budgets, follow-the-sun handoffs, and the metric that predicted every resignation.', [sp('Aisha Khan', 'aisha@humanops.co', 'Engineering Manager', 'HumanOps', 'Engineering manager, SRE background.')], 'infra', 'Talk (30 min)', 'Intro', 'withdrawn', 2, 3, 4.0, 8),
   {
     id: 'SUB-S02', form: 'sponsor', title: 'Scaling Without Servers — Live Architecture Review',
@@ -231,7 +231,7 @@ export const AGENDA = [
   // deliberate conflict: Ines Kovač double-booked at 14:00 (A10 vs A11)
   { id: 'A10', title: 'Live Threat Hunting Q&A', type: 'talk', speakers: 'Ines Kovač', track: 'sec', room: 'Room 2', day: 0, start: 360, end: 390, status: 'pending' },
   { id: 'A11', title: 'Security AMA Panel', type: 'talk', speakers: 'Ines Kovač, Nadia Petrova', track: 'sec', room: 'Room 3', day: 0, start: 360, end: 390, status: 'pending' },
-  { id: 'A12', title: 'Local-First Apps: Sync Engines in Anger', type: 'talk', speakers: 'Sofia Rossi, Tim Okada', track: 'web', room: 'Main Stage', day: 0, start: 390, end: 435, sub: 'SUB-121', status: 'confirmed' },
+  { id: 'A12', title: 'Local-First Apps: Sync Engines in Anger', type: 'talk', speakers: 'Tim Jobs, Tim Okada', track: 'web', room: 'Main Stage', day: 0, start: 390, end: 435, sub: 'SUB-121', status: 'confirmed' },
   { id: 'A13', title: 'Afternoon Break', type: 'service', room: 'ALL', day: 0, start: 435, end: 465 },
   { id: 'A14', title: 'CSS Grid Level 3: Masonry Is Finally Real', type: 'talk', speakers: 'Priya Raman', track: 'web', room: 'Room 2', day: 1, start: 90, end: 120, sub: 'SUB-144', status: 'pending' },
   { id: 'A15', title: 'Rust for TypeScript Developers', type: 'talk', speakers: 'Diego Fuentes', track: 'dx', room: 'Workshop Lab', day: 1, start: 90, end: 180, sub: 'SUB-132', status: 'pending' },
@@ -257,7 +257,7 @@ export const SPEAKER_TASKS = [
   { name: 'Jon Marsh', session: 'Passkeys in Production', track: 'sec', t: ['c', 'p', 'o', 'p', 'p', 'p'] },
   { name: 'Mei Chen', session: 'A Love Letter to Boring Technology', track: 'infra', t: ['c', 'c', 'c', 'c', 'c', 'c'] },
   { name: 'Hana Yoshida', session: 'LLM Evals Are Your New Unit Tests', track: 'ai', t: ['c', 'c', 'c', 'p', 'o', 'c'] },
-  { name: 'Sofia Rossi', session: 'Local-First Apps', track: 'web', t: ['c', 'c', 'p', 'p', 'p', 'p'] },
+  { name: 'Tim Jobs', session: 'Local-First Apps', track: 'web', t: ['c', 'c', 'p', 'p', 'p', 'p'] },
   { name: 'Tim Okada', session: 'Local-First Apps', track: 'web', t: ['c', 'o', 'o', 'p', 'p', 'p'] },
   { name: 'Priya Raman', session: 'CSS Grid Level 3', track: 'web', t: ['p', 'p', 'p', 'p', 'p', 'p'] },
   { name: 'Diego Fuentes', session: 'Rust for TypeScript Developers', track: 'dx', t: ['p', 'c', 'p', 'p', 'p', 'p'] },
@@ -280,13 +280,13 @@ export type SeedPerson = {
  */
 export const PEOPLE: SeedPerson[] = [
   // Organizer — owns the sandbox org and is the visitor's organizer seat.
-  { id: 'marta', name: 'Marta Keller', email: 'marta@devconf.org', orgRole: 'owner' },
+  { id: 'marta', name: 'Sean Parker', email: 'marta@devconf.org', orgRole: 'owner' },
 
   // Program team — shares the day-to-day running of the event.
   { id: 'nils', name: 'Nils Bergström', email: 'nils@devconf.org', orgRole: 'admin' },
 
   // Evaluators — outside reviewers invited as collaborators.
-  { id: 'deniz', name: 'Deniz Aksoy', email: 'deniz@aksoy.dev', orgRole: 'collaborator' },
+  { id: 'deniz', name: 'Molly Simpson', email: 'deniz@aksoy.dev', orgRole: 'collaborator' },
   { id: 'priya', name: 'Priya Nair', email: 'priya.n@webfoundry.co', orgRole: 'collaborator' },
   { id: 'sam', name: 'Sam Ortiz', email: 'sam@ortiz.codes', orgRole: 'collaborator' },
   { id: 'grace', name: 'Grace Osei', email: 'grace@platformlab.gh', orgRole: 'collaborator' },
@@ -501,8 +501,8 @@ export const SPEAKER_EXTRAS: Record<
     travelNotes?: string;
   }
 > = {
-  'Sofia Rossi': {
-    pronouns: 'she/her',
+  'Tim Jobs': {
+    pronouns: 'he/him',
     links: { website: 'https://syncable.app', linkedin: 'https://www.linkedin.com/in/sofia-rossi-syncable' },
   },
   'Mei Chen': {
@@ -577,7 +577,7 @@ export const PROSPECTS: SeedProspect[] = [
   {
     name: 'Kofi Boateng', email: 'kofi@railyard.dev', title: 'Principal Engineer', company: 'Railyard',
     bio: 'Build-caching obsessive. His Amsterdam talk on remote execution filled the overflow room.',
-    tags: [], custom: { region: 'EMEA', referred: 'Deniz Aksoy' },
+    tags: [], custom: { region: 'EMEA', referred: 'Molly Simpson' },
     stage: 'identified', score: 4,
     rationale: 'Strong speaker — topic overlaps Dmitri’s workshop, check the angle first.',
   },
@@ -666,15 +666,15 @@ export const SANDBOX_PERSONAS: Record<
   { name: string; first: string; email: string; title: string; blurb: string; color: string }
 > = {
   organizer: {
-    name: 'Marta Keller', first: 'Marta', email: 'marta@devconf.org', title: 'Organizer',
+    name: 'Sean Parker', first: 'Sean', email: 'marta@devconf.org', title: 'Organizer',
     blurb: 'Runs the program', color: '#4c5fd5',
   },
   speaker: {
-    name: 'Sofia Rossi', first: 'Sofia', email: 'sofia@syncable.app', title: 'Speaker',
+    name: 'Tim Jobs', first: 'Tim', email: 'sofia@syncable.app', title: 'Speaker',
     blurb: 'Speaker portal, tasks, profile, schedule', color: '#e8590c',
   },
   evaluator: {
-    name: 'Deniz Aksoy', first: 'Deniz', email: 'deniz@aksoy.dev', title: 'Evaluator',
+    name: 'Molly Simpson', first: 'Molly', email: 'deniz@aksoy.dev', title: 'Evaluator',
     blurb: 'Reviews submissions', color: '#2b8a3e',
   },
 };

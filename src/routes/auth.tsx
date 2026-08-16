@@ -228,7 +228,7 @@ app.get('/signup', (c) => {
           <input type="hidden" name="next" value={next} />
           <label style="display:block;">
             <div style={LABEL}>NAME</div>
-            <input name="name" type="text" autofocus placeholder="Marta Keller" style={INPUT} />
+            <input name="name" type="text" autofocus placeholder="Sean Parker" style={INPUT} />
           </label>
           <label style="display:block;">
             <div style={LABEL}>EMAIL</div>

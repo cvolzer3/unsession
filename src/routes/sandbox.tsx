@@ -5,9 +5,9 @@
  * to `GET /sandbox/:org` — a login-style page with the three pre-made
  * personas. Picking one signs the visitor in AS that seeded user:
  *
- *   Organizer  Marta Keller → /app (she owns the sandbox org)
- *   Speaker    Sofia Rossi  → /{slug}/portal (her profile is user-linked)
- *   Evaluator  Deniz Aksoy  → /{slug}/evaluate (on two reviewer rosters)
+ *   Organizer  Sean Parker   → /app (he owns the sandbox org)
+ *   Speaker    Tim Jobs      → /{slug}/portal (his profile is user-linked)
+ *   Evaluator  Molly Simpson → /{slug}/evaluate (on two reviewer rosters)
  *
  * `POST /sandbox/switch` is the same sign-in driven from the bottom-right
  * widget (views/layout.tsx). Both paths verify the org has `is_sandbox = 1`
