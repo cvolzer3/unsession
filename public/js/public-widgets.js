@@ -7,7 +7,8 @@
  *   [data-w-search]    keyword filter over [data-w-card] / [data-i-card] via data-search
  *   [data-facet]       Format/Track/Location checkboxes (sessions page)
  *   [data-w-count]     "1–X of N" result count, updated on every filter
- *   [data-more]        Show more / Show less toggle for clamped text
+ *   [data-more]        Show more / Show less toggle for clamped text (hidden
+ *                      when the text fits inside the clamp)
  *   [data-g-card]      gallery card → opens [data-g-detail=<id>] overlay
  *   [data-day-tab]     itinerary day switcher over [data-day-section]
  *   [data-star]        personal-schedule toggle, persisted in localStorage
@@ -121,6 +122,23 @@ function boot(root) {
     }
     styleDayTabs();
     styleMineToggle();
+    trimMoreButtons();
+  }
+
+  /**
+   * Hide [data-more] when its clamped text is not actually truncated. A hidden
+   * card measures 0×0, so those are skipped and re-measured when they become
+   * visible (day switch / gallery overlay → the callers below). All reads run
+   * before any write to keep this a single layout pass.
+   */
+  function trimMoreButtons() {
+    const pairs = $$('[data-more]')
+      .map((btn) => ({ btn, text: btn.parentElement.querySelector('[data-abstract]') }))
+      .filter((p) => p.text && p.text.getAttribute('data-open') !== '1' && p.text.clientHeight > 0);
+    const fits = pairs.map((p) => p.text.scrollHeight <= p.text.clientHeight + 1);
+    pairs.forEach((p, i) => {
+      p.btn.hidden = fits[i];
+    });
   }
 
   /* ------------------------------------------------------------- chrome */
@@ -242,7 +260,10 @@ function boot(root) {
     const gCard = e.target.closest('[data-g-card]');
     if (gCard) {
       const detail = root.querySelector(`[data-g-detail="${gCard.dataset.gCard}"]`);
-      if (detail) detail.hidden = false;
+      if (detail) {
+        detail.hidden = false;
+        trimMoreButtons();
+      }
       return;
     }
     const gClose = e.target.closest('[data-g-close]');
@@ -265,4 +286,9 @@ function boot(root) {
   styleStars();
   styleMineToggle();
   apply();
+
+  // Late webfont metrics or a resized viewport can change how many lines the
+  // text wraps to, flipping whether the clamp truncates.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(trimMoreButtons);
+  window.addEventListener('resize', trimMoreButtons);
 }
