@@ -14,6 +14,7 @@ import { GOOGLE_FONTS, fmtDateRange } from '../views/layout';
 import { SocialMeta } from '../views/meta';
 import { all } from '../lib/db';
 import { seedSandbox } from '../lib/seed';
+import { claimPooledSandbox, topUpSandboxPool } from '../lib/sandbox-pool';
 import { GITHUB_URL } from '../lib/defaults';
 import { ProductLogo } from '../views/brand';
 
@@ -1002,8 +1003,17 @@ app.get('/events', async (c) => {
   );
 });
 
-/** Provisions a sandbox org + event, then hands the visitor the role picker. */
+/**
+ * Hands the visitor the role picker for a pre-seeded sandbox from the pool
+ * (instant), seeding inline only when the pool is empty. Either way the pool
+ * refills after the response is sent.
+ */
 app.post('/sandbox', async (c) => {
+  const pooled = await claimPooledSandbox(c.env);
+  c.executionCtx.waitUntil(
+    topUpSandboxPool(c.env).catch((err) => console.error('[sandbox-pool] top-up failed', err))
+  );
+  if (pooled) return c.redirect(`/sandbox/${pooled}`);
   const { orgId } = await seedSandbox(c.env);
   return c.redirect(`/sandbox/${orgId}`);
 });

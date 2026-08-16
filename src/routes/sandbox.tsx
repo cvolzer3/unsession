@@ -41,10 +41,19 @@ type Sandbox = { org: Org; event: Event; suffix: string };
 /** The org (sandboxes only — `is_sandbox = 1` is non-negotiable) and its one event. */
 async function loadSandbox(db: D1Database, orgId: string): Promise<Sandbox | null> {
   if (!orgId) return null;
-  const org = await one<Org>(db, `SELECT * FROM orgs WHERE id = ? AND is_sandbox = 1`, orgId);
-  if (!org) return null;
-  const event = await one<Event>(db, `SELECT * FROM events WHERE org_id = ? ORDER BY created_at LIMIT 1`, org.id);
-  if (!event) return null;
+  // One round trip for org + its one event (o_* aliases dodge the id /
+  // name / created_at collisions with e.*).
+  const row = await one<Event & { o_id: string; o_name: string; o_is_sandbox: number; o_created_at: string }>(
+    db,
+    `SELECT e.*, o.id AS o_id, o.name AS o_name, o.is_sandbox AS o_is_sandbox, o.created_at AS o_created_at
+       FROM orgs o JOIN events e ON e.org_id = o.id
+      WHERE o.id = ? AND o.is_sandbox = 1
+      ORDER BY e.created_at LIMIT 1`,
+    orgId
+  );
+  if (!row) return null;
+  const { o_id, o_name, o_is_sandbox, o_created_at, ...event } = row;
+  const org: Org = { id: o_id, name: o_name, is_sandbox: o_is_sandbox, created_at: o_created_at };
   // Sandbox slugs are `devconf-2027-<suffix>`; the suffix plus-addresses every persona email.
   const suffix = event.slug.startsWith(`${EVENT.slug}-`) ? event.slug.slice(EVENT.slug.length + 1) : '';
   return { org, event, suffix };

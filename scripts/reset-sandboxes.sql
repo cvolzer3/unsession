@@ -140,6 +140,8 @@ DELETE FROM invites WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
 
 -- Membership rows, then the events and orgs themselves ------------------------
 
+DELETE FROM sandbox_pool WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
+
 DELETE FROM org_members WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);
 
 DELETE FROM events WHERE org_id IN (SELECT id FROM orgs WHERE is_sandbox = 1);

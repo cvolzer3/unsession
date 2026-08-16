@@ -23,6 +23,7 @@ import {
   members,
   mergeTags,
 } from './evals';
+import { topUpSandboxPool } from './sandbox-pool';
 import type { Bindings } from '../types';
 
 /** Free-plan CPU is tight — cap outbound work per tick; the rest catches up next tick. */
@@ -280,6 +281,12 @@ export async function runScheduledJobs(env: Bindings, event: ScheduledController
   const at = new Date(event.scheduledTime).toISOString();
   const budget = { left: MAX_SENDS_PER_TICK };
   let eventsScanned = 0;
+  // Own try/catch: a failed seed must not starve the reminder automations.
+  try {
+    await topUpSandboxPool(env);
+  } catch (err) {
+    console.error('[cron] sandbox pool top-up failed', err);
+  }
   try {
     await sweepOauthCodes(env);
     const events = await all<EventRow>(env.DB, `SELECT id, name, slug, start_date FROM events`);

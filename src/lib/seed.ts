@@ -91,31 +91,35 @@ async function seedPapers(
   const out = new Map<string, { field: string; fileId: string }>();
   if (!filesEnabled(env)) return out;
 
-  for (const paper of D.SUBMISSION_PAPERS) {
-    const s = D.SUBMISSIONS.find((x) => x.id === paper.sub);
-    const subId = submissionId.get(paper.sub);
-    if (!s || !subId) continue;
-    const pdf = abstractPdf({
-      event: D.EVENT.name,
-      title: s.title,
-      byline: s.speakers.map((sp) => `${sp.name} · ${sp.email}`).join(' · '),
-      meta: [D.TRACKS.find((t) => t.id === s.track)?.name, s.format, s.level].filter(Boolean).join(' · '),
-      summary: [s.abstract, ...paper.summary],
-      takeaways: paper.takeaways,
-      minutes: D.FORMATS.find((f) => f.label === s.format)?.duration ?? 30,
-      submitted: s.submitted,
-    });
-    const res = await saveUpload(env, {
-      eventId,
-      kind: 'upload',
-      subjectType: 'submission',
-      subjectId: `${subId}:${paper.field}`,
-      file: new File([pdf], paper.filename, { type: 'application/pdf' }),
-      maxMb: 10,
-      allowedExts: 'pdf',
-    });
-    if (res.ok) out.set(paper.sub, { field: paper.field, fileId: res.file.id });
-  }
+  // The uploads are independent — run them concurrently instead of paying
+  // one R2 + D1 round trip after another.
+  await Promise.all(
+    D.SUBMISSION_PAPERS.map(async (paper) => {
+      const s = D.SUBMISSIONS.find((x) => x.id === paper.sub);
+      const subId = submissionId.get(paper.sub);
+      if (!s || !subId) return;
+      const pdf = abstractPdf({
+        event: D.EVENT.name,
+        title: s.title,
+        byline: s.speakers.map((sp) => `${sp.name} · ${sp.email}`).join(' · '),
+        meta: [D.TRACKS.find((t) => t.id === s.track)?.name, s.format, s.level].filter(Boolean).join(' · '),
+        summary: [s.abstract, ...paper.summary],
+        takeaways: paper.takeaways,
+        minutes: D.FORMATS.find((f) => f.label === s.format)?.duration ?? 30,
+        submitted: s.submitted,
+      });
+      const res = await saveUpload(env, {
+        eventId,
+        kind: 'upload',
+        subjectType: 'submission',
+        subjectId: `${subId}:${paper.field}`,
+        file: new File([pdf], paper.filename, { type: 'application/pdf' }),
+        maxMb: 10,
+        allowedExts: 'pdf',
+      });
+      if (res.ok) out.set(paper.sub, { field: paper.field, fileId: res.file.id });
+    })
+  );
   return out;
 }
 
