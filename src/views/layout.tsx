@@ -34,6 +34,22 @@ export const MOBILE_MAX = 768;
  * overrides that must land on inline-styled elements say so explicitly.
  */
 const SHARED_BASE_CSS = `
+  /* ------------------------------------------- cross-page paint stability
+     Every nav click is a full document load, so two things must hold or the
+     chrome appears to jitter on every click. (1) The viewport keeps a stable
+     scrollbar gutter: page heights straddle the viewport (some fit, some
+     scroll), and on classic-scrollbar systems the bar appearing/leaving
+     reflows the page ~15px per navigation. (2) Same-origin navigations run
+     as cross-document view transitions: the old frame holds until the new
+     document is ready, then cross-fades briefly — no white flash while the
+     server thinks. Browsers without @view-transition keep today's behavior. */
+  html{scrollbar-gutter:stable;}
+  @view-transition{navigation:auto;}
+  ::view-transition-group(*){animation-duration:0.12s;}
+  ::view-transition-old(root),::view-transition-new(root){animation-duration:0.12s;}
+  @media (prefers-reduced-motion:reduce){
+    ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important;}
+  }
   /* Wrap anything that cannot narrow — wide tables, code blocks, kanban lanes —
      in .us-scroll-x so it scrolls in its own box instead of widening the page. */
   .us-scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;}
@@ -96,6 +112,11 @@ export const ADMIN_BASE_CSS = `
      query. Desktop values are byte-for-byte what the inline styles used to be. */
   .us-shell{display:grid;grid-template-columns:216px 1fr;min-height:100vh;}
   .us-sidenav{background:#fff;border-right:1px solid #e2e3e8;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;}
+  /* Sidebar and header ride outside the root cross-fade as their own
+     view-transition groups: their pixels match on every admin page, so a
+     navigation leaves them visually untouched while the content fades. */
+  .us-sidenav{view-transition-name:us-sidenav;}
+  .us-adminhead{view-transition-name:us-adminhead;}
   .us-navscrim{display:none;}
   .us-burger,.us-navclose{display:none;}
   .us-adminhead{background:#fff;border-bottom:1px solid #e2e3e8;padding:14px 28px;display:flex;align-items:center;gap:14px;}
@@ -113,6 +134,10 @@ export const ADMIN_BASE_CSS = `
        bar and home indicator; the env() padding keeps its content out of them.
        The width grows by the left inset so links don't narrow on notched
        phones in landscape. */
+    /* As an overlay drawer the sidebar is hidden on most navigations and
+       slides when it isn't — a pinned transition group would snapshot that
+       motion, so it rejoins the plain root cross-fade here. */
+    .us-sidenav{view-transition-name:none;}
     .us-sidenav{position:fixed;top:0;left:0;z-index:99;width:calc(min(80vw,300px) + env(safe-area-inset-left));height:100vh;height:100dvh;
       padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);
       border-right:none;box-shadow:6px 0 28px rgba(22,23,29,0.22);
