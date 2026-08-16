@@ -411,40 +411,44 @@ const EnrollDialog: FC<{ candidates: ContactOption[]; preselect: string | null }
 );
 
 app.get('/app/org/pipeline', async (c) => {
-  const props = await adminProps(c, 'Pipeline', { headerTitle: 'Pipeline' });
   if (!c.var.event) return c.redirect('/app/events/new');
   const orgId = orgIdForRequest(c)!;
 
-  const cards = await all<CardRow>(
-    c.env.DB,
-    `SELECT p.id, p.contact_id, p.stage, p.score, p.rationale, p.updated_at,
-            c.name, c.email, c.company, c.headshot_file_id
-       FROM pipeline_cards p JOIN org_contacts c ON c.id = p.contact_id
-      WHERE p.org_id = ?
-      ORDER BY p.sort_order, p.updated_at DESC`,
-    orgId
-  );
+  const [props, cards, candidates] = await Promise.all([
+    adminProps(c, 'Pipeline', { headerTitle: 'Pipeline' }),
+    all<CardRow>(
+      c.env.DB,
+      `SELECT p.id, p.contact_id, p.stage, p.score, p.rationale, p.updated_at,
+              c.name, c.email, c.company, c.headshot_file_id
+         FROM pipeline_cards p JOIN org_contacts c ON c.id = p.contact_id
+        WHERE p.org_id = ?
+        ORDER BY p.sort_order, p.updated_at DESC`,
+      orgId
+    ),
+    loadCandidates(c.env.DB, orgId),
+  ]);
 
   // ?enroll=<contactId> opens the dialog with that contact chosen. Someone who
   // already has a card goes straight to it instead.
   let preselect = c.req.query('enroll') ?? null;
   if (preselect) {
-    const existing = await one<{ id: string }>(
-      c.env.DB,
-      `SELECT id FROM pipeline_cards WHERE org_id = ? AND contact_id = ?`,
-      orgId,
-      preselect
-    );
+    const [existing, owned] = await Promise.all([
+      one<{ id: string }>(
+        c.env.DB,
+        `SELECT id FROM pipeline_cards WHERE org_id = ? AND contact_id = ?`,
+        orgId,
+        preselect
+      ),
+      one<{ id: string }>(
+        c.env.DB,
+        `SELECT id FROM org_contacts WHERE id = ? AND org_id = ?`,
+        preselect,
+        orgId
+      ),
+    ]);
     if (existing) return c.redirect(backToCard(existing.id, 'Already in the pipeline'));
-    const owned = await one<{ id: string }>(
-      c.env.DB,
-      `SELECT id FROM org_contacts WHERE id = ? AND org_id = ?`,
-      preselect,
-      orgId
-    );
     if (!owned) preselect = null;
   }
-  const candidates = await loadCandidates(c.env.DB, orgId);
 
   const headerActions = (
     <button type="button" data-dialog-open="#enroll-dialog" style={PRIMARY_BTN}>
@@ -594,11 +598,11 @@ app.get('/app/org/pipeline/:id', async (c) => {
   const card = await loadCard(c.env.DB, orgId, c.req.param('id'));
   if (!card) return c.notFound();
 
-  const props = await adminProps(c, 'Pipeline', { headerTitle: card.name });
   const stage = (isStage(card.stage) ? card.stage : 'identified') as Stage;
   const canRemove = c.var.role === 'owner' || c.var.role === 'admin';
 
-  const [notes, history, events] = await Promise.all([
+  const [props, notes, history, events] = await Promise.all([
+    adminProps(c, 'Pipeline', { headerTitle: card.name }),
     all<{ id: string; body: string; created_at: string; author: string | null; email: string | null }>(
       c.env.DB,
       `SELECT n.id, n.body, n.created_at, u.name AS author, u.email

@@ -200,7 +200,6 @@ const subTab = (on: boolean) =>
 
 app.get('/app/emails', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Emails');
   if (!event) return c.redirect('/app/events/new');
 
   const tabParam = c.req.query('tab');
@@ -208,11 +207,54 @@ app.get('/app/emails', async (c) => {
   const statusFilter = c.req.query('status') ?? 'all';
   const detailId = c.req.query('id');
 
-  const queuedDecisions = await queuedDecisionCount(c.env, event.id);
-  const queuedReminders = await queuedReminderCount(c.env, event.id);
+  // Each tab's rows fetch only on that tab, but everything the request does
+  // need goes out in one round-trip burst rather than a sequential chain.
+  const [props, queuedDecisions, queuedReminders, outboxRows, reminderRows, templates, tplSentCounts, logRows, detail] =
+    await Promise.all([
+      adminProps(c, 'Emails'),
+      queuedDecisionCount(c.env, event.id),
+      queuedReminderCount(c.env, event.id),
+      tab === 'outbox' ? listDecisionQueue(c.env, event.id) : [],
+      tab === 'outbox' ? listReminderQueue(c.env, event.id) : ([] as Awaited<ReturnType<typeof listReminderQueue>>),
+      tab === 'templates'
+        ? all<TemplateRow>(c.env.DB, `SELECT * FROM email_templates WHERE event_id = ? ORDER BY key, name`, event.id)
+        : [],
+      tab === 'templates'
+        ? all<{ template_key: string; n: number }>(
+            c.env.DB,
+            `SELECT template_key, COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key IS NOT NULL GROUP BY template_key`,
+            event.id
+          )
+        : [],
+      tab === 'log'
+        ? all<{
+            id: string;
+            created_at: string;
+            to_email: string;
+            to_name: string | null;
+            template_key: string | null;
+            subject: string;
+            status: string;
+          }>(
+            c.env.DB,
+            statusFilter === 'all'
+              ? `SELECT id, created_at, to_email, to_name, template_key, subject, status FROM emails
+                  WHERE event_id = ? ORDER BY created_at DESC LIMIT 200`
+              : `SELECT id, created_at, to_email, to_name, template_key, subject, status FROM emails
+                  WHERE event_id = ? AND status = ? ORDER BY created_at DESC LIMIT 200`,
+            ...(statusFilter === 'all' ? [event.id] : [event.id, statusFilter])
+          )
+        : [],
+      detailId
+        ? one<{ subject: string; body: string; to_email: string; status: string; created_at: string; error: string | null }>(
+            c.env.DB,
+            `SELECT subject, body, to_email, status, created_at, error FROM emails WHERE id = ? AND event_id = ?`,
+            detailId,
+            event.id
+          )
+        : null,
+    ]);
   const queuedCount = queuedDecisions + queuedReminders;
-  const outboxRows = tab === 'outbox' ? await listDecisionQueue(c.env, event.id) : [];
-  const reminderRows = tab === 'outbox' ? await listReminderQueue(c.env, event.id) : [];
   // Sending batches reminders per speaker (one email each) — show them grouped the same way.
   const reminderGroups: (typeof reminderRows)[] = [];
   {
@@ -228,55 +270,13 @@ app.get('/app/emails', async (c) => {
     }
   }
 
-  const templates =
-    tab === 'templates'
-      ? await all<TemplateRow>(c.env.DB, `SELECT * FROM email_templates WHERE event_id = ? ORDER BY key, name`, event.id)
-      : [];
-
   const sentByKey = new Map<string, number>();
-  if (tab === 'templates') {
-    const counts = await all<{ template_key: string; n: number }>(
-      c.env.DB,
-      `SELECT template_key, COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key IS NOT NULL GROUP BY template_key`,
-      event.id
-    );
-    for (const r of counts) sentByKey.set(r.template_key, r.n);
-  }
+  for (const r of tplSentCounts) sentByKey.set(r.template_key, r.n);
 
   const sections = [
     ...GROUPS.map((g) => ({ label: g.label, rows: g.keys.flatMap((k) => templates.filter((t) => t.key === k)) })),
     { label: 'Other', rows: templates.filter((t) => !KNOWN_KEYS.has(t.key)) },
   ].filter((s) => s.rows.length);
-
-  const logRows =
-    tab === 'log'
-      ? await all<{
-          id: string;
-          created_at: string;
-          to_email: string;
-          to_name: string | null;
-          template_key: string | null;
-          subject: string;
-          status: string;
-        }>(
-          c.env.DB,
-          statusFilter === 'all'
-            ? `SELECT id, created_at, to_email, to_name, template_key, subject, status FROM emails
-                WHERE event_id = ? ORDER BY created_at DESC LIMIT 200`
-            : `SELECT id, created_at, to_email, to_name, template_key, subject, status FROM emails
-                WHERE event_id = ? AND status = ? ORDER BY created_at DESC LIMIT 200`,
-          ...(statusFilter === 'all' ? [event.id] : [event.id, statusFilter])
-        )
-      : [];
-
-  const detail = detailId
-    ? await one<{ subject: string; body: string; to_email: string; status: string; created_at: string; error: string | null }>(
-        c.env.DB,
-        `SELECT subject, body, to_email, status, created_at, error FROM emails WHERE id = ? AND event_id = ?`,
-        detailId,
-        event.id
-      )
-    : null;
 
   const tabs = (
     <div style="display:flex;gap:18px;border-bottom:1px solid #e2e3e8;margin-bottom:20px;">
@@ -667,17 +667,18 @@ app.get('/app/emails/t/:id', async (c) => {
   );
   if (!t) return c.redirect('/app/emails');
 
-  const sent = await one<{ n: number }>(
-    c.env.DB,
-    `SELECT COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key = ?`,
-    event.id,
-    t.key
-  );
-
-  const props = await adminProps(c, `Emails · ${t.name}`, {
-    headerTitle: 'Edit template',
-    scripts: ['/js/rich-editor.js'],
-  });
+  const [sent, props] = await Promise.all([
+    one<{ n: number }>(
+      c.env.DB,
+      `SELECT COUNT(*) AS n FROM emails WHERE event_id = ? AND template_key = ?`,
+      event.id,
+      t.key
+    ),
+    adminProps(c, `Emails · ${t.name}`, {
+      headerTitle: 'Edit template',
+      scripts: ['/js/rich-editor.js'],
+    }),
+  ]);
 
   return c.html(
     <AdminLayout {...props}>

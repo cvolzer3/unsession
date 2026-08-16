@@ -364,11 +364,13 @@ const BarRow: FC<{ label: string; count: number; max: number; href?: string }> =
 /* ------------------------------------------------------------------- page */
 
 app.get('/app/org/contacts', async (c) => {
-  const props = await adminProps(c, 'Speaker Directory', {
+  if (!c.var.event) return c.redirect('/app/events/new');
+  // Started here, awaited inside each tab's own Promise.all — the chrome
+  // queries overlap the tab's data instead of preceding it.
+  const propsP = adminProps(c, 'Speaker Directory', {
     headerTitle: 'Speaker Directory',
     scripts: ['/js/org-directory.js'],
   });
-  if (!c.var.event) return c.redirect('/app/events/new');
   const orgId = orgIdForRequest(c)!;
   const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
 
@@ -393,12 +395,15 @@ app.get('/app/org/contacts', async (c) => {
   /* ------------------------------------------------------------ segments */
 
   if (tab === 'segments') {
-    const segments = await all<SegmentRow>(
-      c.env.DB,
-      `SELECT id, name, kind, query, member_ids_json, created_at FROM org_segments
-        WHERE org_id = ? ORDER BY created_at DESC LIMIT 50`,
-      orgId
-    );
+    const [props, segments] = await Promise.all([
+      propsP,
+      all<SegmentRow>(
+        c.env.DB,
+        `SELECT id, name, kind, query, member_ids_json, created_at FROM org_segments
+          WHERE org_id = ? ORDER BY created_at DESC LIMIT 50`,
+        orgId
+      ),
+    ]);
 
     // One batch keeps the per-segment counts to a single subrequest.
     const counts = new Map<string, number>();
@@ -495,7 +500,8 @@ app.get('/app/org/contacts', async (c) => {
   /* ------------------------------------------------------------ overview */
 
   if (tab === 'overview') {
-    const [totals, eventCount, returning, emailCount] = await Promise.all([
+    const [props, totals, eventCount, returning, emailCount, companies, tags, sources, recent] = await Promise.all([
+      propsP,
       one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM org_contacts WHERE org_id = ?`, orgId),
       one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM events WHERE org_id = ?`, orgId),
       one<{ n: number }>(
@@ -510,9 +516,6 @@ app.get('/app/org/contacts', async (c) => {
         orgId
       ),
       one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM emails WHERE org_id = ?`, orgId),
-    ]);
-
-    const [companies, tags, sources, recent] = await Promise.all([
       all<{ company: string; n: number }>(
         c.env.DB,
         `SELECT company, COUNT(*) AS n FROM org_contacts
@@ -650,7 +653,8 @@ app.get('/app/org/contacts', async (c) => {
   const memberIds = segment && segment.kind === 'curated' ? jsonParse<string[]>(segment.member_ids_json, []) : null;
 
   const where = buildWhere(orgId, filters, memberIds);
-  const [totalRow, companyOpts, titleOpts, tagOpts, events, segmentOpts] = await Promise.all([
+  const [props, totalRow, companyOpts, titleOpts, tagOpts, events, segmentOpts] = await Promise.all([
+    propsP,
     one<{ n: number }>(c.env.DB, `SELECT COUNT(*) AS n FROM org_contacts WHERE ${where.sql}`, ...where.params),
     all<{ value: string; n: number }>(
       c.env.DB,
@@ -1803,13 +1807,13 @@ const NEW_SEGMENT: Builder = { ...EMPTY, name: '', kind: 'curated', ids: [] };
  * the form comes back the way it was submitted.
  */
 async function renderSegmentBuilder(c: Context<Ctx>, form: Builder, error: string | null) {
-  const props = await adminProps(c, 'Create segment', {
-    headerTitle: 'Create segment',
-    scripts: ['/js/org-directory.js'],
-  });
   const orgId = orgIdForRequest(c)!;
 
-  const [contacts, totalRow, companyOpts, titleOpts, tagOpts] = await Promise.all([
+  const [props, contacts, totalRow, companyOpts, titleOpts, tagOpts] = await Promise.all([
+    adminProps(c, 'Create segment', {
+      headerTitle: 'Create segment',
+      scripts: ['/js/org-directory.js'],
+    }),
     all<{ id: string; name: string; email: string; company: string }>(
       c.env.DB,
       `SELECT id, name, email, company FROM org_contacts

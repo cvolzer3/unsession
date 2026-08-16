@@ -84,17 +84,19 @@ const SCOPE_LABEL: Record<string, string> = { read: 'READ', 'read,write': 'READ 
 type PageOpts = { secret?: { name: string; secret: string }; error?: string };
 
 async function renderPage(c: Context<Ctx>, opts: PageOpts = {}) {
-  const props = await adminProps(c, 'API', { headerTitle: 'API access' });
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const org = await one<{ is_sandbox: number }>(c.env.DB, `SELECT is_sandbox FROM orgs WHERE id = ?`, event.org_id);
+  const [props, org, tokens] = await Promise.all([
+    adminProps(c, 'API', { headerTitle: 'API access' }),
+    one<{ is_sandbox: number }>(c.env.DB, `SELECT is_sandbox FROM orgs WHERE id = ?`, event.org_id),
+    all<ApiTokenRow>(
+      c.env.DB,
+      `SELECT * FROM api_tokens WHERE org_id = ? ORDER BY (revoked_at IS NOT NULL), created_at DESC`,
+      event.org_id
+    ),
+  ]);
   const isSandbox = !!org?.is_sandbox;
-  const tokens = await all<ApiTokenRow>(
-    c.env.DB,
-    `SELECT * FROM api_tokens WHERE org_id = ? ORDER BY (revoked_at IS NOT NULL), created_at DESC`,
-    event.org_id
-  );
   const orgEvents = (c.var.events ?? []).filter((e) => e.org_id === event.org_id);
   const eventName = new Map(orgEvents.map((e) => [e.id, e.name]));
   const origin = (props.origin ?? 'https://unsession.dev').replace(/\/$/, '');

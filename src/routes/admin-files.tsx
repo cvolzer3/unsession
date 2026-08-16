@@ -345,14 +345,13 @@ const Drawer: FC<{ chain: Chain; comments: FileCommentRow[]; backHref: string }>
 /* -------------------------------------------------------------- the page */
 
 app.get('/app/files', async (c) => {
-  const props = await adminProps(c, 'Files');
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
   const filter = FILTERS.some(([k]) => k === c.req.query('kind')) ? c.req.query('kind')! : 'all';
   const openId = c.req.query('file') ?? null;
 
-  const chains = await loadLibrary(c.env, event.id);
+  const [props, chains] = await Promise.all([adminProps(c, 'Files'), loadLibrary(c.env, event.id)]);
   const shown = chains.filter((ch) => inFilter(ch, filter));
   const open = openId ? (chains.find((ch) => ch.versions.some((v) => v.id === openId)) ?? null) : null;
   const openComments =

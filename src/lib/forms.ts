@@ -448,18 +448,20 @@ export function optionLabel(name: string, durationMin: number | null): string {
 }
 
 export async function loadTaxonomies(db: D1Database, eventId: string): Promise<TaxonomyView[]> {
-  const taxes = await all<{ id: string; name: string }>(
-    db,
-    `SELECT id, name FROM taxonomies WHERE event_id = ? ORDER BY position, name`,
-    eventId
-  );
-  const opts = await all<{ taxonomy_id: string; name: string; duration_min: number | null }>(
-    db,
-    `SELECT o.taxonomy_id, o.name, o.duration_min FROM taxonomy_options o
-       JOIN taxonomies t ON t.id = o.taxonomy_id
-      WHERE t.event_id = ? ORDER BY o.position, o.name`,
-    eventId
-  );
+  const [taxes, opts] = await Promise.all([
+    all<{ id: string; name: string }>(
+      db,
+      `SELECT id, name FROM taxonomies WHERE event_id = ? ORDER BY position, name`,
+      eventId
+    ),
+    all<{ taxonomy_id: string; name: string; duration_min: number | null }>(
+      db,
+      `SELECT o.taxonomy_id, o.name, o.duration_min FROM taxonomy_options o
+         JOIN taxonomies t ON t.id = o.taxonomy_id
+        WHERE t.event_id = ? ORDER BY o.position, o.name`,
+      eventId
+    ),
+  ]);
   return taxes.map((t) => ({
     id: t.id,
     name: t.name,
@@ -744,7 +746,14 @@ export async function loadForm(
 }
 
 export async function loadFormRow(db: D1Database, form: FormRow): Promise<LoadedForm> {
-  let version = await currentVersion(db, form.id);
+  let [version, count] = await Promise.all([
+    currentVersion(db, form.id),
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM form_versions WHERE form_id = ?`,
+      form.id
+    ),
+  ]);
   if (!version) {
     version = {
       id: newId('fvr'),
@@ -762,12 +771,9 @@ export async function loadFormRow(db: D1Database, form: FormRow): Promise<Loaded
       version.schema_json,
       version.created_at
     );
+    // The count ran concurrently with the lookup, before this insert existed.
+    count = { n: 1 };
   }
-  const count = await one<{ n: number }>(
-    db,
-    `SELECT COUNT(*) AS n FROM form_versions WHERE form_id = ?`,
-    form.id
-  );
   return {
     form,
     settings: parseSettings(form.settings_json),

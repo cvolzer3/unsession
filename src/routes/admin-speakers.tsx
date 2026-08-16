@@ -303,42 +303,43 @@ type PageData = {
 };
 
 async function loadPage(env: Ctx['Bindings'], eventId: string): Promise<PageData> {
-  const templates = await all<T.TaskTemplateRow>(
-    env.DB,
-    `SELECT * FROM task_templates WHERE event_id = ? ORDER BY archived, created_at`,
-    eventId
-  );
-  const active = templates.filter((t) => !t.archived);
-
-  const profiles = await all<ProfileRow>(
-    env.DB,
-    `SELECT id, name, email, bio, job_title, company, tagline, slug, headshot_file_id, imported_at
-       FROM speaker_profiles WHERE event_id = ? ORDER BY name`,
-    eventId
-  );
-  const tasks = await all<T.TaskRow>(
-    env.DB,
-    `SELECT * FROM tasks WHERE event_id = ? AND status != 'cancelled'`,
-    eventId
-  );
-  const links = await all<{ speaker_profile_id: string; session_id: string; title: string }>(
-    env.DB,
-    `SELECT ss.speaker_profile_id, ss.session_id, s.title
-       FROM session_speakers ss JOIN sessions s ON s.id = ss.session_id
-      WHERE s.event_id = ? ORDER BY ss.position`,
-    eventId
-  );
   // `confirmed` is the session's state (migration 0011), so rank it off the
   // session rather than the submission — an accepted-and-confirmed speaker
   // still outranks a merely-accepted one in the grid.
-  const subs = await all<{ email: string; status: string; title: string; confirmed: number }>(
-    env.DB,
-    `SELECT sp.email AS email, s.status AS status, s.title AS title,
-            EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed') AS confirmed
-       FROM submission_speakers sp JOIN submissions s ON s.id = sp.submission_id
-      WHERE s.event_id = ?`,
-    eventId
-  );
+  const [templates, profiles, tasks, links, subs] = await Promise.all([
+    all<T.TaskTemplateRow>(
+      env.DB,
+      `SELECT * FROM task_templates WHERE event_id = ? ORDER BY archived, created_at`,
+      eventId
+    ),
+    all<ProfileRow>(
+      env.DB,
+      `SELECT id, name, email, bio, job_title, company, tagline, slug, headshot_file_id, imported_at
+         FROM speaker_profiles WHERE event_id = ? ORDER BY name`,
+      eventId
+    ),
+    all<T.TaskRow>(
+      env.DB,
+      `SELECT * FROM tasks WHERE event_id = ? AND status != 'cancelled'`,
+      eventId
+    ),
+    all<{ speaker_profile_id: string; session_id: string; title: string }>(
+      env.DB,
+      `SELECT ss.speaker_profile_id, ss.session_id, s.title
+         FROM session_speakers ss JOIN sessions s ON s.id = ss.session_id
+        WHERE s.event_id = ? ORDER BY ss.position`,
+      eventId
+    ),
+    all<{ email: string; status: string; title: string; confirmed: number }>(
+      env.DB,
+      `SELECT sp.email AS email, s.status AS status, s.title AS title,
+              EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed') AS confirmed
+         FROM submission_speakers sp JOIN submissions s ON s.id = sp.submission_id
+        WHERE s.event_id = ?`,
+      eventId
+    ),
+  ]);
+  const active = templates.filter((t) => !t.archived);
 
   const sessionsOf = new Map<string, { ids: Set<string>; title: string }>();
   for (const l of links) {
@@ -1226,14 +1227,31 @@ const Dialogs: FC<{ eventName: string; userEmail: string }> = ({ eventName, user
 /* ------------------------------------------------------------- the page */
 
 app.get('/app/speakers', async (c) => {
-  const props = await adminProps(c, 'Speakers & Tasks', { headerTitle: 'Speaker onboarding' });
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
-  const data = await loadPage(c.env, event.id);
   const files = filesEnabled(c.env);
+  const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
   // Same review-and-send panel as /app/submissions, but for queued task
   // reminders — the Remind button queues, this is where the queue shows.
-  const reminderQueue = await listReminderQueue(c.env, event.id);
+  const [props, data, reminderQueue, directory, taxOpts, emailTemplates] = await Promise.all([
+    adminProps(c, 'Speakers & Tasks', { headerTitle: 'Speaker onboarding' }),
+    loadPage(c.env, event.id),
+    listReminderQueue(c.env, event.id),
+    canWrite
+      ? directoryCandidates(c.env.DB, event.org_id, event.id)
+      : Promise.resolve({ rows: [] as DirectoryCandidate[], more: false }),
+    all<{ taxonomy: string; name: string }>(
+      c.env.DB,
+      `SELECT t.name AS taxonomy, o.name AS name FROM taxonomy_options o
+         JOIN taxonomies t ON t.id = o.taxonomy_id WHERE t.event_id = ? ORDER BY t.position, o.position`,
+      event.id
+    ),
+    all<{ key: string; name: string; subject: string; body: string }>(
+      c.env.DB,
+      `SELECT key, name, subject, body FROM email_templates WHERE event_id = ? ORDER BY key`,
+      event.id
+    ),
+  ]);
   // Sending batches per speaker (one email each) — group the panel the same way.
   const reminderGroups: (typeof reminderQueue)[] = [];
   {
@@ -1248,11 +1266,6 @@ app.get('/app/speakers', async (c) => {
       }
     }
   }
-  const canWrite = c.var.role === 'admin' || c.var.role === 'owner';
-  const directory = canWrite
-    ? await directoryCandidates(c.env.DB, event.org_id, event.id)
-    : { rows: [] as DirectoryCandidate[], more: false };
-
   // Two header buttons only fit 320px with their long labels trimmed, so each
   // carries a phone-length label beside the desktop one.
   const zipBtn = (href: string, long: string, short: string) => {
@@ -1299,23 +1312,13 @@ app.get('/app/speakers', async (c) => {
       typeLabel: T.TYPE_LABEL[t.type],
       dueDesc: T.dueDesc(t),
     })),
-    taxonomies: await (async () => {
-      const opts = await all<{ taxonomy: string; name: string }>(
-        c.env.DB,
-        `SELECT t.name AS taxonomy, o.name AS name FROM taxonomy_options o
-           JOIN taxonomies t ON t.id = o.taxonomy_id WHERE t.event_id = ? ORDER BY t.position, o.position`,
-        event.id
-      );
+    taxonomies: (() => {
       const map: Record<string, string[]> = { Track: [], Format: [], Level: [] };
-      for (const o of opts) (map[o.taxonomy] ??= []).push(o.name);
+      for (const o of taxOpts) (map[o.taxonomy] ??= []).push(o.name);
       return map;
     })(),
     miniForms: T.MINI_FORM_NAMES,
-    emailTemplates: await all<{ key: string; name: string; subject: string; body: string }>(
-      c.env.DB,
-      `SELECT key, name, subject, body FROM email_templates WHERE event_id = ? ORDER BY key`,
-      event.id
-    ),
+    emailTemplates,
     defaults: { subject: T.REM_SUBJ, body: T.REM_BODY },
     event: { name: event.name, slug: event.slug, start: event.start_date },
     me: c.var.user?.email ?? '',

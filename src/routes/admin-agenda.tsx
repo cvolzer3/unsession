@@ -203,14 +203,16 @@ const EmbedDialog: FC<{ event: Event; origin: string }> = ({ event, origin }) =>
 /* ------------------------------------------------------------------ page */
 
 app.get('/app/agenda', async (c) => {
-  const props = await adminProps(c, 'Agenda builder', { headerTitle: 'Agenda builder' });
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const bundle = await loadAgenda(c.env.DB, event.id);
+  const [props, bundle, unpublished] = await Promise.all([
+    adminProps(c, 'Agenda builder', { headerTitle: 'Agenda builder' }),
+    loadAgenda(c.env.DB, event.id),
+    hasUnpublishedChanges(c.env.DB, event),
+  ]);
   const ids = displayIds(bundle.sessions);
   const days = eventDays(event);
-  const unpublished = await hasUnpublishedChanges(c.env.DB, event);
 
   const payload = {
     eventId: event.id,

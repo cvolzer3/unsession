@@ -297,11 +297,10 @@ export const NewSessionDialog: FC<{ tracks: OptRow[]; formats: OptRow[] }> = ({ 
 /* ------------------------------------------------------------------ page */
 
 app.get('/app/sessions', async (c) => {
-  const props = await adminProps(c, 'Sessions');
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const bundle = await loadAgenda(c.env.DB, event.id);
+  const [props, bundle] = await Promise.all([adminProps(c, 'Sessions'), loadAgenda(c.env.DB, event.id)]);
   const ids = displayIds(bundle.sessions);
   const days = eventDays(event);
   const trackById = new Map(bundle.tracks.map((t) => [t.id, t]));

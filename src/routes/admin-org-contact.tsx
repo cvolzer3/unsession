@@ -286,9 +286,8 @@ app.get('/app/org/contact/:id', async (c) => {
   if (!contact) return c.notFound();
   const db = c.env.DB;
   const orgId = contact.org_id;
-  const props = await adminProps(c, contact.name, { headerTitle: contact.name, scripts: ['/js/org-contact.js'] });
-
-  const [fields, notes, conns, mails, card, dups, events] = await Promise.all([
+  const [props, fields, notes, conns, mails, card, dups, events] = await Promise.all([
+    adminProps(c, contact.name, { headerTitle: contact.name, scripts: ['/js/org-contact.js'] }),
     all<FieldRow>(db, `SELECT id, name, type, options_json FROM org_fields WHERE org_id = ? ORDER BY created_at, name`, orgId),
     all<NoteRow>(
       db,
@@ -1057,12 +1056,13 @@ function mergeCell(row: ContactRow, key: MergeKey): string {
 
 app.get('/app/org/contact/:id/merge', async (c) => {
   if (!c.var.event) return c.redirect('/app/events/new');
-  const a = await loadContact(c, c.req.param('id'));
+  const [a, b, props] = await Promise.all([
+    loadContact(c, c.req.param('id')),
+    loadContact(c, clean(c.req.query('with'))),
+    adminProps(c, 'Merge contacts', { headerTitle: 'Merge contacts' }),
+  ]);
   if (!a) return c.notFound();
-  const b = await loadContact(c, clean(c.req.query('with')));
   if (!b || b.id === a.id) return c.notFound();
-
-  const props = await adminProps(c, 'Merge contacts', { headerTitle: 'Merge contacts' });
   const union: string[] = [];
   for (const tag of [...tagsOf(a), ...tagsOf(b)]) if (!union.includes(tag)) union.push(tag);
 

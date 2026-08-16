@@ -84,22 +84,24 @@ type TeamRow = {
 
 app.get('/app/team', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Team');
   if (!event) return c.redirect('/app/events/new');
 
-  const members = await all<{ id: string; name: string | null; email: string; role: string; created_at: string }>(
-    c.env.DB,
-    `SELECT u.id, u.name, u.email, m.role, m.created_at
-       FROM org_members m JOIN users u ON u.id = m.user_id
-      WHERE m.org_id = ?
-      ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.email`,
-    event.org_id
-  );
-  const invites = await all<{ id: string; email: string; role: string; status: string; created_at: string }>(
-    c.env.DB,
-    `SELECT * FROM invites WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC`,
-    event.org_id
-  );
+  const [props, members, invites] = await Promise.all([
+    adminProps(c, 'Team'),
+    all<{ id: string; name: string | null; email: string; role: string; created_at: string }>(
+      c.env.DB,
+      `SELECT u.id, u.name, u.email, m.role, m.created_at
+         FROM org_members m JOIN users u ON u.id = m.user_id
+        WHERE m.org_id = ?
+        ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, u.email`,
+      event.org_id
+    ),
+    all<{ id: string; email: string; role: string; status: string; created_at: string }>(
+      c.env.DB,
+      `SELECT * FROM invites WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC`,
+      event.org_id
+    ),
+  ]);
   const canManage = c.var.role === 'owner' || c.var.role === 'admin';
   const inviteLink = c.req.query('link');
   /** Same rules the remove route enforces: never yourself, and owners only by owners. */

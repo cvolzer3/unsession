@@ -576,17 +576,29 @@ function dataScript(id: string, value: unknown) {
 
 app.get('/app/submissions', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Submissions', { scripts: ['/js/submissions.js'] });
   if (!event) return c.redirect('/app/events/new');
-
-  const board = await loadBoard(c.env, event);
 
   // The outbox lives here, where deciding happens — the full rows feed the
   // review-and-send panel above the table. A queued decision becomes the row's
   // display bucket: the table shows "Accept · Queued" instead of the stale
   // status, and the chips row grows a Queued filter (bucket key `outbox` —
   // `queued` is the email log's word in STATUS_COLORS).
-  const outbox = await listDecisionQueue(c.env, event.id);
+  const [props, board, outbox, templates, members] = await Promise.all([
+    adminProps(c, 'Submissions', { scripts: ['/js/submissions.js'] }),
+    loadBoard(c.env, event),
+    listDecisionQueue(c.env, event.id),
+    all<{ key: string; name: string; subject: string; body: string }>(
+      c.env.DB,
+      `SELECT key, name, subject, body FROM email_templates WHERE event_id = ? ORDER BY key`,
+      event.id
+    ),
+    all<{ id: string; name: string | null; email: string }>(
+      c.env.DB,
+      `SELECT u.id, u.name, u.email FROM org_members m JOIN users u ON u.id = m.user_id
+        WHERE m.org_id = ? ORDER BY COALESCE(u.name, u.email)`,
+      event.org_id
+    ),
+  ]);
   const queued = new Map(outbox.map((r) => [r.submission_id, r.decision]));
   for (const r of board.rows) {
     if (!queued.has(r.id)) continue;
@@ -608,18 +620,6 @@ app.get('/app/submissions', async (c) => {
   const serverFilter = total > ROW_CAP;
   const rendered = serverFilter ? matched.slice(0, ROW_CAP) : board.rows;
   const shownCount = serverFilter ? Math.min(matched.length, ROW_CAP) : matched.length;
-
-  const templates = await all<{ key: string; name: string; subject: string; body: string }>(
-    c.env.DB,
-    `SELECT key, name, subject, body FROM email_templates WHERE event_id = ? ORDER BY key`,
-    event.id
-  );
-  const members = await all<{ id: string; name: string | null; email: string }>(
-    c.env.DB,
-    `SELECT u.id, u.name, u.email FROM org_members m JOIN users u ON u.id = m.user_id
-      WHERE m.org_id = ? ORDER BY COALESCE(u.name, u.email)`,
-    event.org_id
-  );
 
   const origin = c.env.APP_ORIGIN.replace(/\/$/, '');
   const host = origin.replace(/^https?:\/\//, '');

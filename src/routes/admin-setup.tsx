@@ -106,26 +106,28 @@ type OptRow = { id: string; taxonomy_id: string; name: string; color: string | n
 
 app.get('/app/setup', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Event setup', { headerTitle: 'Event setup' });
   if (!event) return c.redirect('/app/events/new');
 
   const db = c.env.DB;
-  const rooms = await all<{ id: string; name: string; capacity: number | null; priority: number }>(
-    db,
-    `SELECT * FROM rooms WHERE event_id = ? ORDER BY priority, name`,
-    event.id
-  );
-  const taxonomies = await all<TaxRow>(
-    db,
-    `SELECT * FROM taxonomies WHERE event_id = ? ORDER BY position, name`,
-    event.id
-  );
-  const options = await all<OptRow>(
-    db,
-    `SELECT o.* FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
-      WHERE t.event_id = ? ORDER BY o.position, o.name`,
-    event.id
-  );
+  const [props, rooms, taxonomies, options] = await Promise.all([
+    adminProps(c, 'Event setup', { headerTitle: 'Event setup' }),
+    all<{ id: string; name: string; capacity: number | null; priority: number }>(
+      db,
+      `SELECT * FROM rooms WHERE event_id = ? ORDER BY priority, name`,
+      event.id
+    ),
+    all<TaxRow>(
+      db,
+      `SELECT * FROM taxonomies WHERE event_id = ? ORDER BY position, name`,
+      event.id
+    ),
+    all<OptRow>(
+      db,
+      `SELECT o.* FROM taxonomy_options o JOIN taxonomies t ON t.id = o.taxonomy_id
+        WHERE t.event_id = ? ORDER BY o.position, o.name`,
+      event.id
+    ),
+  ]);
   const theme = parseTheme(event.theme_json);
   const d = paletteFor(theme);
   const hasOverride = Boolean(theme.hover || theme.border || theme.tint);

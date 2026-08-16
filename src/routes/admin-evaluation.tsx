@@ -336,23 +336,30 @@ function reviewerRows(ctx: PageCtx, plans: EvalPlan[]) {
 
 app.get('/app/evaluation', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Evaluation');
   if (!event) return c.redirect('/app/events/new');
   const db = c.env.DB;
   const user = c.var.user!;
 
-  const base = await loadEvalContext(db, event.id);
-  const people = await all<{ id: string; name: string | null; email: string }>(
-    db,
-    `SELECT DISTINCT u.id, u.name, u.email FROM users u
-      WHERE u.id IN (SELECT r.user_id FROM eval_plan_reviewers r JOIN eval_plans p ON p.id = r.plan_id WHERE p.event_id = ?)
-         OR u.id IN (SELECT e.reviewer_id FROM evaluations e JOIN eval_plans p2 ON p2.id = e.plan_id WHERE p2.event_id = ?)
-         OR u.id IN (SELECT m.user_id FROM org_members m WHERE m.org_id = ?)
-      ORDER BY u.name`,
-    event.id,
-    event.id,
-    event.org_id
-  );
+  const [props, base, people, inviteRows] = await Promise.all([
+    adminProps(c, 'Evaluation'),
+    loadEvalContext(db, event.id),
+    all<{ id: string; name: string | null; email: string }>(
+      db,
+      `SELECT DISTINCT u.id, u.name, u.email FROM users u
+        WHERE u.id IN (SELECT r.user_id FROM eval_plan_reviewers r JOIN eval_plans p ON p.id = r.plan_id WHERE p.event_id = ?)
+           OR u.id IN (SELECT e.reviewer_id FROM evaluations e JOIN eval_plans p2 ON p2.id = e.plan_id WHERE p2.event_id = ?)
+           OR u.id IN (SELECT m.user_id FROM org_members m WHERE m.org_id = ?)
+        ORDER BY u.name`,
+      event.id,
+      event.id,
+      event.org_id
+    ),
+    all<{ email: string }>(
+      db,
+      `SELECT email FROM invites WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC`,
+      event.org_id
+    ),
+  ]);
   const ctx: PageCtx = {
     ...base,
     peopleById: new Map(people.map((p) => [p.id, { id: p.id, name: p.name || p.email.split('@')[0], email: p.email }])),
@@ -360,13 +367,7 @@ app.get('/app/evaluation', async (c) => {
   // Pending team invites are assignable too — the picker offers them and the
   // save endpoint resolves each email to a user row (see plan POST below).
   const knownEmails = new Set(people.map((p) => p.email));
-  const pendingInvites = (
-    await all<{ email: string }>(
-      db,
-      `SELECT email FROM invites WHERE org_id = ? AND status = 'pending' ORDER BY created_at DESC`,
-      event.org_id
-    )
-  ).filter((i) => !knownEmails.has(i.email));
+  const pendingInvites = inviteRows.filter((i) => !knownEmails.has(i.email));
 
   const iAmReviewer = ctx.plans.some((p) => p.reviewers.some((r) => r.userId === user.id));
 

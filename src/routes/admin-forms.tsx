@@ -467,13 +467,15 @@ function NewFormChooser() {
 
 app.get('/app/forms', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Forms', { headerTitle: 'Forms' });
   if (!event) return c.redirect('/app/events/new');
   const db = c.env.DB;
   const origin = c.env.APP_ORIGIN;
 
-  const forms = await listForms(db, event.id);
-  const counts = await submissionCounts(db, event.id);
+  const [props, forms, counts] = await Promise.all([
+    adminProps(c, 'Forms', { headerTitle: 'Forms' }),
+    listForms(db, event.id),
+    submissionCounts(db, event.id),
+  ]);
 
   if (!forms.length) {
     return c.html(
@@ -504,9 +506,11 @@ app.get('/app/forms', async (c) => {
 
   const wanted = c.req.query('form');
   const active = forms.find((f) => f.id === wanted || f.slug === wanted) ?? forms[0];
-  const loaded = await loadFormRow(db, active);
-  const taxonomies = await loadTaxonomies(db, event.id);
-  const members = await listNotifyMembers(db, event.org_id);
+  const [loaded, taxonomies, members] = await Promise.all([
+    loadFormRow(db, active),
+    loadTaxonomies(db, event.id),
+    listNotifyMembers(db, event.org_id),
+  ]);
   const schema = hydrateSchema(loaded.schema, taxonomies);
   const settings = loaded.settings;
 

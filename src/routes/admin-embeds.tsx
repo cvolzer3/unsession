@@ -264,11 +264,13 @@ const CodeDialog: FC<{ row: EmbedRow; event: Event; origin: string }> = ({ row, 
 };
 
 app.get('/app/embeds', async (c) => {
-  const props = await adminProps(c, 'Embeds', { headerTitle: 'Embeds' });
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const rows = await all<EmbedRow>(c.env.DB, `SELECT * FROM embeds WHERE event_id = ? ORDER BY created_at DESC`, event.id);
+  const [props, rows] = await Promise.all([
+    adminProps(c, 'Embeds', { headerTitle: 'Embeds' }),
+    all<EmbedRow>(c.env.DB, `SELECT * FROM embeds WHERE event_id = ? ORDER BY created_at DESC`, event.id),
+  ]);
   const origin = c.env.APP_ORIGIN;
 
   const headerActions = (
@@ -388,11 +390,13 @@ app.get('/app/embeds', async (c) => {
 /* -------------------------------------------------------------- new embed */
 
 app.get('/app/embeds/new', async (c) => {
-  const props = await adminProps(c, 'New embed', { headerTitle: 'New embed' });
   const event = c.var.event;
   if (!event) return c.redirect('/app/events/new');
 
-  const bundle = await loadAgenda(c.env.DB, event.id);
+  const [props, bundle] = await Promise.all([
+    adminProps(c, 'New embed', { headerTitle: 'New embed' }),
+    loadAgenda(c.env.DB, event.id),
+  ]);
   const origin = c.env.APP_ORIGIN;
   const urls = previewUrls(event);
   // Without JavaScript the preview still shows the defaults the form starts on.
