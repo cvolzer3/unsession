@@ -163,7 +163,7 @@ app.get('/signin', (c) => {
           NEW HERE?
         </div>
         <div style="background:#fff;border:1px solid #e2e3e8;display:flex;flex-direction:column;">
-          <form method="post" action="/sandbox">
+          <form method="post" action="/sandbox" style="margin:0;">
             <button
               type="submit"
               data-busy="Opening the sandbox…"
