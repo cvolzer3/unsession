@@ -108,40 +108,44 @@ async function trackOptionNames(db: D1Database, eventId: string): Promise<Map<st
 
 /** Outstanding reviews per plan, event-wide. */
 async function reviewProgress(db: D1Database, eventId: string) {
-  const done =
-    (
-      await one<{ n: number }>(
-        db,
-        `SELECT COUNT(*) AS n FROM evaluations e
-           JOIN eval_plans p ON p.id = e.plan_id WHERE p.event_id = ?`,
-        eventId
-      )
-    )?.n ?? 0;
-
-  const plans = await all<{ id: string; reviews_per: number; rules_json: string }>(
-    db,
-    `SELECT id, reviews_per, rules_json FROM eval_plans WHERE event_id = ?`,
-    eventId
-  );
+  const [doneRow, plans, optName] = await Promise.all([
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM evaluations e
+         JOIN eval_plans p ON p.id = e.plan_id WHERE p.event_id = ?`,
+      eventId
+    ),
+    all<{ id: string; reviews_per: number; rules_json: string }>(
+      db,
+      `SELECT id, reviews_per, rules_json FROM eval_plans WHERE event_id = ?`,
+      eventId
+    ),
+    trackOptionNames(db, eventId),
+  ]);
+  const done = doneRow?.n ?? 0;
   if (!plans.length) return { done, total: done, pct: done ? 100 : 0 };
 
-  const optName = await trackOptionNames(db, eventId);
+  const planRows = await Promise.all(
+    plans.map((plan) => {
+      const { clause, params } = planScope(eventId, plan.rules_json, optName);
+      // `evals` must only count reviews on the plan's in-scope submissions,
+      // otherwise reviews on out-of-scope submissions cancel real outstanding work.
+      return one<{ subs: number; evals: number }>(
+        db,
+        `SELECT (SELECT COUNT(*) FROM submissions s WHERE ${clause}) AS subs,
+                (SELECT COUNT(*) FROM evaluations ev JOIN submissions s ON s.id = ev.submission_id
+                  WHERE ev.plan_id = ? AND ${clause}) AS evals`,
+        ...params,
+        plan.id,
+        ...params
+      );
+    })
+  );
 
   let outstanding = 0;
-  for (const plan of plans) {
-    const { clause, params } = planScope(eventId, plan.rules_json, optName);
-    // `evals` must only count reviews on the plan's in-scope submissions,
-    // otherwise reviews on out-of-scope submissions cancel real outstanding work.
-    const row = await one<{ subs: number; evals: number }>(
-      db,
-      `SELECT (SELECT COUNT(*) FROM submissions s WHERE ${clause}) AS subs,
-              (SELECT COUNT(*) FROM evaluations ev JOIN submissions s ON s.id = ev.submission_id
-                WHERE ev.plan_id = ? AND ${clause}) AS evals`,
-      ...params,
-      plan.id,
-      ...params
-    );
-    const expected = (row?.subs ?? 0) * plan.reviews_per;
+  for (let i = 0; i < plans.length; i++) {
+    const row = planRows[i];
+    const expected = (row?.subs ?? 0) * plans[i].reviews_per;
     outstanding += Math.max(0, expected - (row?.evals ?? 0));
   }
 
@@ -180,9 +184,9 @@ type AttentionItem = { title: string; sub: string; cta: string; href: string; do
 
 app.get('/app', async (c) => {
   const event = c.var.event;
-  const props = await adminProps(c, 'Dashboard');
 
   if (!event) {
+    const props = await adminProps(c, 'Dashboard');
     return c.html(
       <AdminLayout {...props}>
         <style>{raw(PAGE_CSS)}</style>
@@ -213,9 +217,11 @@ app.get('/app', async (c) => {
   const today = new Date().toISOString().slice(0, 10);
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
-  // Every card below reads independent data — run the queries concurrently
-  // instead of paying one D1 round trip after another.
+  // Every card below reads independent data — run the queries (and the layout
+  // chrome's own lookups) concurrently instead of paying one D1 round trip
+  // after another.
   const [
+    props,
     statusRows,
     unscheduledRow,
     unreviewedRow,
@@ -229,6 +235,7 @@ app.get('/app', async (c) => {
     forms,
     plans,
   ] = await Promise.all([
+    adminProps(c, 'Dashboard'),
     all<{ status: string; n: number }>(
       db,
       `SELECT status, COUNT(*) AS n FROM submissions WHERE event_id = ? GROUP BY status`,
