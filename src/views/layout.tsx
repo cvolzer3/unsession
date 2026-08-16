@@ -163,7 +163,14 @@ export const ADMIN_BASE_CSS = `
        in (past the burger), which would push a 360px menu off screen. */
     .us-eventmenu{left:auto;right:0;width:min(360px,calc(100vw - 28px));}
   }
-${SHARED_BASE_CSS}`;
+${SHARED_BASE_CSS}
+  /* Admin responses can be data-heavy. Keep the old document painted while
+     the next one renders, but reveal the ready document atomically: animating
+     the root makes the otherwise identical sidebar pass through incomplete
+     compositor frames on production-latency sandbox navigations. */
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root){animation:none;mix-blend-mode:normal;}`;
 
 export function initials(nameOrEmail: string): string {
   const s = (nameOrEmail || '').trim();
