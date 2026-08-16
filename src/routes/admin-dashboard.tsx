@@ -210,107 +210,109 @@ app.get('/app', async (c) => {
   }
 
   const db = c.env.DB;
-  const statusRows = await all<{ status: string; n: number }>(
-    db,
-    `SELECT status, COUNT(*) AS n FROM submissions WHERE event_id = ? GROUP BY status`,
-    event.id
-  );
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+  // Every card below reads independent data — run the queries concurrently
+  // instead of paying one D1 round trip after another.
+  const [
+    statusRows,
+    unscheduledRow,
+    unreviewedRow,
+    confirmedRow,
+    overdue,
+    conflicts,
+    staleAcceptedRow,
+    formCountRow,
+    review,
+    myQueue,
+    forms,
+    plans,
+  ] = await Promise.all([
+    all<{ status: string; n: number }>(
+      db,
+      `SELECT status, COUNT(*) AS n FROM submissions WHERE event_id = ? GROUP BY status`,
+      event.id
+    ),
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM sessions WHERE event_id = ? AND day IS NULL AND type <> 'service'`,
+      event.id
+    ),
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM submissions s
+        WHERE s.event_id = ? AND s.status = 'in_review'
+          AND NOT EXISTS (SELECT 1 FROM evaluations e WHERE e.submission_id = s.id)`,
+      event.id
+    ),
+    // Speaker confirmation lives on the session (migration 0011). Scoped to talks
+    // from a submission: sponsor and service sessions are created already
+    // `confirmed`, and nobody confirmed those.
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM sessions
+        WHERE event_id = ? AND status = 'confirmed' AND type = 'talk' AND submission_id IS NOT NULL`,
+      event.id
+    ),
+    one<{ n: number; speakers: number }>(
+      db,
+      `SELECT COUNT(*) AS n, COUNT(DISTINCT speaker_profile_id) AS speakers
+         FROM tasks WHERE event_id = ? AND status <> 'done' AND due_date IS NOT NULL AND due_date < ?`,
+      event.id,
+      today
+    ),
+    // Every double-booked speaker, one row per conflicting session pair.
+    all<{ name: string; day: number; start_min: number; rooms: string }>(
+      db,
+      `SELECT sp.name AS name, s1.day AS day, s1.start_min AS start_min,
+              (COALESCE(r1.name,'—') || ' and ' || COALESCE(r2.name,'—')) AS rooms
+         FROM sessions s1
+         JOIN session_speakers ss1 ON ss1.session_id = s1.id
+         JOIN session_speakers ss2 ON ss2.speaker_profile_id = ss1.speaker_profile_id
+         JOIN sessions s2 ON s2.id = ss2.session_id AND s2.id <> s1.id
+         JOIN speaker_profiles sp ON sp.id = ss1.speaker_profile_id
+         LEFT JOIN rooms r1 ON r1.id = s1.room_id
+         LEFT JOIN rooms r2 ON r2.id = s2.room_id
+        WHERE s1.event_id = ? AND s1.day IS NOT NULL AND s2.day IS NOT NULL
+          AND s1.day = s2.day AND s1.start_min < s2.end_min AND s2.start_min < s1.end_min
+          AND s1.id < s2.id
+        ORDER BY s1.day, s1.start_min`,
+      event.id
+    ),
+    // Accepted more than 7 days ago, speaker still hasn't confirmed. `accepted`
+    // no longer implies unconfirmed (migration 0011) — the speaker's
+    // confirmation is on the session, so exclude anyone who already confirmed.
+    one<{ n: number }>(
+      db,
+      `SELECT COUNT(*) AS n FROM submissions s
+        WHERE s.event_id = ? AND s.status = 'accepted' AND s.updated_at < ?
+          AND NOT EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed')`,
+      event.id,
+      weekAgo
+    ),
+    one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM forms WHERE event_id = ?`, event.id),
+    reviewProgress(db, event.id),
+    c.var.user ? myReviewQueue(db, event.id, c.var.user.id) : null,
+    all<{ id: string; name: string; closes_at: string | null; status: string }>(
+      db,
+      `SELECT id, name, closes_at, status FROM forms WHERE event_id = ? AND closes_at IS NOT NULL AND status <> 'draft'`,
+      event.id
+    ),
+    all<{ name: string; deadline: string | null }>(
+      db,
+      `SELECT name, deadline FROM eval_plans WHERE event_id = ? AND deadline IS NOT NULL`,
+      event.id
+    ),
+  ]);
+
   const cnt = (s: string) => statusRows.find((r) => r.status === s)?.n ?? 0;
   const totalSubs = statusRows.filter((r) => r.status !== 'draft').reduce((a, r) => a + r.n, 0);
-
-  const unscheduled =
-    (
-      await one<{ n: number }>(
-        db,
-        `SELECT COUNT(*) AS n FROM sessions WHERE event_id = ? AND day IS NULL AND type <> 'service'`,
-        event.id
-      )
-    )?.n ?? 0;
-
-  const unreviewed =
-    (
-      await one<{ n: number }>(
-        db,
-        `SELECT COUNT(*) AS n FROM submissions s
-          WHERE s.event_id = ? AND s.status = 'in_review'
-            AND NOT EXISTS (SELECT 1 FROM evaluations e WHERE e.submission_id = s.id)`,
-        event.id
-      )
-    )?.n ?? 0;
-
-  // Speaker confirmation lives on the session (migration 0011). Scoped to talks
-  // from a submission: sponsor and service sessions are created already
-  // `confirmed`, and nobody confirmed those.
-  const confirmed =
-    (
-      await one<{ n: number }>(
-        db,
-        `SELECT COUNT(*) AS n FROM sessions
-          WHERE event_id = ? AND status = 'confirmed' AND type = 'talk' AND submission_id IS NOT NULL`,
-        event.id
-      )
-    )?.n ?? 0;
-
-  const today = new Date().toISOString().slice(0, 10);
-  const overdue = await one<{ n: number; speakers: number }>(
-    db,
-    `SELECT COUNT(*) AS n, COUNT(DISTINCT speaker_profile_id) AS speakers
-       FROM tasks WHERE event_id = ? AND status <> 'done' AND due_date IS NOT NULL AND due_date < ?`,
-    event.id,
-    today
-  );
-
-  // Every double-booked speaker, one row per conflicting session pair.
-  const conflicts = await all<{ name: string; day: number; start_min: number; rooms: string }>(
-    db,
-    `SELECT sp.name AS name, s1.day AS day, s1.start_min AS start_min,
-            (COALESCE(r1.name,'—') || ' and ' || COALESCE(r2.name,'—')) AS rooms
-       FROM sessions s1
-       JOIN session_speakers ss1 ON ss1.session_id = s1.id
-       JOIN session_speakers ss2 ON ss2.speaker_profile_id = ss1.speaker_profile_id
-       JOIN sessions s2 ON s2.id = ss2.session_id AND s2.id <> s1.id
-       JOIN speaker_profiles sp ON sp.id = ss1.speaker_profile_id
-       LEFT JOIN rooms r1 ON r1.id = s1.room_id
-       LEFT JOIN rooms r2 ON r2.id = s2.room_id
-      WHERE s1.event_id = ? AND s1.day IS NOT NULL AND s2.day IS NOT NULL
-        AND s1.day = s2.day AND s1.start_min < s2.end_min AND s2.start_min < s1.end_min
-        AND s1.id < s2.id
-      ORDER BY s1.day, s1.start_min`,
-    event.id
-  );
-
-  // Accepted more than 7 days ago, speaker still hasn't confirmed.
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const staleAccepted =
-    (
-      await one<{ n: number }>(
-        db,
-        // `accepted` no longer implies unconfirmed (migration 0011) — the speaker's
-        // confirmation is on the session, so exclude anyone who already confirmed.
-        `SELECT COUNT(*) AS n FROM submissions s
-          WHERE s.event_id = ? AND s.status = 'accepted' AND s.updated_at < ?
-            AND NOT EXISTS (SELECT 1 FROM sessions se WHERE se.submission_id = s.id AND se.status = 'confirmed')`,
-        event.id,
-        weekAgo
-      )
-    )?.n ?? 0;
-
-  const formCount =
-    (await one<{ n: number }>(db, `SELECT COUNT(*) AS n FROM forms WHERE event_id = ?`, event.id))?.n ?? 0;
-
-  const review = await reviewProgress(db, event.id);
-  const myQueue = c.var.user ? await myReviewQueue(db, event.id, c.var.user.id) : null;
-
-  const forms = await all<{ id: string; name: string; closes_at: string | null; status: string }>(
-    db,
-    `SELECT id, name, closes_at, status FROM forms WHERE event_id = ? AND closes_at IS NOT NULL AND status <> 'draft'`,
-    event.id
-  );
-  const plans = await all<{ name: string; deadline: string | null }>(
-    db,
-    `SELECT name, deadline FROM eval_plans WHERE event_id = ? AND deadline IS NOT NULL`,
-    event.id
-  );
+  const unscheduled = unscheduledRow?.n ?? 0;
+  const unreviewed = unreviewedRow?.n ?? 0;
+  const confirmed = confirmedRow?.n ?? 0;
+  const staleAccepted = staleAcceptedRow?.n ?? 0;
+  const formCount = formCountRow?.n ?? 0;
 
   const deadlines = [
     ...plans.map((p) => ({ date: p.deadline!, what: `${p.name} deadline` })),

@@ -356,6 +356,19 @@ export const AdminLayout: FC<AdminLayoutProps> = (props) => {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link href={GOOGLE_FONTS} rel="stylesheet" />
         <style>{raw(ADMIN_BASE_CSS)}</style>
+        {/* Hovering an admin link prerenders it (Chromium; others ignore the
+            tag). Safe because every GET under /app is read-only — mutations
+            are POSTs. /auth and public surfaces stay excluded: GET
+            /auth/signout has side effects. */}
+        <script type="speculationrules">
+          {raw(
+            JSON.stringify({
+              prerender: [
+                { where: { or: [{ href_matches: '/app' }, { href_matches: '/app/*' }] }, eagerness: 'moderate' },
+              ],
+            })
+          )}
+        </script>
       </head>
       <body>
         {/* Below MOBILE_MAX the sidebar becomes an overlay drawer: ui.js flips

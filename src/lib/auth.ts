@@ -342,49 +342,63 @@ export const getSession: MiddlewareHandler<Ctx> = async (c, next) => {
   const raw = getCookie(c, SESSION_COOKIE);
   if (!raw) return next();
 
-  const session = await one<AuthSession>(
+  // Session + user in one round trip (D1 queries are cross-network; every
+  // saved query is latency off every page).
+  const row = await one<AuthSession & { u_id: string; u_email: string; u_name: string | null; u_password_hash: string | null; u_created_at: string }>(
     c.env.DB,
-    `SELECT * FROM auth_sessions WHERE token_hash = ?`,
+    `SELECT s.*, u.id AS u_id, u.email AS u_email, u.name AS u_name,
+            u.password_hash AS u_password_hash, u.created_at AS u_created_at
+       FROM auth_sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.token_hash = ?`,
     await hashToken(raw)
   );
-  if (!session) return next();
+  if (!row) return next();
+  const session: AuthSession = {
+    id: row.id,
+    user_id: row.user_id,
+    token_hash: row.token_hash,
+    active_event_id: row.active_event_id,
+    created_at: row.created_at,
+    expires_at: row.expires_at,
+  };
   if (new Date(session.expires_at).getTime() < Date.now()) {
     await run(c.env.DB, `DELETE FROM auth_sessions WHERE id = ?`, session.id);
     deleteCookie(c, SESSION_COOKIE, { path: '/' });
     return next();
   }
-
-  const user = await one<User>(c.env.DB, `SELECT * FROM users WHERE id = ?`, session.user_id);
-  if (!user) return next();
+  const user: User = {
+    id: row.u_id,
+    email: row.u_email,
+    name: row.u_name,
+    password_hash: row.u_password_hash,
+    created_at: row.u_created_at,
+  };
 
   c.set('session', session);
   c.set('user', user);
 
-  const events = await all<Event>(
+  // Events + the viewer's role on each org in one round trip; the active
+  // event's role used to be a separate query.
+  const eventRows = await all<Event & { member_role: Role }>(
     c.env.DB,
-    `SELECT e.* FROM events e
+    `SELECT e.*, m.role AS member_role FROM events e
        JOIN org_members m ON m.org_id = e.org_id
       WHERE m.user_id = ?
       ORDER BY e.created_at DESC`,
     user.id
   );
+  const events: Event[] = eventRows.map(({ member_role, ...e }) => e as Event);
   c.set('events', events);
 
-  let active = events.find((e) => e.id === session.active_event_id) ?? events[0] ?? null;
+  const activeIdx = eventRows.findIndex((e) => e.id === session.active_event_id);
+  const active = events[activeIdx >= 0 ? activeIdx : 0] ?? null;
   if (active && active.id !== session.active_event_id) {
     await run(c.env.DB, `UPDATE auth_sessions SET active_event_id = ? WHERE id = ?`, active.id, session.id);
     session.active_event_id = active.id;
   }
   c.set('event', active);
-
   if (active) {
-    const member = await one<{ role: Role }>(
-      c.env.DB,
-      `SELECT role FROM org_members WHERE org_id = ? AND user_id = ?`,
-      active.org_id,
-      user.id
-    );
-    c.set('role', member?.role ?? null);
+    c.set('role', eventRows[activeIdx >= 0 ? activeIdx : 0]?.member_role ?? null);
   }
 
   return next();

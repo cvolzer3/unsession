@@ -12,6 +12,11 @@
   ],
   "observability": { "enabled": true },
 
+  // Run the worker near D1 instead of near the visitor. Admin pages issue
+  // 10–25 sequential D1 queries; placed next to the database each one is
+  // ~1ms instead of a cross-region round trip.
+  "placement": { "mode": "smart" },
+
   "assets": {
     "directory": "public",
     "binding": "ASSETS"
