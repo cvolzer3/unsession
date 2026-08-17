@@ -855,7 +855,6 @@ app.get('/', (c) => {
               <a href="/events">EVENTS</a>
               <a href="/docs">DOCS</a>
               <a href={GITHUB}>SOURCE</a>
-              <span>AGPL-3.0</span>
             </span>
           </div>
         </div>
