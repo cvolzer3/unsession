@@ -601,7 +601,6 @@ app.get('/', (c) => {
         {/* --------------------------------------------------------- hero */}
         <div class="hero">
           <div class="wrap hero-inner">
-            <div class="kicker">FOR CONFERENCE ORGANIZERS &amp; PROGRAM TEAMS</div>
             <h1>
               Open source <em>session management</em>
             </h1>
