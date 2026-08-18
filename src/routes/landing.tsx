@@ -34,7 +34,7 @@ const CSS = `
     --mono:'IBM Plex Mono',monospace;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
+  html,body{margin:0;padding:0;color-scheme:light;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
   a{color:var(--indigo);text-decoration:none;}
   input,textarea,select,button{font-family:inherit;}
   .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}
@@ -867,7 +867,7 @@ app.get('/', (c) => {
 const EVENTS_CSS = `
   :root{--ink:#16171d;--ink2:#555a63;--ink3:#8b857a;--paper:#faf8f5;--line:#ece7de;--indigo:#4c5fd5;--mono:'IBM Plex Mono',monospace;}
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
+  html,body{margin:0;padding:0;color-scheme:light;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
   a{color:var(--indigo);text-decoration:none;} a:hover{text-decoration:underline;}
   .wrap{max-width:760px;margin:0 auto;padding:0 24px;}
   .nav{border-bottom:1px solid var(--line);background:#fff;}

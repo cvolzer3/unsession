@@ -167,7 +167,7 @@ app.get('/signin', (c) => {
             <button
               type="submit"
               data-busy="Opening the sandbox…"
-              style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;padding:11px 16px;width:100%;background:#fff;border:none;cursor:pointer;text-align:center;"
+              style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;padding:11px 16px;width:100%;background:#fff;color:#16171d;border:none;cursor:pointer;text-align:center;"
             >
               <span style={`width:26px;height:26px;border-radius:50%;background:#e8590c;color:#fff;display:grid;place-items:center;font-family:${MONO};font-size:10px;font-weight:600;flex:none;`}>
                 DC

@@ -170,7 +170,7 @@ export const EmbedShell: FC<
   const vars = themeStyleVars(theme);
   const fontsHref = `https://fonts.googleapis.com/css2?${pair.google}&display=swap`;
   const css = `
-  html,body{margin:0;padding:0;background:${props.transparent ? 'transparent' : 'var(--bg)'};color:var(--text);font-family:var(--font-ui);}
+  html,body{margin:0;padding:0;color-scheme:light;background:${props.transparent ? 'transparent' : 'var(--bg)'};color:var(--text);font-family:var(--font-ui);}
   a{color:var(--primary);text-decoration:none;} a:hover{color:var(--primary-hover);text-decoration:underline;}
   *{box-sizing:border-box;} input,select,button{font-family:inherit;}
   [hidden]{display:none !important;}

@@ -35,7 +35,7 @@ const CSS = `
   }
   *{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
+  html,body{margin:0;padding:0;color-scheme:light;background:var(--paper);color:var(--ink);font-family:'Space Grotesk',system-ui,sans-serif;}
   a{color:var(--indigo);text-decoration:none;}
   a:hover{text-decoration:underline;}
   .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}

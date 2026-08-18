@@ -34,6 +34,11 @@ export const MOBILE_MAX = 768;
  * overrides that must land on inline-styled elements say so explicitly.
  */
 const SHARED_BASE_CSS = `
+  /* The whole product is a light design, so say so. Without a color-scheme
+     declaration, iOS Safari in Dark Mode resolves the UA system colors dark,
+     and any control that never sets its own color — a button defaults to
+     'buttontext' — paints its label white on our white surfaces. */
+  html{color-scheme:light;}
   /* ------------------------------------------- cross-page paint stability
      Every nav click is a full document load, so two things must hold or the
      chrome appears to jitter on every click. (1) The viewport keeps a stable
