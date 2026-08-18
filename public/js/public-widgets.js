@@ -114,12 +114,12 @@ function boot(root) {
         if (ok) shown++;
       });
     }
-    if (countEl) countEl.textContent = shown ? `1–${shown} of ${total}` : `0 of ${total}`;
-    if (emptyEl) emptyEl.hidden = shown > 0;
-    if (clearEl) {
-      const dirty = !!state.q || !!state.track || Object.keys(checkedFacets()).length > 0;
-      clearEl.hidden = !dirty;
-    }
+    const dirty = !!state.q || !!state.track || Object.keys(checkedFacets()).length > 0;
+    // With no cards at all, the server-rendered "none yet" placeholder and
+    // count stay in charge — the no-match message is only for active filters.
+    if (countEl && total > 0) countEl.textContent = shown ? `1–${shown} of ${total}` : `0 of ${total}`;
+    if (emptyEl) emptyEl.hidden = total === 0 || shown > 0 || !(dirty || state.mine);
+    if (clearEl) clearEl.hidden = !dirty;
     styleDayTabs();
     styleMineToggle();
     trimMoreButtons();
